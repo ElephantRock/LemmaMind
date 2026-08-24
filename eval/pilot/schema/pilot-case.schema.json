@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ElephantRock/LemmaMind/eval/pilot/schema/pilot-case.schema.json",
+  "title": "LemmaMind M-1 Pilot Case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case_id",
+    "title",
+    "case_type",
+    "sources",
+    "evidence",
+    "expected_observations",
+    "decision_relevance",
+    "repository_relationship",
+    "allowed_actions",
+    "prohibited_actions",
+    "attention_priority",
+    "golden_rationale"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "lemmamind.pilot-case.v1"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "case_type": {
+      "type": "string",
+      "enum": [
+        "measurement_defect",
+        "evidence_generation_defect",
+        "scientific_integrity",
+        "repository_boundary",
+        "release_provenance",
+        "frontier_reconciliation",
+        "cross_repository_pattern"
+      ]
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repository", "revision", "references"],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "pattern": "^[^/]+/[^/]+$"
+          },
+          "revision": {
+            "type": "string",
+            "minLength": 7
+          },
+          "references": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "epistemic_type", "statement", "source_ref"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "epistemic_type": {
+            "type": "string",
+            "enum": ["ObservedFact", "SourceAssertion"]
+          },
+          "statement": {"type": "string", "minLength": 1},
+          "source_ref": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "expected_observations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["epistemic_type", "statement", "support", "validation_state"],
+        "properties": {
+          "epistemic_type": {
+            "type": "string",
+            "enum": ["Interpretation", "Inference", "Hypothesis", "Evaluation"]
+          },
+          "statement": {"type": "string", "minLength": 1},
+          "support": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "validation_state": {
+            "type": "string",
+            "enum": ["candidate", "reviewed", "validated", "superseded"]
+          }
+        }
+      }
+    },
+    "decision_relevance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "effect"],
+      "properties": {
+        "decision": {"type": "string", "minLength": 1},
+        "effect": {"type": "string", "minLength": 1}
+      }
+    },
+    "repository_relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "can_write", "can_contribute", "notes"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["OWNED", "CONTRIBUTABLE", "EXTERNAL", "READ_ONLY", "UNKNOWN"]
+        },
+        "can_write": {"type": "boolean"},
+        "can_contribute": {"type": "boolean"},
+        "notes": {"type": "string"}
+      }
+    },
+    "allowed_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "prohibited_actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "attention_priority": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "belief_revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "notes"],
+      "properties": {
+        "required": {"type": "boolean"},
+        "notes": {"type": "string"}
+      }
+    },
+    "golden_rationale": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

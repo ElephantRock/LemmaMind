@@ -2,11 +2,12 @@
 ## Comprehensive Technical Intelligence Roadmap
 
 **Canonical home:** https://github.com/ElephantRock/LemmaMind  
-**Initial source ecosystem:** GitHub
+**Initial source ecosystem:** GitHub  
+**Product contract:** [`docs/PRODUCT.md`](PRODUCT.md)
 
 ## Mission
 
-Build **LemmaMind**, a personal technical-intelligence system that converts reproducible implementation evidence into useful engineering and research intelligence.
+Build **LemmaMind**, a personal technical-intelligence system that converts reproducible technical evidence into useful engineering and research intelligence.
 
 The desired transformation is:
 
@@ -26,6 +27,8 @@ cross-source patterns
 architectural tensions
         ↓
 validated insights
+        ↓
+reviewed knowledge
         ↓
 engineering / research decisions
 ```
@@ -49,6 +52,7 @@ LemmaMind should answer questions such as:
 - Which discovery challenges something I currently believe?
 - Which past design decisions were later reverted?
 - What evidence supports this insight?
+- What should I investigate, adopt, avoid, monitor, or reconsider?
 
 Primary outputs, in priority order:
 
@@ -58,9 +62,34 @@ Primary outputs, in priority order:
 4. pattern dossiers
 5. architectural-tension dossiers
 6. promoted knowledge
-7. interactive ask/compare/search interface
+7. action recommendations
+8. interactive ask/compare/search interface
 
 Human attention is a scarce system resource. The system should degrade by showing **less**, not by accumulating backlog.
+
+## Knowledge path and action path
+
+Understanding is mandatory; intervention is optional.
+
+```text
+                         Observation
+                             │
+                  ┌──────────┴──────────┐
+                  ↓                     ↓
+          KNOWLEDGE PATH          ACTION PATH
+                  │                     │
+               Pattern           Impact assessment
+                  ↓                     ↓
+               Tension        Ownership / authority
+                  ↓                     ↓
+               Insight        Action recommendation
+                  ↓                     ↓
+          Reviewed Knowledge      Optional action
+```
+
+Repository write access never makes an observation more true, and lack of write access never makes an observation less useful.
+
+Repository modification is an explicitly authorized downstream action, not a LemmaMind success requirement.
 
 ## Governing invariants
 
@@ -74,6 +103,10 @@ Human attention is a scarce system resource. The system should degrade by showin
 8. **Human attention is budgeted.** Processing volume is not a success metric.
 9. **Negative evidence is first-class.** Reversals, deprecations, abandoned designs, and failed experiments matter.
 10. **Personalization must retain exploration.** LemmaMind should not become a confirmation filter.
+11. **Intelligence is mandatory; action is optional.** A useful finding does not require source modification.
+12. **Technical capability is not authority.** Ability to merge, rerun, approve, or modify does not imply epistemic or operational authorization.
+13. **Beliefs are revisable without rewriting history.** New evidence may supersede prior observations or conclusions while preserving their lineage.
+14. **Repository relationship is operational metadata, not epistemic evidence.** `OWNED`, `CONTRIBUTABLE`, `EXTERNAL`, `READ_ONLY`, and `UNKNOWN` affect action policy, not truth value.
 
 ## Permanent foundation planes
 
@@ -85,6 +118,7 @@ These apply from M0 onward rather than appearing as late milestones:
 - Observability & cost
 - Schema & version management
 - Human review & feedback
+- Ownership / authority boundaries
 
 ## Roadmap topology
 
@@ -111,35 +145,66 @@ Everything beyond M10 is an expansion track rather than critical-path scope.
 
 ## M−1 — Manual Intelligence Pilot
 
-**Objective:** test the highest-risk assumption before building the platform: can cross-repository analysis produce insights worth acting on?
+**Objective:** test the highest-risk assumption before building the platform: can disciplined evidence-grounded analysis produce technical intelligence worth acting on or deliberately not acting on?
 
-Use 10–20 tightly related repositories pinned to full commit SHAs. Produce at least:
+The first controlled corpus is the nine-repository ElephantRock portfolio pinned in `pilot/watchlist.yaml`. Eight manually judged cases are frozen under `eval/pilot/cases/`.
 
-- 3 cross-repository patterns
-- 1 architectural tension
-- 1 negative/reversal observation if supported
-- 1 synthesized insight
-- 1 decision record
+The cases exercise:
 
-**Gate:** at least one result changes what should be investigated, designed, implemented, avoided, or reconsidered.
+- evidence-generation integrity;
+- measurement validity;
+- scientific instrumentation;
+- confirmatory-governance boundaries;
+- repository/research-line identity;
+- release provenance;
+- repository-frontier reconciliation;
+- belief revision;
+- cross-repository infrastructure inference;
+- correct no-action behavior.
 
-The pilot becomes LemmaMind's first manually judged evaluation corpus.
+Before M−1 closes, add at least one **real external repository case** where LemmaMind lacks source modification authority but still produces useful intelligence.
+
+**Gate:** at least one result changes what should be investigated, designed, implemented, adopted, avoided, monitored, or believed; the golden corpus is reviewed; and the external-source action boundary is exercised with real evidence.
+
+Repository repair is not required.
+
+The pilot becomes LemmaMind's first manually judged evaluation corpus and the quality floor for later automation.
 
 ## M0 — System Contracts
 
-Define only the contracts required for safe evolution:
+Define only the contracts required for safe evolution and for the cases observed in M−1:
 
-- stable identity
+- stable source/repository identity
 - provenance
 - trust boundaries
 - schema/version policy
 - generic `PipelineRun`
 - budget policy
 - review/feedback events
+- `RepositoryRelationship`
+- `ActionRecommendation`
+- explicit supersession / belief-revision lineage
 
 Start with a small physical schema and evolve it under real data rather than speculative ontology design.
 
-**Gate:** every durable derived record can answer what produced it, from which source material, under which versioned contracts.
+The first physical schema should remain small. Candidate core objects:
+
+```text
+Repository
+RepositoryRevision
+Artifact
+EvidenceFact
+SourceAssertion
+Observation
+PipelineRun
+ReviewDecision
+RepositoryRelationship
+ActionRecommendation
+```
+
+`RepositoryRelationship` and `ActionRecommendation` must remain separate from evidence truth and knowledge promotion.
+
+**Gate:** every durable derived record can answer what produced it, from which source material, under which versioned contracts; every action recommendation can explain what authority/relationship constraints apply.
 
 ## M1 — Curated Discovery
 
@@ -167,6 +232,18 @@ Repository
 ## M2 — Repository Registry
 
 Maintain one canonical repository identity across renames, transfers, forks, and repeated discovery.
+
+Track repository relationship separately from identity:
+
+```text
+OWNED
+CONTRIBUTABLE
+EXTERNAL
+READ_ONLY
+UNKNOWN
+```
+
+Relationship may change over time and affects only operational policy.
 
 Tracking levels:
 
@@ -205,8 +282,10 @@ Initial scope:
 - README assertions
 - repository tree structure
 - Python / JS / TS / Rust / Go dependency manifests
+- workflow / release configuration needed by the golden corpus
+- issue / PR / run metadata when needed to reconstruct project state
 
-Evidence should carry precise source locators such as line ranges, JSON pointers, TOML keys, AST symbols, directory paths, and dependency entries.
+Evidence should carry precise source locators such as line ranges, JSON pointers, TOML keys, AST symbols, directory paths, dependency entries, workflow/job IDs, and immutable GitHub object identities.
 
 At this layer use only:
 
@@ -233,7 +312,9 @@ The first two are factual/normalized. `ChangeInterpretation` is inferred.
 
 Suppress low-value churn such as formatting-only changes, generated files, vendored code, and irrelevant lockfile noise.
 
-Begin negative intelligence here with adoption, reversal, deprecation, removal, and failure events.
+Begin negative intelligence here with adoption, reversal, deprecation, removal, failure, cancellation, and supersession events.
+
+Project-state change intelligence must reconcile issue, PR, commit, CI, and experiment state rather than trusting one surface in isolation.
 
 ## M6 — Profiling & Triage
 
@@ -246,6 +327,7 @@ V1 triage should stay simple and deterministic:
 - evidence richness
 - meaningful recent change
 - source/process richness
+- governance / experiment sensitivity
 
 Do not invent sophisticated numeric weights before enough feedback data exists.
 
@@ -271,6 +353,7 @@ Inputs may include:
 - ArchitectureProfiles
 - StructuralDeltas
 - selected untrusted source excerpts
+- repository relationship metadata for action reasoning only
 
 Every observation carries support edges, reasoning-run provenance, epistemic classification, and validation state.
 
@@ -289,6 +372,8 @@ Unknown
 
 Avoid arbitrary confidence probabilities until they can be empirically calibrated.
 
+Reasoning quality is evaluated against the M−1 golden cases. A system that produces more prose but loses a critical distinction such as `red CI != test failure` or `write access != rerun authority` has regressed.
+
 ## M7.5 — Human Review Loop
 
 The review queue is a product capability, not an afterthought.
@@ -305,6 +390,7 @@ PROMOTE
 SNOOZE
 DEEP_DIVE
 CONTRADICT
+SUPERSEDE
 ```
 
 Every action creates a `ReviewDecision` and later becomes evaluation/personalization data.
@@ -326,6 +412,8 @@ Prevalence claims require defined cohorts and observation windows. Labels such a
 
 `ArchitecturalTension` is preferred over simplistic contradiction because different designs may be valid under different assumptions.
 
+Cross-repository infrastructure patterns are legitimate intelligence when supported by multiple positive cases and meaningful counterexamples, as demonstrated by the M−1 private-Actions case.
+
 ## M9 — Insight & Knowledge Promotion
 
 Convert supported patterns into reusable engineering knowledge.
@@ -343,6 +431,8 @@ Every insight should address:
 - decision relevance
 
 Promotion is an explicit authority boundary. Evidence does not decay, but current applicability and freshness can become stale and require revalidation.
+
+Action recommendations remain separate from knowledge promotion. A promoted insight may have no operational action, or different actions for `OWNED` versus `EXTERNAL` repositories.
 
 **Traceability invariant:**
 
@@ -377,9 +467,9 @@ Core modes:
 - Deep dive
 - Review
 
-The weekly technical-intelligence brief is the primary product output and should emphasize high-value deltas, new mechanisms, significant changes, emerging/reversing patterns, architectural tensions, negative intelligence, deep-dive recommendations, and stale knowledge requiring revalidation.
+The weekly technical-intelligence brief is the primary product output and should emphasize high-value deltas, new mechanisms, significant changes, emerging/reversing patterns, architectural tensions, negative intelligence, deep-dive recommendations, stale knowledge requiring revalidation, and high-value action recommendations.
 
-Answers expose evidence, provenance, uncertainty, alternatives, and historical state rather than hiding them behind fluent prose.
+Answers expose evidence, provenance, uncertainty, alternatives, historical state, and action/authority boundaries rather than hiding them behind fluent prose.
 
 ---
 
@@ -389,7 +479,7 @@ Answers expose evidence, provenance, uncertainty, alternatives, and historical s
 
 Contains M−1.
 
-**Success:** cross-repository analysis generates at least one decision-relevant insight.
+**Success:** the reviewed golden corpus contains decision-relevant intelligence, demonstrates belief revision and correct no-action behavior, and includes at least one real external-source case where useful intelligence does not depend on source modification.
 
 ### V1 — Evidence Engine
 
@@ -398,7 +488,7 @@ Contains M0, M1, M2, M3, M4, M5-lite, M6-lite, and basic review/feedback capture
 ```text
 Curated repositories
        ↓
-canonical identity
+canonical identity + relationship
        ↓
 revision capture
        ↓
@@ -411,13 +501,13 @@ basic architecture profile
 
 No autonomous insight synthesis.
 
-**Success:** can LemmaMind reliably know what changed and prove every extracted fact?
+**Success:** can LemmaMind reliably know what changed and prove every extracted fact while preserving the M−1 evidence and action boundaries?
 
 ### V2 — Repository Intelligence
 
 Contains full M5, full M6, M6.5, M7, M7.5, and M8-lite.
 
-**Success:** can the system discover meaningful mechanisms shared or contested across repositories without manufacturing unsupported conclusions?
+**Success:** can the system discover meaningful mechanisms shared or contested across repositories without manufacturing unsupported conclusions or unauthorized actions?
 
 ### V3 — Personal Technical Intelligence
 
@@ -446,6 +536,7 @@ Do not build:
 - a recommendation model until enough meaningful review decisions exist
 - external research-source integration until GitHub-derived intelligence has already affected real work
 - autonomous promotion until observation/pattern quality is measured and policy precision is acceptable
+- autonomous repository repair as a core LemmaMind requirement
 - distributed workers until single-node execution becomes a measured bottleneck
 - sophisticated numerical confidence until evaluation data supports calibration
 
@@ -463,11 +554,17 @@ Generated projections are never manually edited. Human-edited artifacts receive 
 
 Evaluation starts in M−1 and grows with the platform.
 
+The M−1 golden corpus is the first regression suite for intelligence behavior.
+
 Operational questions:
 
 - Was deterministic evidence extracted correctly?
 - Did change intelligence isolate meaningful change without flooding the user?
 - Are observations supported, partially supported, unsupported, or contradicted?
+- Did the system distinguish source facts from its own interpretation?
+- Did the system revise a prior conclusion when newer evidence required it?
+- Did it preserve experiment/governance boundaries?
+- Did it choose an allowed action or correct no-action disposition?
 - Do claimed pattern occurrences really instantiate the pattern?
 - Which discoveries are opened and deep-dived?
 - Which insights are actually promoted and used?
@@ -509,14 +606,14 @@ Architecture choices should respond to measured scale rather than hypothetical f
 ## Final execution order
 
 ```text
-1. Run M−1 manually.
-2. Decide whether the intelligence hypothesis survives.
+1. Freeze and review the M−1 golden corpus.
+2. Add one real external-source case and explicitly judge M−1 PASS/FAIL.
 3. Implement M0 contracts only as needed by real pilot data.
 4. Build M1–M4 as the reproducible evidence spine.
-5. Add M5–M6 and prove useful change detection.
+5. Add M5–M6 and prove useful change detection against golden cases.
 6. Reassess product value.
 7. Add M6.5 representation.
-8. Introduce M7 reasoning with strict provenance.
+8. Introduce M7 reasoning with strict provenance and golden-case regression.
 9. Build the human review loop before increasing generation volume.
 10. Add M8 only after enough observations exist.
 11. Promote M9 knowledge only after patterns survive review.

@@ -1,0 +1,58 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: asri-boundary
+title: Shared ASRI objective spans distinct experimental lines
+case_type: repository_boundary
+sources:
+  - repository: ElephantRock/ASRI
+    revision: a66b67fbce329368882f243661b184f1fb863125
+    references:
+      - https://github.com/ElephantRock/ASRI/pull/3
+      - https://github.com/ElephantRock/ASRI/issues/4
+  - repository: ElephantRock/Resonance-ASRI
+    revision: 77b7415e1e1e4a45fd4694bf520b774b7b80bf92
+    references:
+      - https://github.com/ElephantRock/Resonance-ASRI/issues/3
+      - research/asri-s0
+evidence:
+  - id: asri-boundary-1
+    epistemic_type: SourceAssertion
+    statement: ASRI Phase 0 characterizes an unchanged Qwen3-4B substrate before any recurrent-depth architectural modification and frames RDF-v1 as the later trainable mechanism.
+    source_ref: https://github.com/ElephantRock/ASRI/pull/3
+  - id: asri-boundary-2
+    epistemic_type: ObservedFact
+    statement: Resonance-ASRI has a separate research/asri-s0 branch with recorded adaptive-compute router characterization and matched-random experimental evidence.
+    source_ref: https://github.com/ElephantRock/Resonance-ASRI/commit/77b7415e1e1e4a45fd4694bf520b774b7b80bf92
+  - id: asri-boundary-3
+    epistemic_type: SourceAssertion
+    statement: Paired governance issues were opened to define the evidentiary boundary between the ASRI and Resonance-ASRI lines before future overlap.
+    source_ref: https://github.com/ElephantRock/ASRI/issues/4 and https://github.com/ElephantRock/Resonance-ASRI/issues/3
+expected_observations:
+  - epistemic_type: Interpretation
+    statement: The two repositories share a long-term ASRI objective but currently instantiate different experimental mechanisms: trainable recurrent depth versus system-level adaptive compute/control.
+    support: [asri-boundary-1, asri-boundary-2]
+    validation_state: reviewed
+  - epistemic_type: Evaluation
+    statement: Evidence from one line must not silently become evidence for the other merely because both repositories use the ASRI identity.
+    support: [asri-boundary-1, asri-boundary-2, asri-boundary-3]
+    validation_state: validated
+decision_relevance:
+  decision: Whether the two repositories should be treated as duplicate implementations, successor repositories, or separate experimental lines.
+  effect: Preserve them as distinct evidence authorities under one broader research program until an explicit integration or replication decision is made.
+repository_relationship:
+  type: OWNED
+  can_write: true
+  can_contribute: true
+  notes: Common ownership increases operational freedom but does not make evidence from distinct experimental mechanisms interchangeable.
+allowed_actions:
+  - Define explicit repository-local claim and evidence boundaries.
+  - Relate both repositories to a higher-level ASRI research-program entity.
+  - Require an explicit integration, replication, or succession decision before evidence is cross-promoted.
+prohibited_actions:
+  - Collapse the repositories into one evidence stream based only on naming similarity.
+  - Treat a result from the adaptive-compute controller line as proof about recurrent-depth training.
+  - Declare one repository obsolete solely because the other has more experimental artifacts.
+attention_priority: medium
+belief_revision:
+  required: true
+  notes: The initial duplicate-repository interpretation was revised into a research-program / experimental-line model after inspecting executable evidence.
+golden_rationale: Tests research-program entity resolution and whether LemmaMind can keep similarly named repositories epistemically distinct while still relating them structurally.

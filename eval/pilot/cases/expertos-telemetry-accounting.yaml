@@ -1,0 +1,54 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: expertos-telemetry-accounting
+title: Cumulative selected-sparse counters corrupt profitability features
+case_type: measurement_defect
+sources:
+  - repository: ElephantRock/ExpertOS
+    revision: 8fd8250121baf75b3689e2bba7ba2df8fa3608cf
+    references:
+      - https://github.com/ElephantRock/ExpertOS/issues/5
+      - https://github.com/ElephantRock/ExpertOS/pull/6
+      - workflow-run:32779830513
+evidence:
+  - id: eos-counter-1
+    epistemic_type: ObservedFact
+    statement: selected_sparse_unique_experts is cumulative across forward calls, while the pre-repair aggregation interpreted it as though it described one forward opportunity set.
+    source_ref: selected-sparse runtime telemetry inspected for ExpertOS #5
+  - id: eos-counter-2
+    epistemic_type: ObservedFact
+    statement: Partial profitability evidence contained negative dense_expert_iterations_avoided values while empty_expert_calls_eliminated remained zero.
+    source_ref: ExpertOS partial profitability calibration evidence discussed in #5
+  - id: eos-counter-3
+    epistemic_type: SourceAssertion
+    statement: PR #6 changes telemetry accounting only and explicitly does not alter routing, model outputs, workload definitions, or the profitability threshold.
+    source_ref: https://github.com/ElephantRock/ExpertOS/pull/6
+expected_observations:
+  - epistemic_type: Interpretation
+    statement: The negative avoided-work values are explained by an accounting-contract defect rather than evidence that the runtime performed physically negative work.
+    support: [eos-counter-1, eos-counter-2]
+    validation_state: validated
+  - epistemic_type: Evaluation
+    statement: Historical execution records should remain immutable, but cost/profitability quantities derived from the defective counter contract should not be promoted as valid evidence.
+    support: [eos-counter-1, eos-counter-2, eos-counter-3]
+    validation_state: reviewed
+decision_relevance:
+  decision: Whether to continue or promote the profitability calibration using the existing telemetry features.
+  effect: Repair telemetry first, preserve historical runs, and require fresh or re-derived valid cost evidence before profitability claims are promoted.
+repository_relationship:
+  type: OWNED
+  can_write: true
+  can_contribute: true
+  notes: Runtime code can be repaired, but historical evidence must not be rewritten to hide the measurement defect.
+allowed_actions:
+  - Repair the runtime counter aggregation contract.
+  - Add CPU-only regression tests for multi-forward accounting, idempotent snapshots, reset behavior, and impossible raw states.
+  - Mark affected derived profitability quantities as unsuitable for promotion under the repaired contract.
+prohibited_actions:
+  - Rewrite or delete historical calibration artifacts to make the defect disappear.
+  - Promote profitability conclusions that depend on the invalid accounting feature.
+  - Treat a red pre-step Actions status as proof that the code patch itself failed tests.
+attention_priority: high
+belief_revision:
+  required: true
+  notes: The evidence event remains historical fact, but confidence in specific derived profitability quantities must be revised after discovering the counter defect.
+golden_rationale: Tests whether LemmaMind can preserve immutable evidence while invalidating or narrowing a derived claim whose measurement contract is defective.

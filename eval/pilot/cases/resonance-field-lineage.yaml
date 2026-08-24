@@ -1,0 +1,54 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: resonance-field-lineage
+title: Lineage attribution can propagate through equal-valued twin state
+case_type: scientific_integrity
+sources:
+  - repository: ElephantRock/Resonance-Field
+    revision: 8d48ea3a633150a9aba92628fd98dec80204e095
+    references:
+      - https://github.com/ElephantRock/Resonance-Field/issues/70
+      - src/resonance/experiments/discrete_event_lineage_138.py
+      - tests/test_discrete_event_lineage_138.py
+evidence:
+  - id: rf-lineage-1
+    epistemic_type: ObservedFact
+    statement: Experiment 138 builds parent edges by matching read keys to the latest writer of those keys.
+    source_ref: src/resonance/experiments/discrete_event_lineage_138.py::_build_lineage.add_event
+  - id: rf-lineage-2
+    epistemic_type: ObservedFact
+    statement: The parent-link construction does not require the control and kick values for the transmitted state key to differ before creating the edge.
+    source_ref: src/resonance/experiments/discrete_event_lineage_138.py::_build_lineage.add_event
+  - id: rf-lineage-3
+    epistemic_type: SourceAssertion
+    statement: The frozen calibration contract requires a pooled attribution threshold of 0.90 and a per-seed root-path guard.
+    source_ref: tests/test_discrete_event_lineage_138.py
+expected_observations:
+  - epistemic_type: Interpretation
+    statement: A syntactically valid parent edge may represent state-flow continuity without demonstrating that the intervention-caused divergence was actually transmitted through that state value.
+    support: [rf-lineage-1, rf-lineage-2]
+    validation_state: reviewed
+  - epistemic_type: Hypothesis
+    statement: Counting such edges as intervention-attributable ancestry can inflate the lineage-capture statistic relative to the causal claim the experiment is intended to establish.
+    support: [rf-lineage-1, rf-lineage-2, rf-lineage-3]
+    validation_state: candidate
+decision_relevance:
+  decision: Whether Experiment 138 calibration should execute under the current lineage attribution semantics.
+  effect: Block expensive calibration until divergent-state transmission semantics and focused positive/negative regressions are frozen.
+repository_relationship:
+  type: OWNED
+  can_write: true
+  can_contribute: true
+  notes: Code can be corrected, but prospective scientific gates must not be weakened to accommodate existing instrumentation.
+allowed_actions:
+  - Define an explicit divergent-state transmission invariant.
+  - Add deterministic controls proving equal-valued state does not create causal transmission and divergent state does when appropriate.
+  - Resume calibration only after the instrumentation contract is reviewed.
+prohibited_actions:
+  - Execute calibration and interpret the 90 percent capture gate before resolving the attribution defect.
+  - Lower the preregistered capture threshold to accommodate the instrumentation.
+  - Treat graph connectivity alone as proof of intervention-mediated causality.
+attention_priority: high
+belief_revision:
+  required: false
+  notes: No confirmatory lineage conclusion had yet been established; this is a pre-calibration apparatus-integrity finding.
+golden_rationale: Tests whether LemmaMind can distinguish internally consistent graph structure from evidence that actually supports the intended causal claim.

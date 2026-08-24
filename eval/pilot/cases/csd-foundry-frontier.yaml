@@ -1,0 +1,57 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: csd-foundry-frontier
+title: Implementation landed while independent integrated qualification remained open
+case_type: frontier_reconciliation
+sources:
+  - repository: ElephantRock/CSD-Foundry
+    revision: aa2f1a79c7dfe57a0107a8ffe971e3f6affb96c7
+    references:
+      - https://github.com/ElephantRock/CSD-Foundry/issues/37
+      - https://github.com/ElephantRock/CSD-Foundry/pull/115
+  - repository: ElephantRock/CSD-Foundry
+    revision: 2d910f3ff83f061409ca9d8f2e3709fde7c13f6e
+    references:
+      - https://github.com/ElephantRock/CSD-Foundry/pull/117
+evidence:
+  - id: csd-frontier-1
+    epistemic_type: ObservedFact
+    statement: PR #115 merged D5 atomic multi-registry temporal integration and explicitly referenced issue #37.
+    source_ref: https://github.com/ElephantRock/CSD-Foundry/pull/115
+  - id: csd-frontier-2
+    epistemic_type: SourceAssertion
+    statement: Draft PR #117 is the Phase-3 integrated qualification and closure campaign, including an independent validator, five-generation canary, mutation campaign, fault injection, corruption qualification, and determinism checks.
+    source_ref: https://github.com/ElephantRock/CSD-Foundry/pull/117
+  - id: csd-frontier-3
+    epistemic_type: ObservedFact
+    statement: Issue #37 was initially closed after D1-D5 implementation was reconciled, then reopened when the still-open independent qualification PR was identified as part of the closure boundary.
+    source_ref: https://github.com/ElephantRock/CSD-Foundry/issues/37
+expected_observations:
+  - epistemic_type: Interpretation
+    statement: The implementation frontier and the evidentiary closure frontier are distinct; D1-D5 production implementation can be complete while independent integrated qualification remains pending.
+    support: [csd-frontier-1, csd-frontier-2]
+    validation_state: validated
+  - epistemic_type: Evaluation
+    statement: The earlier conclusion that #37 could close was too strong and should be superseded by the narrower conclusion that implementation is landed but qualification/closure remains open.
+    support: [csd-frontier-1, csd-frontier-2, csd-frontier-3]
+    validation_state: superseded
+decision_relevance:
+  decision: Whether issue #37 accurately represents completed work or still-open qualification.
+  effect: Keep the umbrella open until PR #117 is reviewed and dispositioned; do not confuse code completion with evidentiary closure.
+repository_relationship:
+  type: OWNED
+  can_write: true
+  can_contribute: true
+  notes: Issue state can be changed, but state changes must reflect the repository's own qualification contract rather than convenience.
+allowed_actions:
+  - Reopen the umbrella issue when new evidence shows the closure boundary is not satisfied.
+  - Preserve both the earlier and superseding conclusions in history.
+  - Review PR #117 as the actual closure gate.
+prohibited_actions:
+  - Treat merged D5 implementation alone as proof that independent qualification is complete.
+  - Rewrite history to hide the premature close/reopen sequence.
+  - Infer project frontier from the umbrella issue text without reconciling newer PR and commit evidence.
+attention_priority: high
+belief_revision:
+  required: true
+  notes: This is the canonical pilot example of a prior conclusion being superseded after newer repository evidence is inspected.
+golden_rationale: Tests temporal frontier reconstruction, evidence reconciliation across issue/PR/commit state, and explicit belief revision instead of silent correction.
