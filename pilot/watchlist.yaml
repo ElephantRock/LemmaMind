@@ -1,0 +1,22 @@
+version: 1
+pilot_id: m-1-agent-runtime-authority
+status: selecting
+
+domain: agent-runtime-authority
+
+research_question: >-
+  How do modern coding/agent runtimes separate model-authored reasoning from
+  privileged execution, state, and capability authority?
+
+target_repository_count:
+  min: 10
+  max: 20
+
+selection_rules:
+  - Architecturally relevant to the pilot question.
+  - Prefer diversity of execution, sandboxing, state, and capability models.
+  - Prefer repositories with enough public evidence to support source-addressed analysis.
+  - Pin every selected repository to a full commit SHA before evidence extraction.
+  - Do not add a repository merely because it is popular.
+
+repositories: []

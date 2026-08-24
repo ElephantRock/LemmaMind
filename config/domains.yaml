@@ -1,0 +1,39 @@
+version: 1
+
+# LemmaMind domains are configuration, not hard-coded ontology.
+# Keep the active pilot narrow; expand only after M−1 validates the value loop.
+
+domains:
+  - id: agent-runtime-authority
+    name: Agent Runtime Authority and Execution Boundaries
+    status: pilot
+    description: >-
+      How coding/agent runtimes divide model-authored reasoning from privileged
+      execution, state ownership, capability authority, sandboxing, and host policy.
+    signals:
+      - agent runtime
+      - coding agent
+      - tool execution
+      - sandbox
+      - capability
+      - provider
+      - plugin
+      - runtime authority
+      - state ownership
+      - host boundary
+
+  - id: llm-training-inference
+    name: LLM Training and Inference
+    status: future
+
+  - id: model-efficiency
+    name: Model Efficiency
+    status: future
+
+  - id: reasoning-systems
+    name: Reasoning Systems
+    status: future
+
+  - id: distributed-ai-infrastructure
+    name: Distributed AI Infrastructure
+    status: future
