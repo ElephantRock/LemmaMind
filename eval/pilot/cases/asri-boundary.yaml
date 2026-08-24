@@ -28,7 +28,10 @@ evidence:
     source_ref: https://github.com/ElephantRock/ASRI/issues/4 and https://github.com/ElephantRock/Resonance-ASRI/issues/3
 expected_observations:
   - epistemic_type: Interpretation
-    statement: The two repositories share a long-term ASRI objective but currently instantiate different experimental mechanisms: trainable recurrent depth versus system-level adaptive compute/control.
+    statement: >-
+      The two repositories share a long-term ASRI objective but currently
+      instantiate different experimental mechanisms: trainable recurrent depth
+      versus system-level adaptive compute/control.
     support: [asri-boundary-1, asri-boundary-2]
     validation_state: reviewed
   - epistemic_type: Evaluation
