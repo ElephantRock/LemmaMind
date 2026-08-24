@@ -1,0 +1,61 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: external-runtime-authority-pattern
+title: Agent execution authority is multi-layer rather than a single sandbox flag
+case_type: cross_repository_pattern
+sources:
+  - repository: CopilotKit/OpenBot
+    revision: d293f2331bd5ff9ba4ad17af6ac94570a157d26d
+    references:
+      - server/src/tenant-package.ts
+  - repository: openclaw/openclaw
+    revision: c50f90251ebf1c420b8b8fbbff65fb39f77558f0
+    references:
+      - docs/gateway/sandboxing.md
+  - repository: NousResearch/hermes-agent
+    revision: 41447a6d7063b2772b0c2f26a5b22d9bd444fb43
+    references:
+      - tools/environments/local.py
+      - tests/tools/test_local_setsid_descendant_sweep.py
+evidence:
+  - id: external-authority-1
+    epistemic_type: ObservedFact
+    statement: OpenBot's tenant-package model separates skill instructions from grants and bounds runtime tool availability by their intersection.
+    source_ref: CopilotKit/OpenBot server/src/tenant-package.ts @ d293f2331bd5ff9ba4ad17af6ac94570a157d26d
+  - id: external-authority-2
+    epistemic_type: SourceAssertion
+    statement: OpenClaw documents a host-resident Gateway, opt-in sandboxing for tool execution, gateway-side execution paths, and explicit elevated paths outside the sandbox.
+    source_ref: openclaw/openclaw docs/gateway/sandboxing.md @ c50f90251ebf1c420b8b8fbbff65fb39f77558f0
+  - id: external-authority-3
+    epistemic_type: ObservedFact
+    statement: Hermes' current head repairs timeout cleanup for descendants that escape the original process group, showing that lifecycle containment depends on process-tree/session semantics after execution has already been authorized.
+    source_ref: NousResearch/hermes-agent commit 41447a6d7063b2772b0c2f26a5b22d9bd444fb43
+expected_observations:
+  - epistemic_type: Inference
+    statement: Across these runtimes, execution authority is distributed across distinct layers: what instructions request, what capabilities are granted, where execution occurs, what can bypass isolation, and how spawned processes are contained after launch.
+    support: [external-authority-1, external-authority-2, external-authority-3]
+    validation_state: reviewed
+  - epistemic_type: Evaluation
+    statement: A useful LemmaMind ArchitectureProfile for agent runtimes cannot reduce authority to tool-present or sandboxed booleans; it needs separate dimensions for instruction authority, capability authority, execution location, isolation default/scope, elevation paths, and process-lifecycle containment.
+    support: [external-authority-1, external-authority-2, external-authority-3]
+    validation_state: validated
+decision_relevance:
+  decision: What minimum representation should LemmaMind build before automated cross-runtime comparison?
+  effect: Design M0/M6 contracts so runtime authority is represented as multiple independently evidenced dimensions rather than one generic sandbox or tools field; this directly changes the planned profile schema before implementation begins.
+repository_relationship:
+  type: READ_ONLY
+  can_write: false
+  can_contribute: false
+  notes: All three sources are external and read-only to the connected identity. The cross-repository insight is useful without modifying any source.
+allowed_actions:
+  - Promote the multi-layer authority representation into LemmaMind's M0/M6 design inputs.
+  - Use the three repositories as distinct occurrences rather than forcing them into one implementation pattern.
+  - Deep-dive additional runtimes to test whether the dimensions generalize.
+prohibited_actions:
+  - Rank one repository as categorically more secure from these observations alone.
+  - Collapse source assertions and implementation facts into one confidence level.
+  - Treat upstream modification as necessary to validate the cross-repository pattern.
+attention_priority: high
+belief_revision:
+  required: true
+  notes: The pilot began with a simpler agent-runtime-authority framing. The external comparison shows that authority must be modeled as several orthogonal dimensions, superseding any single sandbox/tool-authority representation.
+golden_rationale: Provides the external cross-repository result required to prove that LemmaMind can generate a design-changing insight from read-only sources rather than merely identify fixable defects in owned repositories.
