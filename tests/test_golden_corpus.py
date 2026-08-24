@@ -18,7 +18,14 @@ EVIDENCE_CLASSES = {"ObservedFact", "SourceAssertion"}
 def load_cases() -> list[dict]:
     paths = sorted(CASE_DIR.glob("*.yaml"))
     assert paths, "M-1 golden corpus must not be empty"
-    return [yaml.safe_load(path.read_text(encoding="utf-8")) for path in paths]
+
+    cases = []
+    for path in paths:
+        try:
+            cases.append(yaml.safe_load(path.read_text(encoding="utf-8")))
+        except yaml.YAMLError as exc:
+            raise AssertionError(f"invalid golden YAML: {path}") from exc
+    return cases
 
 
 def test_m1_external_regression_cases_remain_present() -> None:
