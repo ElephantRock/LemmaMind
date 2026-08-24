@@ -12,23 +12,23 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 ## Current phase
 
-LemmaMind is in **M−1 — Manual Intelligence Pilot**.
+**M−1 — Manual Intelligence Pilot: PASS.**
 
-The first controlled pilot used the broader ElephantRock repository portfolio to test whether disciplined evidence-grounded analysis can recover high-value technical findings while preserving epistemic status, governance boundaries, belief revision, and correct no-action behavior.
+The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-Eight manually judged cases are now frozen as the initial golden evaluation corpus. M−1 remains open until at least one real external-source case demonstrates useful intelligence where LemmaMind has no source modification authority.
+The project is now transitioning to **M0 — Minimum System Contracts**. M0 must automate the evidence spine without losing distinctions that the manual golden corpus already demonstrated.
 
 ## Start here
 
 - [`docs/PRODUCT.md`](docs/PRODUCT.md) — authoritative product definition, user, outputs, UX, and action boundary
+- [`eval/pilot/M-1-CLOSEOUT.md`](eval/pilot/M-1-CLOSEOUT.md) — M−1 result, evidence, design changes, and exit decision
+- [`docs/M0-CONTRACTS.md`](docs/M0-CONTRACTS.md) — minimum contracts selected from actual pilot cases
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
-- [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol, current corpus, and exit gate
-- [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned ElephantRock pilot corpus
+- [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
+- [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
 - [`eval/pilot/`](eval/pilot/) — golden intelligence cases and evaluation contract
 - [`eval/pilot/schema/pilot-case.schema.json`](eval/pilot/schema/pilot-case.schema.json) — machine-readable case schema
 - [`config/domains.yaml`](config/domains.yaml) — configurable technical domains
-- [`pilot/evidence/`](pilot/evidence/) — source-addressed pilot evidence conventions
-- [`pilot/observations/`](pilot/observations/) — human-authored observation conventions
 
 ## Core product loop
 
@@ -55,6 +55,28 @@ What should I pay attention to?
             ↓
        REVALIDATE
 ```
+
+## M0 rule
+
+The initial implementation target is deliberately small:
+
+```text
+Source
+  ↓
+SourceRevision
+  ↓
+CaptureManifest
+  ↓
+Artifact
+  ↓
+EvidenceFact / SourceAssertion
+  ↓
+Observation + explicit support
+```
+
+Cross-cutting from the start: `PipelineRun`, `RepositoryRelationship`, `ActionRecommendation`, and `ReviewDecision`.
+
+No autonomous insight synthesis is required for M0/V1.
 
 ## Canonical home
 
