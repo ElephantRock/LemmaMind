@@ -23,7 +23,11 @@ evidence:
     source_ref: docs/gateway/sandboxing.md
 expected_observations:
   - epistemic_type: Interpretation
-    statement: OpenClaw's isolation model is layered rather than binary: a host-resident control plane remains authoritative while selected tool execution can move into an optional sandbox, with explicit gateway-side and elevated paths outside that sandbox.
+    statement: >-
+      OpenClaw's isolation model is layered rather than binary: a host-resident
+      control plane remains authoritative while selected tool execution can move
+      into an optional sandbox, with explicit gateway-side and elevated paths
+      outside that sandbox.
     support: [openclaw-sandbox-1, openclaw-sandbox-2, openclaw-sandbox-3]
     validation_state: reviewed
   - epistemic_type: Evaluation
