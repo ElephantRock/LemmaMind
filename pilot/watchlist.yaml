@@ -1,22 +1,80 @@
-version: 1
-pilot_id: m-1-agent-runtime-authority
-status: selecting
-
-domain: agent-runtime-authority
+version: 2
+pilot_id: m-1-elephantrock-technical-intelligence
+status: golden-corpus-frozen
 
 research_question: >-
-  How do modern coding/agent runtimes separate model-authored reasoning from
-  privileged execution, state, and capability authority?
+  Can disciplined evidence-grounded analysis across heterogeneous technical
+  repositories surface decision-relevant findings while preserving provenance,
+  epistemic status, governance boundaries, belief revision, and the separation
+  between intelligence and optional action?
 
-target_repository_count:
-  min: 10
-  max: 20
+corpus_scope:
+  organization: ElephantRock
+  repository_count: 9
+  rationale: >-
+    Use a controlled portfolio with heterogeneous repository roles: executable
+    systems, research programs, frozen experiments, evidence-heavy governance,
+    and a graduated subsystem. This makes cross-repository reasoning testable
+    before broad external discovery.
 
 selection_rules:
-  - Architecturally relevant to the pilot question.
-  - Prefer diversity of execution, sandboxing, state, and capability models.
-  - Prefer repositories with enough public evidence to support source-addressed analysis.
-  - Pin every selected repository to a full commit SHA before evidence extraction.
-  - Do not add a repository merely because it is popular.
+  - Pin every case to exact source revisions or explicit issue/PR/workflow identities.
+  - Prefer evidence-rich situations where a naive repository summary would be misleading.
+  - Preserve negative, failed, cancelled, superseded, and no-action outcomes.
+  - Do not require a repository repair for a case to count as useful intelligence.
+  - Do not infer epistemic authority from repository write permission.
 
-repositories: []
+repositories:
+  - repository: ElephantRock/ExpertOS
+    revision: 8fd8250121baf75b3689e2bba7ba2df8fa3608cf
+    roles: [measurement-integrity, private-actions-control]
+    golden_cases: [expertos-telemetry-accounting, private-actions-pattern]
+
+  - repository: ElephantRock/ExpertForge
+    revision: 5dcde592808d07008c2b5ad953fce78acb02f656
+    roles: [evidence-generation-integrity, private-actions-control]
+    golden_cases: [expertforge-scan-accounting, private-actions-pattern]
+
+  - repository: ElephantRock/CSD-Foundry
+    revision: 2d910f3ff83f061409ca9d8f2e3709fde7c13f6e
+    roles: [frontier-reconciliation, belief-revision]
+    golden_cases: [csd-foundry-frontier]
+
+  - repository: ElephantRock/ERLab
+    revision: d0078339601c431ccf2f8a12974dba0dba9724a6
+    roles: [public-actions-negative-control, mature-evidence-system]
+    golden_cases: [private-actions-pattern]
+
+  - repository: ElephantRock/Resonance-Field
+    revision: 8d48ea3a633150a9aba92628fd98dec80204e095
+    roles: [scientific-instrumentation, causal-attribution]
+    golden_cases: [resonance-field-lineage]
+
+  - repository: ElephantRock/Resonance-World
+    revision: 65d739736070bbebe7941bebfbee785d33499c46
+    roles: [confirmatory-governance, no-action-correctness]
+    golden_cases: [resonance-world-confirmatory]
+
+  - repository: ElephantRock/Resonance-ContextGraph
+    revision: 7caa57fa3650ed29e00ffd482b99ac571d294fc3
+    roles: [release-provenance, public-actions-negative-control]
+    golden_cases: [contextgraph-release, private-actions-pattern]
+
+  - repository: ElephantRock/ASRI
+    revision: a66b67fbce329368882f243661b184f1fb863125
+    roles: [research-line-identity]
+    golden_cases: [asri-boundary]
+
+  - repository: ElephantRock/Resonance-ASRI
+    revision: 77b7415e1e1e4a45fd4694bf520b774b7b80bf92
+    roles: [research-line-identity]
+    golden_cases: [asri-boundary]
+
+known_limitations:
+  - >-
+    Every initial source repository is ElephantRock-owned. Before M−1 is fully
+    closed, add at least one real external read-only or contributable case that
+    demonstrates useful intelligence without source modification authority.
+  - >-
+    This corpus is intentionally heterogeneous; it validates the intelligence
+    method and evaluation contracts, not statistical prevalence across GitHub.
