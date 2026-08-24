@@ -31,7 +31,11 @@ evidence:
     source_ref: NousResearch/hermes-agent commit 41447a6d7063b2772b0c2f26a5b22d9bd444fb43
 expected_observations:
   - epistemic_type: Inference
-    statement: Across these runtimes, execution authority is distributed across distinct layers: what instructions request, what capabilities are granted, where execution occurs, what can bypass isolation, and how spawned processes are contained after launch.
+    statement: >-
+      Across these runtimes, execution authority is distributed across distinct
+      layers: what instructions request, what capabilities are granted, where
+      execution occurs, what can bypass isolation, and how spawned processes
+      are contained after launch.
     support: [external-authority-1, external-authority-2, external-authority-3]
     validation_state: reviewed
   - epistemic_type: Evaluation
