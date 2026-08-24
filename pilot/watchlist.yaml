@@ -1,80 +1,119 @@
-version: 2
-pilot_id: m-1-elephantrock-technical-intelligence
-status: golden-corpus-frozen
+version: 3
+pilot_id: m-1-technical-intelligence
+status: passed
 
 research_question: >-
   Can disciplined evidence-grounded analysis across heterogeneous technical
-  repositories surface decision-relevant findings while preserving provenance,
-  epistemic status, governance boundaries, belief revision, and the separation
-  between intelligence and optional action?
+  sources surface decision-relevant findings while preserving provenance,
+  epistemic status, governance boundaries, belief revision, source role, and
+  the separation between intelligence and optional action?
 
 corpus_scope:
-  organization: ElephantRock
-  repository_count: 9
+  controlled_organization: ElephantRock
+  internal_repository_count: 9
+  external_repository_count: 4
+  total_repository_count: 13
   rationale: >-
-    Use a controlled portfolio with heterogeneous repository roles: executable
-    systems, research programs, frozen experiments, evidence-heavy governance,
-    and a graduated subsystem. This makes cross-repository reasoning testable
-    before broad external discovery.
+    Start with a controlled heterogeneous portfolio, then test the same
+    intelligence method against real external read-only sources. The external
+    set includes a curated research index and three executable agent/runtime
+    projects so source-role classification and no-write action boundaries are
+    exercised before M0 implementation.
 
 selection_rules:
   - Pin every case to exact source revisions or explicit issue/PR/workflow identities.
   - Prefer evidence-rich situations where a naive repository summary would be misleading.
-  - Preserve negative, failed, cancelled, superseded, and no-action outcomes.
+  - Preserve negative, failed, cancelled, repaired, superseded, and no-action outcomes.
   - Do not require a repository repair for a case to count as useful intelligence.
   - Do not infer epistemic authority from repository write permission.
+  - Distinguish curated/discovery sources from primary implementation evidence.
 
 repositories:
   - repository: ElephantRock/ExpertOS
     revision: 8fd8250121baf75b3689e2bba7ba2df8fa3608cf
+    relationship: OWNED
     roles: [measurement-integrity, private-actions-control]
     golden_cases: [expertos-telemetry-accounting, private-actions-pattern]
 
   - repository: ElephantRock/ExpertForge
     revision: 5dcde592808d07008c2b5ad953fce78acb02f656
+    relationship: OWNED
     roles: [evidence-generation-integrity, private-actions-control]
     golden_cases: [expertforge-scan-accounting, private-actions-pattern]
 
   - repository: ElephantRock/CSD-Foundry
     revision: 2d910f3ff83f061409ca9d8f2e3709fde7c13f6e
+    relationship: OWNED
     roles: [frontier-reconciliation, belief-revision]
     golden_cases: [csd-foundry-frontier]
 
   - repository: ElephantRock/ERLab
     revision: d0078339601c431ccf2f8a12974dba0dba9724a6
+    relationship: OWNED
     roles: [public-actions-negative-control, mature-evidence-system]
     golden_cases: [private-actions-pattern]
 
   - repository: ElephantRock/Resonance-Field
     revision: 8d48ea3a633150a9aba92628fd98dec80204e095
+    relationship: OWNED
     roles: [scientific-instrumentation, causal-attribution]
     golden_cases: [resonance-field-lineage]
 
   - repository: ElephantRock/Resonance-World
     revision: 65d739736070bbebe7941bebfbee785d33499c46
+    relationship: OWNED
     roles: [confirmatory-governance, no-action-correctness]
     golden_cases: [resonance-world-confirmatory]
 
   - repository: ElephantRock/Resonance-ContextGraph
     revision: 7caa57fa3650ed29e00ffd482b99ac571d294fc3
+    relationship: OWNED
     roles: [release-provenance, public-actions-negative-control]
     golden_cases: [contextgraph-release, private-actions-pattern]
 
   - repository: ElephantRock/ASRI
     revision: a66b67fbce329368882f243661b184f1fb863125
+    relationship: OWNED
     roles: [research-line-identity]
     golden_cases: [asri-boundary]
 
   - repository: ElephantRock/Resonance-ASRI
     revision: 77b7415e1e1e4a45fd4694bf520b774b7b80bf92
+    relationship: OWNED
     roles: [research-line-identity]
     golden_cases: [asri-boundary]
 
+  - repository: chrisliu298/awesome-on-policy-distillation
+    revision: e4b5e7334ccd3437ccab8d4eef770ed02c4f9934
+    relationship: READ_ONLY
+    roles: [research-index, discovery-source, source-type-boundary]
+    golden_cases: [external-opd-source-type]
+
+  - repository: CopilotKit/OpenBot
+    revision: d293f2331bd5ff9ba4ad17af6ac94570a157d26d
+    relationship: READ_ONLY
+    roles: [agent-runtime, capability-authority]
+    golden_cases: [external-openbot-capability-authority, external-runtime-authority-pattern]
+
+  - repository: openclaw/openclaw
+    revision: c50f90251ebf1c420b8b8fbbff65fb39f77558f0
+    relationship: READ_ONLY
+    roles: [agent-runtime, sandbox-posture]
+    golden_cases: [external-openclaw-sandbox-posture, external-runtime-authority-pattern]
+
+  - repository: NousResearch/hermes-agent
+    revision: 41447a6d7063b2772b0c2f26a5b22d9bd444fb43
+    relationship: READ_ONLY
+    roles: [agent-runtime, process-containment, change-intelligence]
+    golden_cases: [external-hermes-process-containment, external-runtime-authority-pattern]
+
 known_limitations:
   - >-
-    Every initial source repository is ElephantRock-owned. Before M−1 is fully
-    closed, add at least one real external read-only or contributable case that
-    demonstrates useful intelligence without source modification authority.
+    The corpus is purposefully selected for reasoning diversity and is not a
+    statistically representative sample of GitHub or of agent runtimes.
   - >-
-    This corpus is intentionally heterogeneous; it validates the intelligence
-    method and evaluation contracts, not statistical prevalence across GitHub.
+    External evidence is static/repository-based; M−1 does not validate broad
+    web research, paper ingestion, or autonomous external execution.
+  - >-
+    The external cases validate read-only intelligence and action separation,
+    not the mechanics or social policy of submitting upstream contributions.

@@ -1,0 +1,53 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: external-opd-source-type
+title: A curated research index is a discovery source, not implementation evidence
+case_type: source_type_boundary
+sources:
+  - repository: chrisliu298/awesome-on-policy-distillation
+    revision: e4b5e7334ccd3437ccab8d4eef770ed02c4f9934
+    references:
+      - README.md
+      - repository-root
+evidence:
+  - id: opd-source-1
+    epistemic_type: SourceAssertion
+    statement: The README identifies the repository as a curated collection of papers, technical reports, frameworks, and tools for on-policy distillation and presents a taxonomy and reading path through the field.
+    source_ref: README.md
+  - id: opd-source-2
+    epistemic_type: SourceAssertion
+    statement: The README makes field-level claims about OPD mechanisms, failure modes, industrial use, and framework availability while linking outward to the papers and implementations that are the underlying primary sources.
+    source_ref: README.md
+  - id: opd-source-3
+    epistemic_type: ObservedFact
+    statement: At the pinned revision, the repository root is dominated by curation and metadata artifacts such as README.md, CONTRIBUTING.md, CITATION.cff, and LICENSE rather than a declared OPD training implementation at the root.
+    source_ref: repository-root @ e4b5e7334ccd3437ccab8d4eef770ed02c4f9934
+expected_observations:
+  - epistemic_type: Interpretation
+    statement: This repository is high-value for discovery, taxonomy, trend mapping, and locating primary sources, but its field-level statements should remain SourceAssertions until LemmaMind follows the cited paper, technical report, or implementation and captures primary evidence.
+    support: [opd-source-1, opd-source-2, opd-source-3]
+    validation_state: validated
+  - epistemic_type: Evaluation
+    statement: GitHub repository identity is insufficient as a source model; LemmaMind needs an explicit source role or type so a curated index is not processed as if it were an executable implementation repository.
+    support: [opd-source-1, opd-source-3]
+    validation_state: reviewed
+decision_relevance:
+  decision: Should M0 model only Repository identity, or distinguish the role a technical source plays in the evidence chain?
+  effect: Add an explicit Source/SourceType concept early enough to distinguish implementation repositories from curated research indexes; allow indexes to drive discovery while requiring primary-source follow-through for implementation and scientific claims.
+repository_relationship:
+  type: READ_ONLY
+  can_write: false
+  can_contribute: false
+  notes: No source modification is required. The repository's value to LemmaMind is as an external discovery and taxonomy source.
+allowed_actions:
+  - Use the repository to discover papers, frameworks, terminology, and candidate mechanisms.
+  - Preserve its field summaries as SourceAssertions with provenance.
+  - Follow outbound primary references before promoting mechanistic or implementation claims.
+prohibited_actions:
+  - Treat a linked paper or framework as if its contents were directly observed in this repository.
+  - Infer implementation details from the curated list alone.
+  - Require an upstream code change for the repository to count as useful intelligence.
+attention_priority: medium
+belief_revision:
+  required: false
+  notes: The case expands LemmaMind's source model beyond executable repositories.
+golden_rationale: Tests whether LemmaMind can classify an external research index by evidentiary role, extract useful discovery intelligence, and refuse to promote secondary curation into primary implementation evidence.

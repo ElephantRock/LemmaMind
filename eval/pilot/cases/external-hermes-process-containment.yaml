@@ -1,0 +1,54 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: external-hermes-process-containment
+title: Hermes repaired timeout containment for descendants that escape a process group
+case_type: change_intelligence
+sources:
+  - repository: NousResearch/hermes-agent
+    revision: 41447a6d7063b2772b0c2f26a5b22d9bd444fb43
+    references:
+      - commit:41447a6d7063b2772b0c2f26a5b22d9bd444fb43
+      - tools/environments/local.py
+      - tests/tools/test_local_setsid_descendant_sweep.py
+evidence:
+  - id: hermes-containment-1
+    epistemic_type: ObservedFact
+    statement: The pinned head commit states that the local terminal timeout path could leave a descendant alive when that descendant called setsid and escaped the command's process group.
+    source_ref: commit:41447a6d7063b2772b0c2f26a5b22d9bd444fb43
+  - id: hermes-containment-2
+    epistemic_type: ObservedFact
+    statement: The repair snapshots recursive descendants before sending the first process-group signal, then force-kills surviving snapshotted descendants outside the original group after the normal TERM-to-KILL escalation.
+    source_ref: tools/environments/local.py @ 41447a6d7063b2772b0c2f26a5b22d9bd444fb43
+  - id: hermes-containment-3
+    epistemic_type: ObservedFact
+    statement: A regression test creates a grandchild that calls setsid and asserts that it no longer survives the terminal timeout kill path; a second test ensures descendant-snapshot failure does not break the primary group-kill path.
+    source_ref: tests/tools/test_local_setsid_descendant_sweep.py @ 41447a6d7063b2772b0c2f26a5b22d9bd444fb43
+expected_observations:
+  - epistemic_type: Interpretation
+    statement: A timeout flag or process-group kill is not by itself sufficient evidence of full descendant containment when child processes can create new sessions or groups.
+    support: [hermes-containment-1, hermes-containment-2]
+    validation_state: validated
+  - epistemic_type: Evaluation
+    statement: The current revision contains a targeted containment repair with regression evidence, so the useful intelligence is the architectural lesson and the meaningful change—not a request for LemmaMind to repair upstream.
+    support: [hermes-containment-2, hermes-containment-3]
+    validation_state: reviewed
+decision_relevance:
+  decision: What execution-lifecycle evidence should LemmaMind inspect when evaluating agent terminal or sandbox backends?
+  effect: Treat descendant process-tree cleanup and escape handling as explicit architecture-profile dimensions; do not infer containment from timeout support or immediate-child cleanup alone.
+repository_relationship:
+  type: READ_ONLY
+  can_write: false
+  can_contribute: false
+  notes: Upstream has already repaired the observed containment gap at the pinned revision; the appropriate outcome is learn and monitor, not duplicate the repair.
+allowed_actions:
+  - Preserve the historical containment defect as negative/change intelligence.
+  - Incorporate process-tree and session-escape cleanup into runtime comparison criteria.
+  - Monitor later changes to terminal backend lifecycle behavior.
+prohibited_actions:
+  - Report the fixed defect as if it were still present at the pinned revision.
+  - Open a duplicate repair solely because LemmaMind detected the historical problem.
+  - Equate timeout support with complete process containment without descendant evidence.
+attention_priority: high
+belief_revision:
+  required: false
+  notes: The case itself contains a before-and-after change; later analysis must preserve that the defect was repaired at the pinned head rather than treating historical evidence as current state.
+golden_rationale: Tests meaningful-change intelligence on an external repository and whether LemmaMind can learn from a repaired defect without confusing historical negative evidence with a current upstream repair obligation.

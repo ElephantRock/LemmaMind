@@ -40,7 +40,10 @@
         "repository_boundary",
         "release_provenance",
         "frontier_reconciliation",
-        "cross_repository_pattern"
+        "cross_repository_pattern",
+        "architecture_boundary",
+        "change_intelligence",
+        "source_type_boundary"
       ]
     },
     "sources": {
