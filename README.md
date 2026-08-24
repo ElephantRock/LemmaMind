@@ -16,13 +16,18 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-The project is now transitioning to **M0 — Minimum System Contracts**. M0 must automate the evidence spine without losing distinctions that the manual golden corpus already demonstrated.
+**M0 — Minimum System Contracts: implementation active.**
+
+The first executable slice now implements the versioned M0 contracts as strict Pydantic models, persists them in a typed append-only SQLite store, and continuously checks those contracts against the M−1 golden corpus. The implementation remains deliberately below the pattern/insight/embedding/autonomous-reasoning layers.
 
 ## Start here
 
 - [`docs/PRODUCT.md`](docs/PRODUCT.md) — authoritative product definition, user, outputs, UX, and action boundary
 - [`eval/pilot/M-1-CLOSEOUT.md`](eval/pilot/M-1-CLOSEOUT.md) — M−1 result, evidence, design changes, and exit decision
 - [`docs/M0-CONTRACTS.md`](docs/M0-CONTRACTS.md) — minimum contracts selected from actual pilot cases
+- [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned M0 contract models
+- [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — append-only SQLite contract persistence
+- [`tests/`](tests/) — contract, persistence, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
