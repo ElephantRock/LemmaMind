@@ -1,0 +1,53 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: external-openclaw-sandbox-posture
+title: OpenClaw keeps the Gateway host-side while sandboxing tool execution optionally
+case_type: architecture_boundary
+sources:
+  - repository: openclaw/openclaw
+    revision: c50f90251ebf1c420b8b8fbbff65fb39f77558f0
+    references:
+      - README.md
+      - docs/gateway/sandboxing.md
+evidence:
+  - id: openclaw-sandbox-1
+    epistemic_type: SourceAssertion
+    statement: The sandboxing documentation states that sandboxing is off by default and is configured per default or per agent.
+    source_ref: docs/gateway/sandboxing.md
+  - id: openclaw-sandbox-2
+    epistemic_type: SourceAssertion
+    statement: The documentation states that the Gateway process always remains on the host and only tool execution moves into a sandbox when sandboxing is enabled.
+    source_ref: docs/gateway/sandboxing.md
+  - id: openclaw-sandbox-3
+    epistemic_type: SourceAssertion
+    statement: The documentation distinguishes sandboxed execution from gateway-side plugins/MCP access and describes explicitly elevated tools as able to execute outside the sandbox.
+    source_ref: docs/gateway/sandboxing.md
+expected_observations:
+  - epistemic_type: Interpretation
+    statement: OpenClaw's isolation model is layered rather than binary: a host-resident control plane remains authoritative while selected tool execution can move into an optional sandbox, with explicit gateway-side and elevated paths outside that sandbox.
+    support: [openclaw-sandbox-1, openclaw-sandbox-2, openclaw-sandbox-3]
+    validation_state: reviewed
+  - epistemic_type: Evaluation
+    statement: LemmaMind should not summarize an agent runtime as simply sandboxed or unsandboxed; it should capture default posture, execution location, control-plane location, and escape/elevation paths separately.
+    support: [openclaw-sandbox-1, openclaw-sandbox-2, openclaw-sandbox-3]
+    validation_state: reviewed
+decision_relevance:
+  decision: Which dimensions are required for a useful architecture profile of agent execution isolation?
+  effect: Represent sandbox default, sandbox scope/backend, host control-plane residency, gateway-side execution, and elevation paths as separate dimensions; treat documentation-only claims as SourceAssertions until corroborated by implementation evidence.
+repository_relationship:
+  type: READ_ONLY
+  can_write: false
+  can_contribute: false
+  notes: The connected identity has no source modification authority; the useful outcome is architectural learning and comparison.
+allowed_actions:
+  - Incorporate the layered isolation dimensions into LemmaMind profiling.
+  - Compare the documented posture with implementation/config evidence in a later deep dive.
+  - Use the design as evidence in an architectural tension about convenience versus default isolation.
+prohibited_actions:
+  - Characterize the entire runtime with a single sandbox boolean.
+  - Treat an opt-in sandbox as proof that all execution is isolated by default.
+  - Modify or report upstream merely because the design makes a different isolation tradeoff.
+attention_priority: high
+belief_revision:
+  required: false
+  notes: The case refines the representation needed for agent-runtime isolation rather than correcting a prior conclusion.
+golden_rationale: Tests whether LemmaMind can preserve source-assertion status while extracting a useful layered isolation model from a repository it cannot modify.
