@@ -1,0 +1,72 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: private-actions-pattern
+title: Shared pre-step GitHub Actions failure pattern across private repositories
+case_type: cross_repository_pattern
+sources:
+  - repository: ElephantRock/ExpertOS
+    revision: 8fd8250121baf75b3689e2bba7ba2df8fa3608cf
+    references:
+      - workflow-run:32779830513
+      - https://github.com/ElephantRock/ExpertOS/pull/6
+  - repository: ElephantRock/ExpertForge
+    revision: 5dcde592808d07008c2b5ad953fce78acb02f656
+    references:
+      - workflow-run:32778642199
+      - https://github.com/ElephantRock/ExpertForge/pull/56
+  - repository: ElephantRock/ERLab
+    revision: d0078339601c431ccf2f8a12974dba0dba9724a6
+    references:
+      - workflow-run:32334661409
+      - https://github.com/ElephantRock/ERLab/pull/43
+  - repository: ElephantRock/Resonance-ContextGraph
+    revision: 7caa57fa3650ed29e00ffd482b99ac571d294fc3
+    references:
+      - workflow-run:32780247570
+      - https://github.com/ElephantRock/Resonance-ContextGraph/pull/6
+evidence:
+  - id: actions-pattern-1
+    epistemic_type: ObservedFact
+    statement: ExpertOS workflow run 32779830513 completed as failure, all four jobs had no recorded steps, and the downloadable job log was unavailable.
+    source_ref: workflow-run:32779830513
+  - id: actions-pattern-2
+    epistemic_type: ObservedFact
+    statement: ExpertForge workflow run 32778642199 showed the same pre-step signature; its first job failed without recorded steps/logs and downstream jobs were skipped.
+    source_ref: workflow-run:32778642199
+  - id: actions-pattern-3
+    epistemic_type: ObservedFact
+    statement: ExpertOS and ExpertForge are private repositories.
+    source_ref: GitHub repository metadata for ElephantRock/ExpertOS and ElephantRock/ExpertForge
+  - id: actions-pattern-4
+    epistemic_type: ObservedFact
+    statement: Public ElephantRock repositories ERLab and Resonance-ContextGraph successfully executed GitHub Actions during the same portfolio investigation.
+    source_ref: workflow-run:32334661409 and workflow-run:32780247570
+expected_observations:
+  - epistemic_type: Inference
+    statement: The matched pre-step failure signature across two private repositories, contrasted with functioning public-repository Actions, supports a shared private-repository Actions provisioning, entitlement, or billing hypothesis more strongly than two independent code-test failures.
+    support: [actions-pattern-1, actions-pattern-2, actions-pattern-3, actions-pattern-4]
+    validation_state: reviewed
+  - epistemic_type: Evaluation
+    statement: The affected PRs should be described as CI not executed rather than code tests failed until runner/provisioning state is resolved.
+    support: [actions-pattern-1, actions-pattern-2, actions-pattern-4]
+    validation_state: validated
+decision_relevance:
+  decision: Whether to debug the two code patches independently or investigate shared GitHub Actions infrastructure first.
+  effect: Prioritize organization/private-repository Actions provisioning and keep both code changes unmerged and explicitly unverified.
+repository_relationship:
+  type: OWNED
+  can_write: true
+  can_contribute: true
+  notes: All compared repositories are under ElephantRock; the pattern concerns shared execution infrastructure, not source ownership.
+allowed_actions:
+  - Investigate organization billing, entitlement, runner, or private-repository Actions provisioning.
+  - Keep affected PRs draft/unmerged until actual tests execute.
+  - Use healthy public-repository workflow runs as negative-control evidence for the infrastructure hypothesis.
+prohibited_actions:
+  - Report the zero-step runs as test assertion failures.
+  - Modify unrelated application code merely to make a pre-step CI status change.
+  - Claim the provisioning/billing hypothesis as confirmed without direct account-level evidence.
+attention_priority: high
+belief_revision:
+  required: true
+  notes: Initial red-CI interpretation must be revised from code failure to shared infrastructure hypothesis after cross-repository comparison.
+golden_rationale: Tests LemmaMind's core cross-repository advantage: combining failure signatures and counterexamples to avoid a locally plausible but globally weaker explanation.
