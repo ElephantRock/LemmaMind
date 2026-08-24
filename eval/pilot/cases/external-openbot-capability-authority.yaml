@@ -1,0 +1,53 @@
+schema_version: lemmamind.pilot-case.v1
+case_id: external-openbot-capability-authority
+title: OpenBot separates skill instructions from capability grants
+case_type: architecture_boundary
+sources:
+  - repository: CopilotKit/OpenBot
+    revision: d293f2331bd5ff9ba4ad17af6ac94570a157d26d
+    references:
+      - README.md
+      - server/src/tenant-package.ts
+evidence:
+  - id: openbot-authority-1
+    epistemic_type: SourceAssertion
+    statement: The project documentation describes skills as instructions and grants as capabilities, with policies intended to fail closed.
+    source_ref: README.md
+  - id: openbot-authority-2
+    epistemic_type: ObservedFact
+    statement: Tenant package code documents that a skill confers no callable authority by itself; the runtime offer is the intersection of skill-declared tools and the Bot's grants, so an ungranted tool reference loads nothing.
+    source_ref: server/src/tenant-package.ts
+  - id: openbot-authority-3
+    epistemic_type: ObservedFact
+    statement: Tenant package validation refuses unknown package skill slugs rather than silently accepting a typo, while unknown tool references in a skill remain inert because runtime grant intersection removes them.
+    source_ref: server/src/tenant-package.ts
+expected_observations:
+  - epistemic_type: Interpretation
+    statement: OpenBot treats instructional content and execution authority as separate control planes; loading a skill does not itself grant the ability to invoke the tools that skill names.
+    support: [openbot-authority-1, openbot-authority-2]
+    validation_state: validated
+  - epistemic_type: Evaluation
+    statement: Agent-runtime profiling should represent instruction or skill loading separately from capability authorization rather than inferring authority from the presence of a skill or tool declaration.
+    support: [openbot-authority-2, openbot-authority-3]
+    validation_state: reviewed
+decision_relevance:
+  decision: How should LemmaMind represent authority boundaries when comparing agent runtimes?
+  effect: Add distinct architecture-profile dimensions for instructional material, declared tool requirements, and actual capability-grant authority; do not collapse them into a single tool-availability field.
+repository_relationship:
+  type: READ_ONLY
+  can_write: false
+  can_contribute: false
+  notes: The connected GitHub identity has read/pull access only. The observation is useful without any upstream modification.
+allowed_actions:
+  - Incorporate the instruction-versus-capability distinction into LemmaMind architecture profiling.
+  - Compare this authority model with other agent runtimes.
+  - Monitor upstream changes that alter grant or skill semantics.
+prohibited_actions:
+  - Treat the presence of a skill as evidence that its named tools are authorized.
+  - Open or modify upstream code merely to make the pilot actionable.
+  - Promote the README's security language beyond what the implementation evidence supports.
+attention_priority: high
+belief_revision:
+  required: false
+  notes: This case adds a reusable authority distinction rather than superseding a prior finding.
+golden_rationale: Tests whether LemmaMind can extract a decision-relevant architectural principle from an external read-only repository without turning the finding into a repair task.
