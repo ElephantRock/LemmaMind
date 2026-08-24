@@ -69,4 +69,7 @@ attention_priority: high
 belief_revision:
   required: true
   notes: Initial red-CI interpretation must be revised from code failure to shared infrastructure hypothesis after cross-repository comparison.
-golden_rationale: Tests LemmaMind's core cross-repository advantage: combining failure signatures and counterexamples to avoid a locally plausible but globally weaker explanation.
+golden_rationale: >-
+  Tests LemmaMind's core cross-repository advantage: combining failure
+  signatures and counterexamples to avoid a locally plausible but globally
+  weaker explanation.
