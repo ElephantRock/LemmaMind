@@ -120,8 +120,9 @@ def seed_repository(store: SQLiteContractStore) -> tuple[Source, SourceRevision]
     return source, revision
 
 
-def make_tracking(store: SQLiteContractStore) -> RepositoryTrackingService:
-    return RepositoryTrackingService(store, clock=Clock(T0 + timedelta(hours=3)))
+def make_tracking(store: SQLiteContractStore):
+    clock = Clock(T0 + timedelta(hours=1))
+    return RepositoryTrackingService(store, clock=clock), clock
 
 
 def test_repository_file_capture_is_blocked_below_shallow_and_allowed_at_shallow(tmp_path) -> None:
@@ -129,13 +130,12 @@ def test_repository_file_capture_is_blocked_below_shallow_and_allowed_at_shallow
     objects = ContentAddressedFileStore(tmp_path / "objects")
     source, _ = seed_repository(store)
     reader = FakeRepositoryReader()
-    tracking = make_tracking(store)
+    tracking, tracking_clock = make_tracking(store)
     tracking.assign_level(
         source.source_id,
         TrackingLevel.METADATA_ONLY,
         assigned_by="operator:test",
         reason="metadata only",
-        effective_at=T0 + timedelta(hours=1),
     )
     capture = TrackingAwareGitHubCaptureService(
         reader,
@@ -151,13 +151,14 @@ def test_repository_file_capture_is_blocked_below_shallow_and_allowed_at_shallow
     assert reader.commit_calls == 0
     assert reader.file_calls == 0
 
+    tracking_clock.value = T0 + timedelta(hours=2)
     tracking.assign_level(
         source.source_id,
         TrackingLevel.SHALLOW,
         assigned_by="operator:test",
         reason="allow repository files",
-        effective_at=T0 + timedelta(hours=2),
     )
+    tracking_clock.value = T0 + timedelta(hours=3)
     result = capture.capture_repository("Acme/Repo", ["README.md"])
 
     assert result.source.source_id == source.source_id
@@ -169,14 +170,14 @@ def test_process_snapshot_gate_runs_before_provider_read(tmp_path) -> None:
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     objects = ContentAddressedFileStore(tmp_path / "objects")
     source, revision = seed_repository(store)
-    tracking = make_tracking(store)
+    tracking, tracking_clock = make_tracking(store)
     tracking.assign_level(
         source.source_id,
         TrackingLevel.STRUCTURAL,
         assigned_by="operator:test",
         reason="structural only",
-        effective_at=T0 + timedelta(hours=1),
     )
+    tracking_clock.value = T0 + timedelta(hours=3)
     capture = TrackingAwareGitHubProcessCaptureService(
         FailIfProcessRead(),
         store,
@@ -193,14 +194,14 @@ def test_process_history_gate_runs_before_provider_read(tmp_path) -> None:
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     objects = ContentAddressedFileStore(tmp_path / "objects")
     source, revision = seed_repository(store)
-    tracking = make_tracking(store)
+    tracking, tracking_clock = make_tracking(store)
     tracking.assign_level(
         source.source_id,
         TrackingLevel.STRUCTURAL,
         assigned_by="operator:test",
         reason="structural only",
-        effective_at=T0 + timedelta(hours=1),
     )
+    tracking_clock.value = T0 + timedelta(hours=3)
     capture = TrackingAwareGitHubProcessEventCaptureService(
         FailIfHistoryRead(),
         store,
@@ -265,14 +266,14 @@ def test_reasoning_requires_structural_or_deeper_tracking(tmp_path) -> None:
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     source, revision = seed_repository(store)
     fact = seed_evidence(store, revision)
-    tracking = make_tracking(store)
+    tracking, tracking_clock = make_tracking(store)
     tracking.assign_level(
         source.source_id,
         TrackingLevel.SHALLOW,
         assigned_by="operator:test",
         reason="capture only",
-        effective_at=T0 + timedelta(hours=1),
     )
+    tracking_clock.value = T0 + timedelta(hours=3)
     service = TrackingAwareObservationConstructionService(
         store,
         tracking=tracking,
@@ -290,12 +291,12 @@ def test_reasoning_requires_structural_or_deeper_tracking(tmp_path) -> None:
         service.create_candidate(**kwargs)
     assert store.list(Observation) == []
 
+    tracking_clock.value = T0 + timedelta(hours=4)
     tracking.assign_level(
         source.source_id,
         TrackingLevel.STRUCTURAL,
         assigned_by="operator:test",
         reason="eligible for source-local reasoning",
-        effective_at=T0 + timedelta(hours=2),
     )
     result = service.create_candidate(**kwargs)
 
