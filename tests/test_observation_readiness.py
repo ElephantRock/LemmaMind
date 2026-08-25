@@ -17,8 +17,8 @@ def test_hard_case_readiness_matches_frozen_boundaries() -> None:
 
     assert report["summary"] == {
         "case_count": 4,
-        "ready": 1,
-        "blocked": 2,
+        "ready": 2,
+        "blocked": 1,
         "deferred": 1,
     }
     by_case = {item["case_id"]: item for item in report["cases"]}
@@ -33,10 +33,8 @@ def test_hard_case_readiness_matches_frozen_boundaries() -> None:
     }
     assert by_case["csd-foundry-frontier"]["belief_revision_required"] is True
 
-    assert by_case["resonance-world-confirmatory"]["outcome"] == "blocked"
-    assert {item["capability"] for item in by_case["resonance-world-confirmatory"]["blockers"]} == {
-        "action_policy_validation",
-    }
+    assert by_case["resonance-world-confirmatory"]["outcome"] == "ready"
+    assert by_case["resonance-world-confirmatory"]["blockers"] == []
 
     assert by_case["private-actions-pattern"]["outcome"] == "deferred"
     assert {item["capability"] for item in by_case["private-actions-pattern"]["blockers"]} == {
