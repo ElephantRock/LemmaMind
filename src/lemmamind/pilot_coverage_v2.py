@@ -1,6 +1,6 @@
-"""Pilot coverage runner with deterministic Git root-tree evidence support.
+"""Pilot coverage runner with deterministic Git tree and commit evidence support.
 
-This extends the v1 coverage harness only where the measured corpus requires it.
+This extends the base coverage harness only where the measured corpus requires it.
 The report schema remains unchanged so historical baselines stay comparable.
 """
 from __future__ import annotations
@@ -12,6 +12,12 @@ from typing import Any, Mapping
 
 from .contracts import SourceRole
 from .extraction import DeterministicExtractionService
+from .git_commit import (
+    GIT_COMMIT_LOCATOR,
+    GitCommitEvidenceService,
+    GitCommitExtractionResult,
+    GitHubCommitCaptureService,
+)
 from .git_tree import (
     GIT_ROOT_TREE_LOCATOR,
     GitHubRootTreeCaptureService,
@@ -37,7 +43,7 @@ def run_live_coverage(
     token: str | None = None,
     workspace: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Run pinned file evidence plus exact root-tree evidence when requested."""
+    """Run pinned file evidence plus requested Git-object evidence."""
 
     spec = load_coverage_spec(spec_path)
     if workspace is None:
@@ -57,6 +63,8 @@ def _run_live_coverage(
     extraction = DeterministicExtractionService(store, objects)
     tree_capture = GitHubRootTreeCaptureService(reader, store, objects)
     tree_extraction = GitTreeEvidenceService(store, objects)
+    commit_capture = GitHubCommitCaptureService(reader, store, objects)
+    commit_extraction = GitCommitEvidenceService(store, objects)
 
     case_reports: list[dict[str, Any]] = []
     total = 0
@@ -93,7 +101,11 @@ def _run_live_coverage(
         )
         extracted = extraction.extract_capture(captured.manifest.capture_id)
 
-        needs_tree = any(_check_kind(requirement) == "git_root_tree_contains" for requirement in requirements)
+        needs_tree = any(
+            _check_kind(requirement) == "git_root_tree_contains"
+            for requirement in requirements
+            if isinstance(requirement, Mapping)
+        )
         tree_result: GitTreeExtractionResult | None = None
         tree_capture_id: str | None = None
         if needs_tree:
@@ -101,14 +113,33 @@ def _run_live_coverage(
             tree_capture_id = tree_captured.manifest.capture_id
             tree_result = tree_extraction.extract_root_tree(tree_capture_id)
 
+        needs_commit = any(
+            _check_kind(requirement) == "commit_message_contains"
+            for requirement in requirements
+            if isinstance(requirement, Mapping)
+        )
+        commit_result: GitCommitExtractionResult | None = None
+        commit_capture_id: str | None = None
+        if needs_commit:
+            commit_captured = commit_capture.capture_commit(captured.revision.source_revision_id)
+            commit_capture_id = commit_captured.manifest.capture_id
+            commit_result = commit_extraction.extract_commit(commit_capture_id)
+
         requirement_results: list[RequirementResult] = []
         for requirement in requirements:
             if not isinstance(requirement, Mapping):
                 raise CoverageSpecError(f"{case_id}: requirement must be a mapping")
-            if _check_kind(requirement) == "git_root_tree_contains":
+            kind = _check_kind(requirement)
+            if kind == "git_root_tree_contains":
                 if tree_result is None:
                     raise CoverageSpecError(f"{case_id}: tree requirement executed without tree capture")
                 requirement_results.append(_assess_root_tree(requirement, tree_result))
+            elif kind == "commit_message_contains":
+                if commit_result is None:
+                    raise CoverageSpecError(
+                        f"{case_id}: commit requirement executed without commit capture"
+                    )
+                requirement_results.append(_assess_commit_message(requirement, commit_result))
             else:
                 requirement_results.extend(assess_requirements([requirement], extracted))
 
@@ -135,6 +166,11 @@ def _run_live_coverage(
                 "source_revision_tree_sha": captured.revision.tree_sha,
                 "capture_id_omitted_from_stable_report": True,
             }
+        if commit_capture_id is not None:
+            capture_payload["commit_capture"] = {
+                "source_revision_commit_sha": captured.revision.commit_sha,
+                "capture_id_omitted_from_stable_report": True,
+            }
 
         case_reports.append(
             {
@@ -147,6 +183,10 @@ def _run_live_coverage(
                     "fact_count": len(extracted.facts),
                     "source_assertion_count": len(extracted.assertions),
                     "root_tree_fact_count": 0 if tree_result is None else len(tree_result.facts),
+                    "commit_fact_count": 0 if commit_result is None else len(commit_result.facts),
+                    "commit_source_assertion_count": (
+                        0 if commit_result is None else len(commit_result.assertions)
+                    ),
                 },
                 "requirements": [item.to_dict() for item in requirement_results],
                 "summary": {
@@ -247,6 +287,53 @@ def _assess_root_tree(
     )
 
 
+def _assess_commit_message(
+    requirement: Mapping[str, Any], commit: GitCommitExtractionResult
+) -> RequirementResult:
+    evidence_id = _required_string(requirement, "evidence_id")
+    evidence_type = _required_string(requirement, "evidence_type")
+    check = requirement.get("check")
+    if not isinstance(check, Mapping):
+        raise CoverageSpecError(f"{evidence_id}: check must be a mapping")
+    fragments_raw = check.get("fragments")
+    if not isinstance(fragments_raw, list) or not fragments_raw or not all(
+        isinstance(item, str) and item.strip() for item in fragments_raw
+    ):
+        raise CoverageSpecError(f"{evidence_id}: fragments must be non-empty strings")
+    fragments = tuple(item.strip() for item in fragments_raw)
+    needed = requirement.get("needed_capability_if_missing")
+    if needed is not None and not isinstance(needed, str):
+        raise CoverageSpecError(
+            f"{evidence_id}: needed_capability_if_missing must be a string"
+        )
+
+    matched = tuple(
+        assertion
+        for assertion in commit.assertions
+        if assertion.locator == f"{GIT_COMMIT_LOCATOR}#message"
+        and all(_contains(assertion.statement, fragment) for fragment in fragments)
+    )
+    if matched:
+        return RequirementResult(
+            evidence_id=evidence_id,
+            evidence_type=evidence_type,
+            status="recovered",
+            check_kind="commit_message_contains",
+            matched_locators=tuple(item.locator for item in matched),
+        )
+
+    combined = "\n".join(item.statement for item in commit.assertions)
+    missing = tuple(fragment for fragment in fragments if not _contains(combined, fragment))
+    return RequirementResult(
+        evidence_id=evidence_id,
+        evidence_type=evidence_type,
+        status="gap",
+        check_kind="commit_message_contains",
+        missing_fragments=missing,
+        needed_capability=needed or "commit-metadata-and-change-facts",
+    )
+
+
 def _check_kind(requirement: Mapping[str, Any]) -> str:
     check = requirement.get("check")
     if not isinstance(check, Mapping):
@@ -260,6 +347,14 @@ def _required_string(mapping: Mapping[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CoverageSpecError(f"{key} must be a non-empty string")
     return value.strip()
+
+
+def _normalize_text(value: str) -> str:
+    return " ".join(value.casefold().split())
+
+
+def _contains(haystack: str, needle: str) -> bool:
+    return _normalize_text(needle) in _normalize_text(haystack)
 
 
 def _fraction(numerator: int, denominator: int) -> float:
