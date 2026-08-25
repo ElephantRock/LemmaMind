@@ -16,9 +16,13 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-**M0 — Minimum System Contracts: implementation active; the corpus-selected evidence, source-local Observation, mutable GitHub process/workflow, action-policy, and temporal belief-revision paths are live-validated. An M8-lite Pattern vertical slice now closes representability of the remaining cross-repository hard case without weakening Observation provenance.**
+**V1 foundation — M1 Curated Discovery is implemented; the identity/evolution half of M2 Repository Registry is implemented; governed M2 tracking levels remain next.**
 
-The executable foundation includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, repository-metadata visibility evidence, evidence-bound action-policy evaluation, and temporal frontier reconciliation.
+The executable foundation includes strict versioned contracts, append-only SQLite persistence, formal `DiscoveryChannel → DiscoveryRun → DiscoveryHit` lineage, stable GitHub provider-ID repository resolution, immutable repository-locator history, registry-aware capture, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, repository-metadata visibility evidence, evidence-bound action-policy evaluation, temporal frontier reconciliation, and a narrow M8-lite cross-repository Pattern layer.
+
+M1 records raw discovery provenance without requiring identity to exist in advance. A `DiscoveryHit` may remain unresolved (`source_id=null`) until M2 resolves it; the historical hit is never rewritten merely because identity becomes known later. The frozen 13-repository manual watchlist is covered in unresolved, partially resolved, and fully resolved states.
+
+The first M2 registry slice uses GitHub's provider repository ID as the stable identity anchor. Owner/name, canonical URL, default branch, archive state, fork state, and optional fork-parent provider ID are append-only `RepositoryLocator` observations. A rename, transfer, or default-branch/archive change therefore creates a later locator for the same Source instead of mutating the original discovery hit or seed identity. Registry-aware capture accepts mutable repository-state evolution only when the latest validated M2 locator matches the incoming provider state.
 
 The first M8-lite vertical slice adds `Pattern`, `PatternOccurrence`, and `PatternOccurrenceSupport` above source-local Observations. It supports explicit supporting cases, negative controls, and contradicting occurrences; prevents repeated revisions of one Source from becoming pseudo-replication; and always constructs a candidate `SYNTHESIS` result rather than self-validating a cross-source claim.
 
@@ -58,11 +62,13 @@ The hard-case readiness matrix is now **4 ready / 0 blocked / 0 deferred**:
 - CSD-Foundry frontier/belief-revision case: ready;
 - private-Actions cross-repository Pattern case: ready in the M8-lite Pattern layer.
 
-This means the four selected hard golden cases are representable in their correct semantic layers. It does **not** mean full M8 or the roadmap is complete.
+This means the four selected hard golden cases are representable in their correct semantic layers. It does **not** mean the roadmap or full M8 is complete.
 
-The implementation remains deliberately below formal M1 discovery lineage, mature M2 registry evolution, general M5 delta machinery, M6 ArchitectureProfile/triage, M6.5 embeddings/representation, autonomous model-generated reasoning, the real M7.5 attention-budgeted review queue, full M8 automatic pattern discovery/cohorts/tensions, M9 Insight/Knowledge promotion, action execution, authorization issuance, and UI.
+M2 identity/evolution validation is deliberately non-destructive. `ElephantRock/LemmaMind` currently resolves to GitHub provider repository ID `1345295505`, owner/name `ElephantRock/LemmaMind`, default branch `main`, `archived=false`, and `fork=false`. Rename/transfer/default-branch/archive evolution is tested deterministically rather than by mutating a real repository solely for demonstration. The corrected M2 branch suite reached **131 passed** after a regression test exposed and closed a stale-locator capture-authorization hole.
 
-The next roadmap move is therefore back to the missing **V1 foundation**, beginning with formal **M1 Curated Discovery lineage** rather than advancing directly into M9.
+The implementation remains deliberately below governed M2 tracking-level history, general M5 delta machinery, M6 ArchitectureProfile/triage, M6.5 embeddings/representation, autonomous model-generated reasoning, the real M7.5 attention-budgeted review queue, full M8 automatic pattern discovery/cohorts/tensions, M9 Insight/Knowledge promotion, action execution, authorization issuance, and UI.
+
+The next roadmap move remains inside **M2 Repository Registry**: implement immutable tracking-level history (`0 — Ignore` through `5 — Continuous`) and make capture/polling/reasoning policy consume the latest governed level.
 
 ## Start here
 
@@ -70,6 +76,8 @@ The next roadmap move is therefore back to the missing **V1 foundation**, beginn
 - [`eval/pilot/M-1-CLOSEOUT.md`](eval/pilot/M-1-CLOSEOUT.md) — M−1 result, evidence, design changes, and exit decision
 - [`docs/M0-CONTRACTS.md`](docs/M0-CONTRACTS.md) — minimum contracts selected from actual pilot cases
 - [`docs/M0-IMPLEMENTATION.md`](docs/M0-IMPLEMENTATION.md) — rationale for executable M0 contracts and persistence
+- [`docs/M1-DISCOVERY.md`](docs/M1-DISCOVERY.md) — formal curated-discovery lineage and M1/M2 boundary
+- [`docs/M2-REPOSITORY-REGISTRY.md`](docs/M2-REPOSITORY-REGISTRY.md) — stable provider identity, locator evolution, and registry-aware capture
 - [`docs/M0-CAPTURE.md`](docs/M0-CAPTURE.md) — deterministic GitHub capture semantics and trust boundary
 - [`docs/M0-EXTRACTION.md`](docs/M0-EXTRACTION.md) — deterministic facts/assertions, provenance, and epistemic boundary
 - [`docs/M0-TYPESCRIPT-EVIDENCE.md`](docs/M0-TYPESCRIPT-EVIDENCE.md) — pinned TypeScript parser trust surface and compatibility evidence
@@ -81,6 +89,8 @@ The next roadmap move is therefore back to the missing **V1 foundation**, beginn
 - [`docs/M0-ACTION-POLICY.md`](docs/M0-ACTION-POLICY.md) — evidence-bound operational policy and authorization separation
 - [`docs/M0-TEMPORAL-RECONCILIATION.md`](docs/M0-TEMPORAL-RECONCILIATION.md) — source-local temporal frontier reconciliation and immutable belief revision
 - [`docs/M8-PATTERN-INTELLIGENCE-LITE.md`](docs/M8-PATTERN-INTELLIGENCE-LITE.md) — first cross-repository Pattern/negative-control boundary
+- [`eval/pilot/discovery-reports/manual-watchlist-v1.md`](eval/pilot/discovery-reports/manual-watchlist-v1.md) — frozen 13-entry M1 manual-watchlist checkpoint
+- [`eval/pilot/registry-reports/lemmamind-provider-identity-v1.md`](eval/pilot/registry-reports/lemmamind-provider-identity-v1.md) — M2 live provider-ID checkpoint and evolution boundary
 - [`eval/pilot/coverage/external-v1.yaml`](eval/pilot/coverage/external-v1.yaml) — machine-readable external evidence-recovery checks
 - [`eval/pilot/coverage/reports/external-v1-typescript.md`](eval/pilot/coverage/reports/external-v1-typescript.md) — complete deterministic repository-evidence checkpoint (12/12)
 - [`eval/pilot/observation-reports/external-openbot-v1.md`](eval/pilot/observation-reports/external-openbot-v1.md) — first live evidence-supported Observation probe
@@ -92,6 +102,10 @@ The next roadmap move is therefore back to the missing **V1 foundation**, beginn
 - [`eval/pilot/temporal-reports/csd-frontier-reconciliation-v1.md`](eval/pilot/temporal-reports/csd-frontier-reconciliation-v1.md) — live temporal belief-revision checkpoint
 - [`eval/pilot/pattern-reports/private-actions-v1.md`](eval/pilot/pattern-reports/private-actions-v1.md) — first cross-repository Pattern checkpoint
 - [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned contracts
+- [`src/lemmamind/discovery.py`](src/lemmamind/discovery.py) — generic M1 discovery lineage service
+- [`src/lemmamind/manual_watchlist.py`](src/lemmamind/manual_watchlist.py) — manual-watchlist M1 adapter
+- [`src/lemmamind/repository_registry.py`](src/lemmamind/repository_registry.py) — M2 GitHub provider-ID resolution and locator history
+- [`src/lemmamind/registry_aware_capture.py`](src/lemmamind/registry_aware_capture.py) — capture path requiring latest validated M2 locator once registry history exists
 - [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — atomic append-only SQLite contract persistence
 - [`src/lemmamind/objects.py`](src/lemmamind/objects.py) — SHA-256 content-addressed captured bytes
 - [`src/lemmamind/github.py`](src/lemmamind/github.py) — read-only GitHub repository/file capture path
@@ -111,7 +125,7 @@ The next roadmap move is therefore back to the missing **V1 foundation**, beginn
 - [`src/lemmamind/observations_v2.py`](src/lemmamind/observations_v2.py) — revision-aware same-source supersession while preserving one-revision Observation support
 - [`src/lemmamind/pattern_intelligence.py`](src/lemmamind/pattern_intelligence.py) — candidate cross-source Pattern construction over source-local Observations
 - [`src/lemmamind/observation_readiness.py`](src/lemmamind/observation_readiness.py) — deterministic hard-case readiness evaluator
-- [`tests/`](tests/) — contract, persistence, capture, extraction, observation, process/event/workflow/policy/temporal/pattern, coverage, object-integrity, and golden-corpus regression tests
+- [`tests/`](tests/) — contract, persistence, discovery, registry, capture, extraction, observation, process/event/workflow/policy/temporal/pattern, coverage, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
@@ -146,7 +160,17 @@ What should I pay attention to?
 ## Current executable vertical path
 
 ```text
-GitHub repository/process/event/workflow metadata
+DiscoveryChannel
+      ↓
+DiscoveryRun
+      ↓
+DiscoveryHit
+      ↓
+DiscoveryResolution
+      ↓
+stable Source + latest RepositoryLocator
+      ↓
+registry-aware repository capture
       ↓
 exact commit + tree analysis anchor
       ↓
@@ -174,7 +198,7 @@ Action-policy evaluation
 (reject / recommend / require authorization; never authorize)
 ```
 
-The next implementation priority is formal **M1 Curated Discovery** lineage. Model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred.
+The next implementation priority is the remaining **M2 tracking-level history and policy**. Model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred.
 
 ## Canonical home
 
