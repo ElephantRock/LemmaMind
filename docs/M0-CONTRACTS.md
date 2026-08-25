@@ -16,6 +16,7 @@ The M−1 corpus demonstrated that LemmaMind must preserve several distinctions 
 - current state can supersede an earlier conclusion without erasing history;
 - repository ownership affects operational action but not epistemic validity;
 - an action recommendation is separate from the knowledge claim that motivated it;
+- operational capability is not the same as governance authority;
 - agent-runtime authority is multi-dimensional rather than a single tools/sandbox flag;
 - every derived object must identify the run/version that produced it.
 
@@ -212,11 +213,11 @@ READ_ONLY
 UNKNOWN
 ```
 
-This contract must never alter the truth value or support status of evidence/observations.
+This contract must never alter the truth value or support status of evidence/observations. It also must not be treated as proof that a technically possible action is authorized by experiment, governance, or independent-review policy.
 
 ### 12. ActionRecommendation
 
-Optional operational consequence of an observation or insight.
+Optional operational consequence of an observation, decision context, or later insight.
 
 ```text
 action_id
@@ -229,7 +230,30 @@ authorization_required
 status
 ```
 
-Possible action types include learn, investigate, adopt, avoid, mitigate, pin, monitor, report_upstream, contribute_upstream, fork_vendor, revalidate, and no_action.
+The evidence-driven action vocabulary currently includes:
+
+```text
+learn
+investigate
+adopt
+avoid
+mitigate
+pin
+monitor
+report_upstream
+contribute_upstream
+fork_vendor
+revalidate
+preserve
+rerun
+classify
+promote
+no_action
+```
+
+`preserve`, `rerun`, `classify`, and `promote` were added because the Resonance-World governance case cannot be represented precisely if those operational actions are hidden inside free-form target strings.
+
+Action status remains distinct from authorization. The M0 action-policy evaluator may produce `rejected` or `recommended` results and may set `authorization_required=true`, but it deliberately has no path that grants `authorized` status.
 
 ### 13. ReviewDecision
 
@@ -269,6 +293,7 @@ M−1 does **not** justify implementing these as M0 core entities yet:
 - learned recommendation ranker
 - graph database objects
 - dynamic execution/sandbox results
+- credentialed action-execution/authorization records
 
 They remain roadmap concepts and should be introduced only when the preceding data exists.
 
@@ -300,6 +325,7 @@ M0 implementation is complete only when every durable derived record can answer:
 4. Which versioned run produced it?
 5. Has a later observation superseded it?
 6. What repository relationship applies to any proposed action?
-7. Can the knowledge remain valid even when no source modification is possible?
+7. Which explicit governance constraints apply to that action, and does authorization remain external where required?
+8. Can the knowledge remain valid even when no source modification is possible?
 
-No autonomous synthesis is required for M0.
+No autonomous synthesis or action execution is required for M0.
