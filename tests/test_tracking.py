@@ -65,30 +65,26 @@ def test_unassigned_source_fails_closed_without_fabricating_history(tmp_path) ->
 
 def test_assignments_are_append_only_and_latest_effective_is_time_aware(tmp_path) -> None:
     _, source, clock, service = make_service(tmp_path)
-    first_effective = T0 + timedelta(hours=1)
-    second_effective = T0 + timedelta(hours=3)
 
     first = service.assign_level(
         source.source_id,
         TrackingLevel.SHALLOW,
         assigned_by="operator:test",
         reason="initial repository capture",
-        effective_at=first_effective,
     )
-    clock.value = T0 + timedelta(hours=2)
+    clock.value = T0 + timedelta(hours=3)
     second = service.assign_level(
         source.source_id,
         TrackingLevel.STRUCTURAL,
         assigned_by="operator:test",
         reason="promote after useful deterministic evidence",
-        effective_at=second_effective,
     )
 
     assert second.supersedes_tracking_assignment_id == first.tracking_assignment_id
     assert service.history(source.source_id) == (first, second)
     assert service.latest_effective(
         source.source_id,
-        as_of=T0 + timedelta(hours=2, minutes=30),
+        as_of=T0 + timedelta(hours=2),
     ) == first
     assert service.latest_effective(
         source.source_id,
@@ -98,14 +94,12 @@ def test_assignments_are_append_only_and_latest_effective_is_time_aware(tmp_path
 
 def test_exact_assignment_replay_is_idempotent(tmp_path) -> None:
     store, source, clock, service = make_service(tmp_path)
-    effective = T0 + timedelta(hours=1)
 
     first = service.assign_level(
         source.source_id,
         TrackingLevel.DEEP,
         assigned_by="operator:test",
         reason="deep investigation",
-        effective_at=effective,
     )
     clock.value = T0 + timedelta(hours=5)
     replay = service.assign_level(
@@ -113,7 +107,7 @@ def test_exact_assignment_replay_is_idempotent(tmp_path) -> None:
         TrackingLevel.DEEP,
         assigned_by="operator:test",
         reason="deep investigation",
-        effective_at=effective,
+        effective_at=first.effective_at,
     )
 
     assert replay == first
@@ -121,15 +115,14 @@ def test_exact_assignment_replay_is_idempotent(tmp_path) -> None:
 
 
 def test_same_effective_time_cannot_be_rewritten(tmp_path) -> None:
-    _, source, _, service = make_service(tmp_path)
-    effective = T0 + timedelta(hours=1)
-    service.assign_level(
+    _, source, clock, service = make_service(tmp_path)
+    first = service.assign_level(
         source.source_id,
         TrackingLevel.SHALLOW,
         assigned_by="operator:test",
         reason="initial",
-        effective_at=effective,
     )
+    clock.value = T0 + timedelta(hours=2)
 
     with pytest.raises(TrackingConflict):
         service.assign_level(
@@ -137,19 +130,19 @@ def test_same_effective_time_cannot_be_rewritten(tmp_path) -> None:
             TrackingLevel.DEEP,
             assigned_by="operator:test",
             reason="rewrite",
-            effective_at=effective,
+            effective_at=first.effective_at,
         )
 
 
 def test_backdated_change_is_rejected(tmp_path) -> None:
-    _, source, _, service = make_service(tmp_path, now=T0 + timedelta(hours=5))
+    _, source, clock, service = make_service(tmp_path)
     service.assign_level(
         source.source_id,
         TrackingLevel.DEEP,
         assigned_by="operator:test",
         reason="deep",
-        effective_at=T0 + timedelta(hours=4),
     )
+    clock.value = T0 + timedelta(hours=5)
 
     with pytest.raises(TrackingConflict):
         service.assign_level(
@@ -157,6 +150,19 @@ def test_backdated_change_is_rejected(tmp_path) -> None:
             TrackingLevel.SHALLOW,
             assigned_by="operator:test",
             reason="retroactive downgrade",
+            effective_at=T0 + timedelta(hours=2),
+        )
+
+
+def test_future_scheduled_change_is_rejected_in_v1(tmp_path) -> None:
+    _, source, _, service = make_service(tmp_path)
+
+    with pytest.raises(TrackingConflict):
+        service.assign_level(
+            source.source_id,
+            TrackingLevel.CONTINUOUS,
+            assigned_by="operator:test",
+            reason="future schedule",
             effective_at=T0 + timedelta(hours=2),
         )
 
