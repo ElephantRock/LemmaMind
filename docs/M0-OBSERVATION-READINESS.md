@@ -2,13 +2,13 @@
 
 ## Status
 
-The executable `Evidence → Observation` slice, revision-aware supersession, durable GitHub issue/PR snapshots, durable workflow-run evidence, and evidence-bound action-policy validation are now implemented and live-validated.
+The executable `Evidence → Observation` slice, revision-aware supersession, durable GitHub issue/PR snapshots, issue-event history, durable workflow-run evidence, and evidence-bound action-policy validation are now implemented and live-validated.
 
-The key result remains that not every golden case should be made to pass by broadening `Observation` until it can hold arbitrary synthesis. The hard cases separate source-local observation, process/event evidence, temporal belief revision, action/governance policy, and cross-repository pattern synthesis.
+The hard cases continue to separate source-local observation, process/event evidence, temporal belief revision, action/governance policy, and cross-repository pattern synthesis rather than broadening `Observation` into a generic synthesis container.
 
 The machine-readable readiness contract is `eval/pilot/observation-readiness-v1.yaml` and is evaluated by `lemmamind.observation_readiness`.
 
-## Observation v2 correction
+## Observation boundary
 
 One source-level Observation remains bound to one resolved `SourceRevision`, while supersession may cross revisions of the same Source:
 
@@ -20,120 +20,68 @@ same logical_claim_id
 
 Cross-source support remains rejected.
 
-## Process and workflow evidence
+## Process, event, and workflow evidence
 
-Issue and pull-request state is mutable independently of Git state. `SourceRevision` is an analysis anchor, not a claim that process state is historically determined by the anchor commit. Current issue/PR snapshots preserve provider timestamps and PR head/base/merge SHAs separately.
+Current issue/PR snapshots preserve what GitHub reports now. Issue-event history separately preserves provider event IDs, event kinds, actors, timestamps, and optional commit links. `SourceRevision` remains the analysis-generation anchor, not the time authority for mutable process state.
 
-A workflow conclusion is likewise not a code-test diagnosis. Workflow evidence separately preserves run, job, step, artifact, runner, timestamp, and safe job-log availability metadata.
+Live CSD event-history validation recovered issue #37's provider `closed` event at `2026-08-24T21:31:54Z` and later `reopened` event at `2026-08-24T21:36:12Z`. The historical close→reopen transition is therefore directly observed rather than inferred from the current `state=open` snapshot.
 
-These boundaries are documented in `docs/M0-GITHUB-PROCESS-EVIDENCE.md` and `docs/M0-GITHUB-WORKFLOW-EVIDENCE.md`.
+Workflow evidence likewise preserves run/job/step/artifact metadata without turning workflow conclusions into causal diagnoses.
 
-## Action-policy correction
+See `docs/M0-GITHUB-PROCESS-EVIDENCE.md`, `docs/M0-GITHUB-PROCESS-EVENTS.md`, and `docs/M0-GITHUB-WORKFLOW-EVIDENCE.md`.
 
-Repository capability is not operational authority.
+## Action-policy boundary
 
-The Resonance-World case now has an evidence-bound action policy built from direct captured governance:
-
-```text
-confirmatory_rerun_allowed = false
-separate frozen-output evaluator = only classifier
-promotion requires independent Acceptance-plane authority
-```
-
-Even though the repository relationship is `OWNED` with `can_write=true`, the live validator blocks rerun and provider self-classification. Promotion remains recommendation-only with `authorization_required=true`.
-
-The evaluator has no path that emits `AUTHORIZED`. Independent authority remains external to the evaluator.
-
-See `docs/M0-ACTION-POLICY.md` and `eval/pilot/action-policy-reports/resonance-world-confirmatory-v1.*`.
+Repository capability is not operational authority. The Resonance-World validator uses explicit captured governance to block a blind rerun and provider self-classification even when the relationship is `OWNED` with `can_write=true`. Promotion remains recommendation-only with independent authorization still external to the evaluator.
 
 ## Hard-case readiness result
 
 | Case | Outcome | Current blocker boundary |
 | --- | --- | --- |
 | `external-opd-source-type` | **ready** | None at the source-level Observation layer. |
-| `csd-foundry-frontier` | **blocked** | Close→reopen event history and temporal multi-revision reconciliation remain missing. |
-| `resonance-world-confirmatory` | **ready** | Source-local evidence and action-policy validation now preserve the no-rerun/classifier/independent-authority boundaries. |
+| `csd-foundry-frontier` | **blocked** | Historical close→reopen evidence now exists; only temporal multi-revision/frontier reconciliation remains missing. |
+| `resonance-world-confirmatory` | **ready** | Source-local evidence and action-policy validation preserve the no-rerun/classifier/independent-authority boundaries. |
 | `private-actions-pattern` | **deferred** | The useful conclusion intentionally belongs to the later cross-repository Pattern layer. |
 
 Summary: **2 ready / 1 blocked / 1 deferred**.
 
 ## Why CSD is still blocked
 
-Current snapshots recover:
+The source-local evidence now includes:
 
 ```text
-issue #37: open
-PR #115: closed + merged
+issue #37: currently open
+PR #115: merged
 PR #117: open + draft
+issue #37 event history: closed → reopened
 ```
 
-and PR #117's base SHA is the D5 merge commit while its head is the separate qualification revision.
-
-But the frozen golden case also says issue #37 was previously closed and later reopened. A current snapshot cannot prove that transition. The acquisition gap is:
+The missing capability is no longer acquisition. It is the higher-level reconciliation:
 
 ```text
-github_process_event_history
-```
-
-Even after event history exists, the higher-level conclusion:
-
-```text
+D5 implementation landed
++ umbrella issue was closed
++ issue was later reopened
++ qualification PR remains open
+        ↓
 implementation frontier complete
 !=
 evidentiary closure frontier complete
 ```
 
-still belongs to:
+That conclusion belongs to `temporal_change_reconciliation`. It must preserve the earlier stronger conclusion as historical state and produce explicit supersession/belief-revision lineage rather than rewriting it.
 
-```text
-temporal_change_reconciliation
-```
+## Why private Actions remains deferred
 
-Forcing historical events or multi-revision reconciliation into one source-level Observation would weaken provenance.
-
-## Why private Actions remains outside Observation
-
-Workflow evidence can now represent the local failure signature correctly:
-
-```text
-run/job conclusion = failure
-step_count = 0
-log availability = missing
-```
-
-without labeling it `tests failed`.
-
-The useful conclusion, however, depends on matching that signature across private repositories and contrasting healthy public repositories. That is cross-repository synthesis. The one-revision Observation rule should keep rejecting it until a proper Pattern layer exists.
-
-## Resonance-World implication
-
-The source-local state and operational policy are now representable without conflating them:
-
-```text
-Evidence
-  ↓
-Observation / decision context
-  ↓
-RepositoryRelationship
-+ explicit governance rules
-  ↓
-Action-policy evaluation
-```
-
-The policy layer can reject, recommend, or require authorization. It cannot execute or authorize.
+Workflow evidence can represent each repository-local signature correctly, including zero-step failures and missing logs, without labeling them test failures. The useful private-Actions conclusion still depends on matched signatures and negative controls across several Sources. That is later Pattern semantics, not a reason to weaken the one-revision Observation invariant.
 
 ## Next priorities selected by the corpus
 
 Do not add autonomous observation generation yet.
 
-The next justified source-local capabilities are:
+The next justified source-local capability is:
 
-1. **GitHub issue/PR event-history capture** — required for the CSD close→reopen history;
-2. temporal change/frontier reconciliation over revision-bound observations and process events;
-3. later, cross-repository Pattern semantics for cases such as private Actions.
+1. **temporal change/frontier reconciliation** over revision-bound observations plus current process snapshots and provider event history;
+2. after that, later cross-repository Pattern semantics for cases such as private Actions.
 
-The readiness evaluator should be rerun whenever one of those capability states changes. A case may move from `blocked` to `ready`, but `deferred` cases should move only when the correct later semantic layer exists—not because Observation constraints were weakened.
-
-## Interpretation boundary
-
-The readiness matrix is not a claim that blocked/deferred cases are invalid. It records whether the current executable LemmaMind layers can represent their frozen golden intelligence with the required provenance and authority boundaries.
+A case may move from `blocked` to `ready` only when the correct semantic layer exists—not because source-level Observation constraints were weakened.
