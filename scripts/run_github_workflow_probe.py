@@ -12,8 +12,8 @@ from lemmamind.github import GitHubCaptureService, GitHubRESTReader
 from lemmamind.github_workflow import (
     GitHubWorkflowCaptureService,
     GitHubWorkflowEvidenceService,
-    GitHubWorkflowRESTReader,
 )
+from lemmamind.github_workflow_http import SafeGitHubWorkflowRESTReader
 from lemmamind.objects import ContentAddressedFileStore
 from lemmamind.storage import SQLiteContractStore
 
@@ -39,7 +39,7 @@ def run_probe(token: str | None = None) -> dict:
             ref=HEAD_SHA,
         )
 
-        workflow_reader = GitHubWorkflowRESTReader(token=token)
+        workflow_reader = SafeGitHubWorkflowRESTReader(token=token)
         workflow_capture = GitHubWorkflowCaptureService(workflow_reader, store, objects)
         workflow_evidence = GitHubWorkflowEvidenceService(store, objects)
         captured = workflow_capture.capture_run(anchored.revision.source_revision_id, RUN_ID)
