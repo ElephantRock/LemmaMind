@@ -90,6 +90,7 @@ class PatternOccurrenceRole(StrEnum):
 
 class RunType(StrEnum):
     DISCOVERY = "discovery"
+    REGISTRY = "registry"
     CAPTURE = "capture"
     EXTRACTION = "extraction"
     DIFF = "diff"
@@ -238,6 +239,7 @@ class RepositoryLocator(ContractModel):
     archived: bool
     fork: bool
     observed_at: AwareDatetime
+    pipeline_run_id: Identifier
 
 
 class DiscoveryResolution(ContractModel):
@@ -252,6 +254,7 @@ class DiscoveryResolution(ContractModel):
     resolution_method: RepositoryResolutionMethod
     resolver_version: Identifier
     resolved_at: AwareDatetime
+    pipeline_run_id: Identifier
 
 
 class CaptureArtifactRef(BaseModel):
