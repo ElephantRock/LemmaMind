@@ -1,0 +1,16 @@
+schema_version: lemmamind.pilot-coverage-run.v1
+coverage_id: external-golden-evidence-v1
+workflow_run_id: 32811460037
+executed_branch: m0/pilot-evidence-coverage
+executed_head: 97a9c9933bf5ee853e56ce074823476343a950ad
+result: success
+offline_tests:
+  passed: 32
+live_step: success
+github_permissions:
+  contents: read
+  metadata: read
+notes:
+  - The one-time branch-only workflow was removed after the successful run.
+  - The committed JSON report excludes transient capture IDs, run IDs, and timestamps.
+  - All external source revisions are pinned by pilot/watchlist.yaml.
