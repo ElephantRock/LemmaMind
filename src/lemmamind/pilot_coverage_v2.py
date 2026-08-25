@@ -192,8 +192,13 @@ def _assess_root_tree(
         raise CoverageSpecError(f"{evidence_id}: entries must be non-empty strings")
     required_entries = tuple(item.strip() for item in entries_raw)
     require_complete = check.get("require_complete", False)
+    exact_entries = check.get("exact_entries", False)
     if not isinstance(require_complete, bool):
         raise CoverageSpecError(f"{evidence_id}: require_complete must be boolean")
+    if not isinstance(exact_entries, bool):
+        raise CoverageSpecError(f"{evidence_id}: exact_entries must be boolean")
+    if exact_entries and not require_complete:
+        raise CoverageSpecError(f"{evidence_id}: exact_entries requires require_complete=true")
     needed = requirement.get("needed_capability_if_missing")
     if needed is not None and not isinstance(needed, str):
         raise CoverageSpecError(
@@ -208,13 +213,15 @@ def _assess_root_tree(
     observed_paths = {
         item for item in paths_fact.normalized_value if isinstance(item, str)
     }
+    required_set = set(required_entries)
     missing = tuple(item for item in required_entries if item not in observed_paths)
+    unexpected = tuple(sorted(observed_paths - required_set)) if exact_entries else ()
     incomplete = bool(
         require_complete
         and (truncated_fact is None or truncated_fact.normalized_value is not False)
     )
 
-    if not missing and not incomplete:
+    if not missing and not unexpected and not incomplete:
         locators = [paths_fact.locator]
         if require_complete and truncated_fact is not None:
             locators.append(truncated_fact.locator)
@@ -227,6 +234,7 @@ def _assess_root_tree(
         )
 
     missing_fragments = list(missing)
+    missing_fragments.extend(f"unexpected root entry: {item}" for item in unexpected)
     if incomplete:
         missing_fragments.append("complete non-truncated root tree")
     return RequirementResult(
