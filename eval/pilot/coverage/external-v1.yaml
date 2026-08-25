@@ -26,13 +26,37 @@ cases:
       - evidence_id: openbot-authority-2
         evidence_type: ObservedFact
         check:
-          kind: unsupported
-        needed_capability_if_missing: source-code-semantic-facts
+          kind: typescript_evidence_bundle
+          artifact: server/src/tenant-package.ts
+          comment_fragments:
+            - A skill is an instruction and confers nothing
+            - run-time offer is always the intersection of the two
+            - skill naming a tool its Bot does not hold loads nothing
+          fact_selectors:
+            - kind: call
+              field: text
+              contains: insert(skillTools)
+            - kind: call
+              field: text
+              contains: insert(pluginGrants)
+        needed_capability_if_missing: typescript-comments-and-structural-facts
       - evidence_id: openbot-authority-3
         evidence_type: ObservedFact
         check:
-          kind: unsupported
-        needed_capability_if_missing: source-code-semantic-facts
+          kind: typescript_evidence_bundle
+          artifact: server/src/tenant-package.ts
+          comment_fragments:
+            - deliberately NOT checked against the tools this deployment has seen
+            - run-time intersection drops it
+            - refused rather than dropped
+          fact_selectors:
+            - kind: if
+              field: condition
+              contains: "!skillSlugs.has(slug)"
+            - kind: throw
+              field: text
+              contains: which this package does not ship
+        needed_capability_if_missing: typescript-comments-and-structural-facts
 
   - case_id: external-openclaw-sandbox-posture
     repository: openclaw/openclaw
