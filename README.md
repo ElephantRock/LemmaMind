@@ -18,16 +18,22 @@ The completed pilot contains a controlled ElephantRock corpus plus four real ext
 
 **M0 — Minimum System Contracts: implementation active.**
 
-The first executable slice now implements the versioned M0 contracts as strict Pydantic models, persists them in a typed append-only SQLite store, and continuously checks those contracts against the M−1 golden corpus. The implementation remains deliberately below the pattern/insight/embedding/autonomous-reasoning layers.
+The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, and the first real read-only GitHub capture path. A repository ref is resolved once to an exact commit/tree revision; every selected artifact is then read at that immutable commit SHA and persisted without executing source content.
+
+The implementation remains deliberately below deterministic evidence extraction, change intelligence, pattern/insight synthesis, embeddings, autonomous reasoning, and UI.
 
 ## Start here
 
 - [`docs/PRODUCT.md`](docs/PRODUCT.md) — authoritative product definition, user, outputs, UX, and action boundary
 - [`eval/pilot/M-1-CLOSEOUT.md`](eval/pilot/M-1-CLOSEOUT.md) — M−1 result, evidence, design changes, and exit decision
 - [`docs/M0-CONTRACTS.md`](docs/M0-CONTRACTS.md) — minimum contracts selected from actual pilot cases
+- [`docs/M0-IMPLEMENTATION.md`](docs/M0-IMPLEMENTATION.md) — rationale for executable M0 contracts and persistence
+- [`docs/M0-CAPTURE.md`](docs/M0-CAPTURE.md) — deterministic GitHub capture semantics and trust boundary
 - [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned M0 contract models
-- [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — append-only SQLite contract persistence
-- [`tests/`](tests/) — contract, persistence, and golden-corpus regression tests
+- [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — atomic append-only SQLite contract persistence
+- [`src/lemmamind/objects.py`](src/lemmamind/objects.py) — SHA-256 content-addressed captured bytes
+- [`src/lemmamind/github.py`](src/lemmamind/github.py) — read-only GitHub REST adapter and capture service
+- [`tests/`](tests/) — contract, persistence, capture, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
@@ -63,7 +69,7 @@ What should I pay attention to?
 
 ## M0 rule
 
-The initial implementation target is deliberately small:
+The implementation target remains deliberately small:
 
 ```text
 Source
@@ -81,7 +87,17 @@ Observation + explicit support
 
 Cross-cutting from the start: `PipelineRun`, `RepositoryRelationship`, `ActionRecommendation`, and `ReviewDecision`.
 
-No autonomous insight synthesis is required for M0/V1.
+Current implemented boundary:
+
+```text
+GitHub metadata
+      ↓
+exact revision
+      ↓
+content-addressed captured artifacts
+```
+
+The next boundary is deterministic evidence extraction from those captured artifacts. No autonomous insight synthesis is required for M0/V1.
 
 ## Canonical home
 
