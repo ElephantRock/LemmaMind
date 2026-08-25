@@ -1,10 +1,7 @@
-"""Versioned contracts selected from the LemmaMind golden corpus.
+"""Versioned contracts selected from the LemmaMind golden corpus and roadmap gates.
 
-The module began as the M0 reproducible-evidence spine. Later corpus-selected
-vertical slices add only the contracts required by demonstrated cases and roadmap
-gates: M8-lite Pattern objects and M1 discovery lineage are additive here. Cohort,
-prevalence, tension, insight, embedding, and autonomous reasoning objects remain
-deferred until real cases require them.
+The module began as the M0 reproducible-evidence spine. Additive contracts are
+introduced only when demonstrated cases or the V1/V2 roadmap require them.
 """
 
 from __future__ import annotations
@@ -49,6 +46,10 @@ class DiscoveryChannelType(StrEnum):
     MANUAL_WATCHLIST = "manual_watchlist"
     GITHUB_STARS = "github_stars"
     SAVED_SEARCH = "saved_search"
+
+
+class RepositoryResolutionMethod(StrEnum):
+    GITHUB_PROVIDER_REPOSITORY_ID = "github_provider_repository_id"
 
 
 class RetrievalStatus(StrEnum):
@@ -187,7 +188,7 @@ class SourceRevision(ContractModel):
 
 
 class DiscoveryChannel(ContractModel):
-    """Stable configured entry point through which Sources may be discovered."""
+    """Stable configured entry point through which candidates may be discovered."""
 
     record_id_field = "discovery_channel_id"
 
@@ -220,6 +221,37 @@ class DiscoveryHit(ContractModel):
     source_id: Identifier | None = None
     ordinal: int = Field(ge=1)
     discovered_locator: Identifier
+
+
+class RepositoryLocator(ContractModel):
+    """One immutable observation of mutable GitHub repository locator/state."""
+
+    record_id_field = "repository_locator_id"
+
+    repository_locator_id: Identifier
+    source_id: Identifier
+    provider_repository_id: Identifier
+    owner: Identifier
+    name: Identifier
+    canonical_locator: Identifier
+    default_branch: Identifier
+    archived: bool
+    fork: bool
+    observed_at: AwareDatetime
+
+
+class DiscoveryResolution(ContractModel):
+    """Resolve one immutable DiscoveryHit to one canonical Source without mutation."""
+
+    record_id_field = "discovery_resolution_id"
+
+    discovery_resolution_id: Identifier
+    discovery_hit_id: Identifier
+    source_id: Identifier
+    repository_locator_id: Identifier
+    resolution_method: RepositoryResolutionMethod
+    resolver_version: Identifier
+    resolved_at: AwareDatetime
 
 
 class CaptureArtifactRef(BaseModel):
@@ -422,6 +454,8 @@ CONTRACT_TYPES: dict[str, type[ContractModel]] = {
         DiscoveryChannel,
         DiscoveryRun,
         DiscoveryHit,
+        RepositoryLocator,
+        DiscoveryResolution,
         CaptureManifest,
         Artifact,
         PipelineRun,
