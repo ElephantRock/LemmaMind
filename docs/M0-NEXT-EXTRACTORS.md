@@ -2,12 +2,13 @@
 
 ## Decision basis
 
-LemmaMind now has four preserved live external coverage checkpoints against the same four pinned read-only repositories and 12 explicit golden-evidence requirements:
+LemmaMind now has five preserved live external coverage checkpoints against the same four pinned read-only repositories and 12 explicit golden-evidence requirements:
 
 - initial deterministic baseline: **4/12 (33.3%)**
 - after `markdown-list.v1`: **6/12 (50.0%)**
 - after exact Git root-tree evidence: **7/12 (58.3%)**
 - after durable Git commit evidence: **8/12 (66.7%)**
+- after Python AST structural evidence: **10/12 (83.3%)**
 
 Reports are preserved under `eval/pilot/coverage/reports/`; new capabilities never rewrite historical evidence.
 
@@ -25,91 +26,74 @@ Reports are preserved under `eval/pilot/coverage/reports/`; new capabilities nev
 
 `markdown-list.v1` preserves ordered/unordered list items, nested items, and indented continuation lines with exact line provenance while excluding fenced code. It remains separate from `markdown-prose.v1`.
 
-Live effect:
-
-- OpenBot: `0/3 → 1/3`
-- OpenClaw: `2/3 → 3/3`
-- overall: `4/12 → 6/12`
+Live effect: overall `4/12 → 6/12`; OpenBot `0/3 → 1/3`; OpenClaw `2/3 → 3/3`.
 
 ## Priority 1 — Exact Git root-tree capture and facts: COMPLETE
 
-**Gap closed:** `opd-source-3`
+The root-tree path follows the pinned `SourceRevision.tree_sha`, captures the exact non-recursive Git tree as content-addressed JSON, and emits deterministic facts for tree identity, truncation, path membership, object type, mode, SHA, and size where supplied.
 
-The root-tree path follows the pinned `SourceRevision.tree_sha`, captures the exact non-recursive Git tree as content-addressed JSON, and emits deterministic facts for tree identity, truncation state, path membership, object type, mode, SHA, and size where supplied.
-
-For the pinned OPD revision `e4b5e7334ccd3437ccab8d4eef770ed02c4f9934`, the exact non-truncated root tree is:
-
-- `.claude`
-- `CITATION.cff`
-- `CONTRIBUTING.md`
-- `LICENSE`
-- `README.md`
-
-Live effect:
-
-- OPD index: `2/3 → 3/3`
-- overall: `6/12 → 7/12`
-
-The tree facts support the source-role interpretation; they do not themselves classify the repository.
+Live effect: OPD `2/3 → 3/3`; overall `6/12 → 7/12`.
 
 ## Priority 1 — Durable commit metadata/change evidence: COMPLETE
 
-**Gap closed:** `hermes-containment-1`
+The commit path follows `SourceRevision.commit_sha`, rejects commit/tree disagreement, stores canonical content-addressed metadata, emits commit/tree/parent/timestamp/verification structure as `EvidenceFact`, and preserves the authored commit message as `SourceAssertion`.
 
-Implemented behavior:
+Live effect: Hermes `0/3 → 1/3`; overall `7/12 → 8/12`.
 
-- follows the already pinned `SourceRevision.commit_sha`;
-- rejects a returned commit SHA or tree SHA that disagrees with the pinned revision;
-- stores a canonical immutable commit artifact in the content-addressed object store;
-- preserves commit SHA, tree SHA, parent SHAs, author/committer timestamps, and source-supplied verification metadata as deterministic `EvidenceFact` records;
-- preserves the authored commit message separately as `SourceAssertion`;
-- does not interpret the commit message as proof of runtime behavior.
+## Priority 2 — Python AST structural facts: COMPLETE
 
-For Hermes revision `41447a6d7063b2772b0c2f26a5b22d9bd444fb43`, the commit-message assertion records that the terminal fix sweeps `setsid` descendants after the local timeout group-kill. This closes the change-statement requirement while leaving implementation and test behavior to later source-structure evidence.
-
-Live effect:
-
-- Hermes: `0/3 → 1/3`
-- overall: `7/12 → 8/12`
-
-## Priority 2 — Python AST structural facts: NEXT
-
-**Measured gaps addressed:** 2 Hermes requirements
+**Gaps closed:**
 
 - `hermes-containment-2`
 - `hermes-containment-3`
 
-Use Python's standard-library `ast` parser. The first implementation should emit only deterministic source structure with exact source ranges, including:
+`python-ast.v1` uses Python's standard-library `ast` parser and never imports or executes captured code. It emits exact source ranges and deterministic syntax facts for:
 
-- function and class definitions;
-- call expressions and syntactically resolvable qualified call names;
-- attribute access;
-- literal positional and keyword arguments;
-- assignment targets where useful to connect local names to calls/literals;
-- `try` / `except` structure;
+- function/class definitions and qualified scopes;
+- call expressions and syntactically resolvable call names;
+- positional/keyword syntax;
+- assignments and call-valued assignments;
 - assertion statements;
-- test function names;
-- statement ordering by line/column position;
-- docstrings as `SourceAssertion` where they carry authored claims.
+- `try` / `except` structure;
+- nested function structure.
 
-The Hermes implementation case should be able to recover structural evidence for descendant snapshotting, process-group signaling, survivor sweeping, and their source order. The test case should recover the `setsid` regression-test function, relevant calls/assertions, and the snapshot-failure regression.
+Authored module/class/function docstrings are preserved separately as `python-docstring.v1` `SourceAssertion` records.
 
-Do **not** emit conclusions such as “descendants are fully contained” or “this test proves containment.” Those remain later reviewed `Observation` reasoning over the AST facts and source assertions.
+For the pinned Hermes implementation, deterministic facts recover:
 
-### Why Python first
+- `LocalEnvironment._kill_process`;
+- nested `_sweep_escaped_descendants`;
+- `descendants = psutil.Process(proc.pid).children(recursive=True)`;
+- `child.kill()` in the survivor sweep;
+- process-group SIGTERM and SIGKILL calls.
 
-It can target two of the four remaining requirements with the standard library and no new parser dependency. That makes it the highest-yield remaining deterministic slice with a small trust surface.
+For the pinned Hermes regression test, deterministic facts recover both target test functions, calls into `env.execute`, `_wait_for_pid_exit`, `env._kill_process`, monkeypatch setup, and the selected assertion syntax.
 
-## Priority 2 — TypeScript comments + structural facts
+Live run `32848352853` passed **53** offline tests before the read-only capture and moved Hermes `1/3 → 3/3`, overall `8/12 → 10/12`.
 
-**Measured gaps addressed:** 2 OpenBot requirements
+The AST facts do **not** state that containment is correct or that the tests prove the property. Those conclusions remain later reviewed `Observation` reasoning.
+
+## Priority 2 — TypeScript comments + structural facts: NEXT
+
+**Remaining measured gaps:**
 
 - `openbot-authority-2`
 - `openbot-authority-3`
 
-Preserve explicit TypeScript comments/doc comments first as `SourceAssertion`. Add a version-pinned syntax/AST parser only where needed to recover deterministic grant-intersection and gateway-control structure.
+The historical coverage label `source-code-semantic-facts` is a capability category, not an implementation contract. The implementation should remain syntax-first.
 
-The existing `source-code-semantic-facts` coverage label is a missing-capability category, not an implementation contract. Architectural meaning still belongs in a later `Observation`.
+### Required approach
+
+1. Inspect the exact pinned OpenBot TypeScript artifact and define the minimum structural selectors required by the two golden requirements.
+2. Preserve explicit line/block/doc comments as exact-range `SourceAssertion` records where they contain authored claims.
+3. Introduce a TypeScript parser only if comments alone are insufficient.
+4. Pin the parser dependency/version and expose it through an explicit extractor version/policy.
+5. Emit syntax facts for the exact relevant structures—e.g. function/method definitions, call expressions, property access, object/array literals, and control-flow constructs—without labeling them with architectural conclusions.
+6. Rerun the same 12-requirement corpus and require that any move to 12/12 comes from explicit source-addressed evidence rather than a weaker check.
+
+### Trust-surface constraint
+
+Unlike Python AST, TypeScript parsing introduces a non-stdlib parser dependency. That dependency must be treated as part of the evidence-producing implementation: pinned, tested, versioned, and visible in `PipelineRun` inputs/policy. Do not add a broad compiler/runtime toolchain merely to satisfy the two cases.
 
 ## Current sequence
 
@@ -120,11 +104,9 @@ P1  Git root-tree capture/facts          COMPLETE — 7/12
         ↓
 P1  Commit metadata/change evidence      COMPLETE — 8/12
         ↓
-P2  Python AST structural facts          NEXT
+P2  Python AST structural facts          COMPLETE — 10/12
         ↓
-P2  TypeScript comments + structural facts
-        ↓
-rerun external coverage after each slice
+P2  TypeScript comments + structure      NEXT — 2 requirements remain
 ```
 
 ## Explicitly deferred
