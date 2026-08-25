@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 from .contracts import (
     CONTRACT_SCHEMA_VERSION,
+    DiscoveryChannel,
     DiscoveryHit,
     DiscoveryResolution,
     DiscoveryRun,
@@ -118,16 +119,11 @@ class GitHubRepositoryRegistryService:
         metadata: Mapping[str, Any],
     ) -> RepositoryResolutionResult:
         hit = self._require_hit(discovery_hit_id)
+        discovery_run = self._require_discovery_lineage(hit)
         snapshot = self._snapshot(metadata)
         existing = self._existing_resolution(hit, snapshot)
         if existing is not None:
             return existing
-
-        discovery_run = self.store.get(DiscoveryRun, hit.discovery_run_id)
-        if discovery_run is None:
-            raise RepositoryRegistryError(
-                f"DiscoveryHit references missing DiscoveryRun: {hit.discovery_run_id}"
-            )
 
         resolved_at = self._aware_now()
         if resolved_at < discovery_run.observed_at:
@@ -220,6 +216,29 @@ class GitHubRepositoryRegistryService:
             return None
         return max(locators, key=lambda locator: (locator.observed_at, locator.repository_locator_id))
 
+    def _require_discovery_lineage(self, hit: DiscoveryHit) -> DiscoveryRun:
+        discovery_run = self.store.get(DiscoveryRun, hit.discovery_run_id)
+        if discovery_run is None:
+            raise RepositoryRegistryError(
+                f"DiscoveryHit references missing DiscoveryRun: {hit.discovery_run_id}"
+            )
+        channel = self.store.get(DiscoveryChannel, discovery_run.discovery_channel_id)
+        if channel is None:
+            raise RepositoryRegistryError(
+                "DiscoveryRun references missing DiscoveryChannel: "
+                f"{discovery_run.discovery_channel_id}"
+            )
+        pipeline_run = self.store.get(PipelineRun, discovery_run.pipeline_run_id)
+        if pipeline_run is None:
+            raise RepositoryRegistryError(
+                f"DiscoveryRun references missing PipelineRun: {discovery_run.pipeline_run_id}"
+            )
+        if pipeline_run.run_type is not RunType.DISCOVERY:
+            raise RepositoryRegistryError(
+                "DiscoveryRun must reference PipelineRun(run_type=discovery)"
+            )
+        return discovery_run
+
     def _existing_resolution(
         self,
         hit: DiscoveryHit,
@@ -255,9 +274,7 @@ class GitHubRepositoryRegistryService:
                 "historical DiscoveryHit source link disagrees with its stored resolution"
             )
 
-        current_state = self._locator_state(locator)
-        incoming_state = self._snapshot_state(snapshot)
-        if current_state != incoming_state:
+        if self._locator_state(locator) != self._snapshot_state(snapshot):
             raise RepositoryRegistryConflict(
                 "historical DiscoveryHit is already resolved with different mutable repository "
                 "state; record a new discovery hit instead of rewriting registry history"
@@ -377,18 +394,24 @@ class GitHubRepositoryRegistryService:
 
     @staticmethod
     def _snapshot(metadata: Mapping[str, Any]) -> RepositorySnapshot:
-        try:
-            provider_id = str(metadata["id"]).strip()
-            owner_payload = metadata["owner"]
-            if not isinstance(owner_payload, Mapping):
-                raise TypeError("owner must be a mapping")
-            owner = str(owner_payload["login"]).strip()
-            name = str(metadata["name"]).strip()
-            default_branch = str(metadata["default_branch"]).strip()
-        except (KeyError, TypeError, ValueError) as exc:
+        provider_value = metadata.get("id")
+        owner_payload = metadata.get("owner")
+        name_value = metadata.get("name")
+        branch_value = metadata.get("default_branch")
+        if provider_value is None or not isinstance(owner_payload, Mapping):
             raise RepositoryRegistryError(
                 "GitHub repository metadata omitted stable identity fields"
-            ) from exc
+            )
+        owner_value = owner_payload.get("login")
+        values = (provider_value, owner_value, name_value, branch_value)
+        if any(value is None for value in values):
+            raise RepositoryRegistryError(
+                "GitHub repository metadata omitted stable identity fields"
+            )
+        provider_id = str(provider_value).strip()
+        owner = str(owner_value).strip()
+        name = str(name_value).strip()
+        default_branch = str(branch_value).strip()
         if not provider_id or not owner or not name or not default_branch:
             raise RepositoryRegistryError(
                 "GitHub repository metadata contains an empty stable identity field"
