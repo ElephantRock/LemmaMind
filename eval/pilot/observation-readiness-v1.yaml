@@ -28,13 +28,13 @@ capabilities:
     reason: Current process snapshots do not yet preserve issue/PR timeline events such as a prior close followed by reopen.
   github_workflow_run_evidence:
     state: implemented
-    reason: Durable content-addressed workflow-run snapshots now preserve run/job/step outcomes, timestamps, artifact metadata, and safe job-log availability without retaining log contents or inferring causes.
+    reason: Durable content-addressed workflow-run snapshots preserve run/job/step outcomes, timestamps, artifact metadata, and safe job-log availability without retaining log contents or inferring causes.
   temporal_change_reconciliation:
     state: missing
     reason: Multi-revision frontier reconciliation belongs to change intelligence and is not yet executable.
   action_policy_validation:
-    state: missing
-    reason: ActionRecommendation exists as a contract but no authority/governance validation service exists yet.
+    state: implemented
+    reason: Evidence-bound policy evaluation now separates repository capability from governance, blocks explicit prohibitions, enforces actor-role separation, and leaves independent authorization outside the evaluator.
   cross_repository_pattern_layer:
     state: deferred
     reason: Cross-repository synthesis belongs to Pattern/Insight semantics rather than source-level Observation.
@@ -77,11 +77,12 @@ cases:
       - github_issue_pr_evidence
       - github_workflow_run_evidence
       - action_policy_validation
-    expected_outcome: blocked
+    expected_outcome: ready
     boundary: >-
-      Durable issue/PR and workflow-run evidence can now reconstruct the source-local
-      execution state, but the no-rerun decision still requires an authority/governance-aware
-      action policy. Evidence capture must not self-authorize that operational conclusion.
+      Source-local issue/PR and workflow evidence reconstruct the frozen execution
+      context, while action-policy validation separately enforces the explicit
+      no-rerun rule, classifier-role separation, and independent promotion authority.
+      The evaluator can recommend or reject but never grants authorization.
 
   - case_id: private-actions-pattern
     golden_case: eval/pilot/cases/private-actions-pattern.yaml
@@ -91,7 +92,7 @@ cases:
       - cross_repository_pattern_layer
     expected_outcome: deferred
     boundary: >-
-      Workflow evidence can now represent zero-step/missing-log signatures, but
+      Workflow evidence can represent zero-step/missing-log signatures, but
       the useful conclusion depends on comparison and negative controls across
       several repositories. Source-level Observation must reject this rather than
       weakening its one-revision invariant.
