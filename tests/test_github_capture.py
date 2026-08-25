@@ -98,6 +98,10 @@ def test_capture_pins_every_artifact_to_resolved_commit(tmp_path) -> None:
         "README.md",
         "pyproject.toml",
     ]
+    assert [artifact.media_type for artifact in result.artifacts] == [
+        "text/markdown",
+        "application/toml",
+    ]
     assert all(call[-1] == COMMIT_SHA for call in reader.file_calls)
     assert object_store.get(result.artifacts[0].content_hash) == b"# example\n"
     assert result.run.inputs_hash.startswith("sha256:")
