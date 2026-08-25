@@ -86,7 +86,7 @@ def load_manual_watchlist(path: str | Path) -> ManualWatchlist:
 
 
 class ManualWatchlistDiscoveryAdapter:
-    """Record one manual watchlist generation against resolved Source identities."""
+    """Record one manual watchlist generation with optional M2 Source links."""
 
     def __init__(self, service: DiscoveryService) -> None:
         self.service = service
@@ -96,7 +96,7 @@ class ManualWatchlistDiscoveryAdapter:
         *,
         path: str | Path,
         channel: DiscoveryChannel,
-        source_id_by_repository: Mapping[str, str],
+        source_id_by_repository: Mapping[str, str] | None = None,
     ) -> DiscoveryResult:
         if channel.channel_type is not DiscoveryChannelType.MANUAL_WATCHLIST:
             raise ManualWatchlistError(
@@ -109,18 +109,20 @@ class ManualWatchlistDiscoveryAdapter:
                 f"{channel.canonical_locator!r} != {watchlist.path!r}"
             )
 
+        mapping = source_id_by_repository or {}
         candidates: list[DiscoveryCandidate] = []
         for entry in watchlist.entries:
-            source_id = source_id_by_repository.get(entry.repository)
-            if not isinstance(source_id, str) or not source_id.strip():
-                raise ManualWatchlistError(
-                    "watchlist repository has no resolved Source mapping: "
-                    f"{entry.repository}"
-                )
+            source_id = mapping.get(entry.repository)
+            if source_id is not None:
+                if not isinstance(source_id, str) or not source_id.strip():
+                    raise ManualWatchlistError(
+                        f"invalid Source mapping for watchlist repository: {entry.repository}"
+                    )
+                source_id = source_id.strip()
             candidates.append(
                 DiscoveryCandidate(
-                    source_id=source_id.strip(),
                     discovered_locator=entry.repository,
+                    source_id=source_id,
                 )
             )
 
