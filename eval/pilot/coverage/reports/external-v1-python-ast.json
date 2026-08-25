@@ -1,0 +1,65 @@
+{
+  "coverage_id": "external-golden-evidence-v1",
+  "schema_version": "lemmamind.pilot-coverage-report.v1",
+  "source_spec_schema_version": "lemmamind.pilot-coverage.v1",
+  "interpretation_boundary": "Evidence recovery measures deterministic source-addressed coverage only; it does not generate or validate golden Observations.",
+  "summary": {
+    "case_count": 4,
+    "evidence_requirement_count": 12,
+    "recovered_count": 10,
+    "gap_count": 2,
+    "coverage_fraction": 0.8333333333333334,
+    "gaps_by_needed_capability": {
+      "source-code-semantic-facts": 2
+    }
+  },
+  "cases": [
+    {
+      "case_id": "external-openbot-capability-authority",
+      "repository": "CopilotKit/OpenBot",
+      "revision": "d293f2331bd5ff9ba4ad17af6ac94570a157d26d",
+      "summary": {"total": 3, "recovered": 1, "coverage_fraction": 0.3333333333333333},
+      "requirements": [
+        {"evidence_id": "openbot-authority-1", "status": "recovered", "check_kind": "source_assertion_contains", "matched_locators": ["README.md:L151-L151"]},
+        {"evidence_id": "openbot-authority-2", "status": "gap", "check_kind": "unsupported", "needed_capability": "source-code-semantic-facts"},
+        {"evidence_id": "openbot-authority-3", "status": "gap", "check_kind": "unsupported", "needed_capability": "source-code-semantic-facts"}
+      ]
+    },
+    {
+      "case_id": "external-openclaw-sandbox-posture",
+      "repository": "openclaw/openclaw",
+      "revision": "c50f90251ebf1c420b8b8fbbff65fb39f77558f0",
+      "summary": {"total": 3, "recovered": 3, "coverage_fraction": 1.0}
+    },
+    {
+      "case_id": "external-hermes-process-containment",
+      "repository": "NousResearch/hermes-agent",
+      "revision": "41447a6d7063b2772b0c2f26a5b22d9bd444fb43",
+      "extraction": {
+        "python_ast_fact_count": 769,
+        "python_docstring_assertion_count": 53,
+        "commit_fact_count": 9,
+        "commit_source_assertion_count": 1
+      },
+      "summary": {"total": 3, "recovered": 3, "coverage_fraction": 1.0},
+      "requirements": [
+        {"evidence_id": "hermes-containment-1", "status": "recovered", "check_kind": "commit_message_contains", "matched_locators": ["$git/commit#message"]},
+        {"evidence_id": "hermes-containment-2", "status": "recovered", "check_kind": "python_ast_contains", "matched_locators": ["tools/environments/local.py:L1858:C4-L1980:C20#python/function", "tools/environments/local.py:L1927:C16-L1949:C36#python/function", "tools/environments/local.py:L1947:C28-L1947:C40#python/call", "tools/environments/local.py:L1952:C20-L1952:C51#python/call", "tools/environments/local.py:L1966:C20-L1966:C51#python/call", "tools/environments/local.py:L1923:C20-L1923:C83#python/assignment"]},
+        {"evidence_id": "hermes-containment-3", "status": "recovered", "check_kind": "python_ast_contains", "matched_locators": ["tests/tools/test_local_setsid_descendant_sweep.py:L49:C0-L104:C16#python/function", "tests/tools/test_local_setsid_descendant_sweep.py:L113:C0-L148:C37#python/function", "tests/tools/test_local_setsid_descendant_sweep.py:L74:C17-L74:C44#python/call", "tests/tools/test_local_setsid_descendant_sweep.py:L88:C15-L88:C49#python/call", "tests/tools/test_local_setsid_descendant_sweep.py:L143:C4-L143:C27#python/call", "tests/tools/test_local_setsid_descendant_sweep.py:L139:C4-L139:C52#python/call", "tests/tools/test_local_setsid_descendant_sweep.py:L140:C4-L140:C50#python/call", "tests/tools/test_local_setsid_descendant_sweep.py:L141:C4-L141:C48#python/call", "tests/tools/test_local_setsid_descendant_sweep.py:L88:C8-L93:C9#python/assert", "tests/tools/test_local_setsid_descendant_sweep.py:L147:C4-L147:C53#python/assert", "tests/tools/test_local_setsid_descendant_sweep.py:L148:C4-L148:C37#python/assert"]}
+      ]
+    },
+    {
+      "case_id": "external-opd-source-type",
+      "repository": "chrisliu298/awesome-on-policy-distillation",
+      "revision": "e4b5e7334ccd3437ccab8d4eef770ed02c4f9934",
+      "summary": {"total": 3, "recovered": 3, "coverage_fraction": 1.0}
+    }
+  ],
+  "live_execution": {
+    "workflow_run": 32848352853,
+    "branch_head": "917ce40f2b885af1e21a0831cab0f4e1eab429cf",
+    "offline_tests_passed": 53,
+    "live_step": "success",
+    "permissions": ["contents: read", "metadata: read"]
+  }
+}

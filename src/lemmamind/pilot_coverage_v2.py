@@ -1,4 +1,4 @@
-"""Pilot coverage runner with deterministic Git tree and commit evidence support.
+"""Pilot coverage runner with deterministic Git-object and Python syntax evidence.
 
 This extends the base coverage harness only where the measured corpus requires it.
 The report schema remains unchanged so historical baselines stay comparable.
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .contracts import SourceRole
-from .extraction import DeterministicExtractionService
+from .extraction import DeterministicExtractionService, ExtractionResult
 from .git_commit import (
     GIT_COMMIT_LOCATOR,
     GitCommitEvidenceService,
@@ -34,6 +34,7 @@ from .pilot_coverage import (
     assess_requirements,
     load_coverage_spec,
 )
+from .python_ast import python_aware_extractors
 from .storage import SQLiteContractStore
 
 
@@ -60,7 +61,12 @@ def _run_live_coverage(
     objects = ContentAddressedFileStore(workspace / "objects")
     reader = GitHubTreeRESTReader(token=token)
     capture = GitHubCaptureService(reader, store, objects)
-    extraction = DeterministicExtractionService(store, objects)
+    extraction = DeterministicExtractionService(
+        store,
+        objects,
+        artifact_extractors=python_aware_extractors(),
+        extraction_policy_version="deterministic-evidence.python-ast.v1",
+    )
     tree_capture = GitHubRootTreeCaptureService(reader, store, objects)
     tree_extraction = GitTreeEvidenceService(store, objects)
     commit_capture = GitHubCommitCaptureService(reader, store, objects)
@@ -140,6 +146,8 @@ def _run_live_coverage(
                         f"{case_id}: commit requirement executed without commit capture"
                     )
                 requirement_results.append(_assess_commit_message(requirement, commit_result))
+            elif kind == "python_ast_contains":
+                requirement_results.append(_assess_python_ast(requirement, extracted))
             else:
                 requirement_results.extend(assess_requirements([requirement], extracted))
 
@@ -172,6 +180,13 @@ def _run_live_coverage(
                 "capture_id_omitted_from_stable_report": True,
             }
 
+        python_fact_count = sum(
+            fact.extractor_name == "python-ast" for fact in extracted.facts
+        )
+        python_docstring_count = sum(
+            assertion.extractor_name == "python-docstring"
+            for assertion in extracted.assertions
+        )
         case_reports.append(
             {
                 "case_id": case_id,
@@ -182,6 +197,8 @@ def _run_live_coverage(
                 "extraction": {
                     "fact_count": len(extracted.facts),
                     "source_assertion_count": len(extracted.assertions),
+                    "python_ast_fact_count": python_fact_count,
+                    "python_docstring_assertion_count": python_docstring_count,
                     "root_tree_fact_count": 0 if tree_result is None else len(tree_result.facts),
                     "commit_fact_count": 0 if commit_result is None else len(commit_result.facts),
                     "commit_source_assertion_count": (
@@ -331,6 +348,159 @@ def _assess_commit_message(
         check_kind="commit_message_contains",
         missing_fragments=missing,
         needed_capability=needed or "commit-metadata-and-change-facts",
+    )
+
+
+def _assess_python_ast(
+    requirement: Mapping[str, Any], extracted: ExtractionResult
+) -> RequirementResult:
+    evidence_id = _required_string(requirement, "evidence_id")
+    evidence_type = _required_string(requirement, "evidence_type")
+    check = requirement.get("check")
+    if not isinstance(check, Mapping):
+        raise CoverageSpecError(f"{evidence_id}: check must be a mapping")
+    artifact = _required_string(check, "artifact")
+    needed = requirement.get("needed_capability_if_missing")
+    if needed is not None and not isinstance(needed, str):
+        raise CoverageSpecError(
+            f"{evidence_id}: needed_capability_if_missing must be a string"
+        )
+
+    facts = [
+        fact
+        for fact in extracted.facts
+        if fact.extractor_name == "python-ast"
+        and fact.locator.startswith(f"{artifact}:")
+        and isinstance(fact.normalized_value, dict)
+    ]
+    matched_locators: list[str] = []
+    missing: list[str] = []
+
+    functions = check.get("functions", [])
+    if not isinstance(functions, list) or not all(isinstance(item, str) for item in functions):
+        raise CoverageSpecError(f"{evidence_id}: functions must be strings")
+    for qualified_name in functions:
+        matches = [
+            fact
+            for fact in facts
+            if fact.normalized_value.get("kind") == "function"
+            and fact.normalized_value.get("qualified_name") == qualified_name
+        ]
+        if matches:
+            matched_locators.extend(item.locator for item in matches)
+        else:
+            missing.append(f"function:{qualified_name}")
+
+    calls = check.get("calls", [])
+    if not isinstance(calls, list) or not all(isinstance(item, Mapping) for item in calls):
+        raise CoverageSpecError(f"{evidence_id}: calls must be mappings")
+    for call_spec in calls:
+        scope = _required_string(call_spec, "scope")
+        callee = _required_string(call_spec, "callee")
+        args_contains = call_spec.get("args_contains", [])
+        keywords = call_spec.get("keywords", {})
+        if not isinstance(args_contains, list) or not all(
+            isinstance(item, str) for item in args_contains
+        ):
+            raise CoverageSpecError(f"{evidence_id}: call args_contains must be strings")
+        if not isinstance(keywords, Mapping) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in keywords.items()
+        ):
+            raise CoverageSpecError(f"{evidence_id}: call keywords must map strings to strings")
+        matches = []
+        for fact in facts:
+            value = fact.normalized_value
+            if value.get("kind") != "call" or value.get("scope") != scope or value.get("callee") != callee:
+                continue
+            observed_args = value.get("args", [])
+            observed_keywords = value.get("keywords", {})
+            if not isinstance(observed_args, list) or not isinstance(observed_keywords, dict):
+                continue
+            if not all(any(_contains(str(arg), fragment) for arg in observed_args) for fragment in args_contains):
+                continue
+            if not all(str(observed_keywords.get(key)) == expected for key, expected in keywords.items()):
+                continue
+            matches.append(fact)
+        if matches:
+            matched_locators.extend(item.locator for item in matches)
+        else:
+            missing.append(f"call:{scope}:{callee}")
+
+    assignments = check.get("assignments", [])
+    if not isinstance(assignments, list) or not all(isinstance(item, Mapping) for item in assignments):
+        raise CoverageSpecError(f"{evidence_id}: assignments must be mappings")
+    for assignment_spec in assignments:
+        scope = _required_string(assignment_spec, "scope")
+        target = _required_string(assignment_spec, "target")
+        value_call = _required_string(assignment_spec, "value_call")
+        keywords = assignment_spec.get("keywords", {})
+        if not isinstance(keywords, Mapping) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in keywords.items()
+        ):
+            raise CoverageSpecError(f"{evidence_id}: assignment keywords must map strings to strings")
+        matches = []
+        for fact in facts:
+            value = fact.normalized_value
+            targets = value.get("targets", [])
+            observed_keywords = value.get("value_call_keywords", {})
+            if (
+                value.get("kind") == "assignment"
+                and value.get("scope") == scope
+                and isinstance(targets, list)
+                and target in targets
+                and value.get("value_call") == value_call
+                and isinstance(observed_keywords, dict)
+                and all(str(observed_keywords.get(key)) == expected for key, expected in keywords.items())
+            ):
+                matches.append(fact)
+        if matches:
+            matched_locators.extend(item.locator for item in matches)
+        else:
+            missing.append(f"assignment:{scope}:{target}:{value_call}")
+
+    assertions = check.get("assertions", [])
+    if not isinstance(assertions, list) or not all(isinstance(item, Mapping) for item in assertions):
+        raise CoverageSpecError(f"{evidence_id}: assertions must be mappings")
+    for assertion_spec in assertions:
+        scope = _required_string(assertion_spec, "scope")
+        expression_contains = _required_string(assertion_spec, "expression_contains")
+        matches = [
+            fact
+            for fact in facts
+            if fact.normalized_value.get("kind") == "assert"
+            and fact.normalized_value.get("scope") == scope
+            and _contains(
+                str(fact.normalized_value.get("expression", "")),
+                expression_contains,
+            )
+        ]
+        if matches:
+            matched_locators.extend(item.locator for item in matches)
+        else:
+            missing.append(f"assert:{scope}:{expression_contains}")
+
+    if not functions and not calls and not assignments and not assertions:
+        raise CoverageSpecError(
+            f"{evidence_id}: python_ast_contains requires at least one structural selector"
+        )
+
+    if not missing:
+        return RequirementResult(
+            evidence_id=evidence_id,
+            evidence_type=evidence_type,
+            status="recovered",
+            check_kind="python_ast_contains",
+            matched_locators=tuple(dict.fromkeys(matched_locators)),
+        )
+    return RequirementResult(
+        evidence_id=evidence_id,
+        evidence_type=evidence_type,
+        status="gap",
+        check_kind="python_ast_contains",
+        missing_fragments=tuple(missing),
+        needed_capability=needed or "python-ast-structural-facts",
     )
 
 

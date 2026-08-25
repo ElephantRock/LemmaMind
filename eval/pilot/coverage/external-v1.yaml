@@ -84,15 +84,56 @@ cases:
             - local timeout group-kill
         needed_capability_if_missing: commit-metadata-and-change-facts
       - evidence_id: hermes-containment-2
-        evidence_type: ObservedFact
+        evidence_type: EvidenceFact
         check:
-          kind: unsupported
-        needed_capability_if_missing: source-code-semantic-facts
+          kind: python_ast_contains
+          artifact: tools/environments/local.py
+          functions:
+            - LocalEnvironment._kill_process
+            - LocalEnvironment._kill_process._sweep_escaped_descendants
+          assignments:
+            - scope: LocalEnvironment._kill_process
+              target: descendants
+              value_call: psutil.Process().children
+              keywords:
+                recursive: "True"
+          calls:
+            - scope: LocalEnvironment._kill_process._sweep_escaped_descendants
+              callee: child.kill
+            - scope: LocalEnvironment._kill_process
+              callee: os.killpg
+              args_contains:
+                - signal.SIGTERM
+            - scope: LocalEnvironment._kill_process
+              callee: os.killpg
+              args_contains:
+                - signal.SIGKILL
+        needed_capability_if_missing: python-ast-structural-facts
       - evidence_id: hermes-containment-3
-        evidence_type: ObservedFact
+        evidence_type: EvidenceFact
         check:
-          kind: unsupported
-        needed_capability_if_missing: test-code-semantic-facts
+          kind: python_ast_contains
+          artifact: tests/tools/test_local_setsid_descendant_sweep.py
+          functions:
+            - test_timeout_kill_reaps_setsid_grandchild
+            - test_kill_process_survives_psutil_snapshot_failure
+          calls:
+            - scope: test_timeout_kill_reaps_setsid_grandchild
+              callee: env.execute
+            - scope: test_timeout_kill_reaps_setsid_grandchild
+              callee: _wait_for_pid_exit
+            - scope: test_kill_process_survives_psutil_snapshot_failure
+              callee: env._kill_process
+            - scope: test_kill_process_survives_psutil_snapshot_failure
+              callee: monkeypatch.setattr
+          assertions:
+            - scope: test_timeout_kill_reaps_setsid_grandchild
+              expression_contains: _wait_for_pid_exit
+            - scope: test_kill_process_survives_psutil_snapshot_failure
+              expression_contains: signal.SIGTERM
+            - scope: test_kill_process_survives_psutil_snapshot_failure
+              expression_contains: killpg_calls
+        needed_capability_if_missing: python-ast-structural-facts
 
   - case_id: external-opd-source-type
     repository: chrisliu298/awesome-on-policy-distillation
