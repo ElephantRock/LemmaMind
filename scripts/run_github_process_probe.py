@@ -40,6 +40,7 @@ def run_probe(token: str | None = None) -> dict:
             anchored.revision.source_revision_id,
             (
                 ProcessRef(ProcessKind.ISSUE, 37),
+                ProcessRef(ProcessKind.PULL_REQUEST, 115),
                 ProcessRef(ProcessKind.PULL_REQUEST, 117),
             ),
         )
@@ -50,6 +51,10 @@ def run_probe(token: str | None = None) -> dict:
         required_facts = (
             "$github/issue/37#/state",
             "$github/issue/37#/updated_at",
+            "$github/pull/115#/state",
+            "$github/pull/115#/merged",
+            "$github/pull/115#/merge_commit_sha",
+            "$github/pull/115#/head/sha",
             "$github/pull/117#/state",
             "$github/pull/117#/draft",
             "$github/pull/117#/head/sha",
@@ -58,7 +63,10 @@ def run_probe(token: str | None = None) -> dict:
         )
         required_assertions = (
             "$github/issue/37#title",
+            "$github/pull/115#title",
+            "$github/pull/115#body",
             "$github/pull/117#title",
+            "$github/pull/117#body",
         )
         missing = [locator for locator in required_facts if locator not in facts]
         missing += [locator for locator in required_assertions if locator not in assertions]
@@ -74,12 +82,20 @@ def run_probe(token: str | None = None) -> dict:
             "artifact_locators": [artifact.source_locator for artifact in captured.artifacts],
             "fact_count": len(extracted.facts),
             "source_assertion_count": len(extracted.assertions),
-            "issue": {
+            "issue_37": {
                 "state": facts["$github/issue/37#/state"],
                 "updated_at": facts["$github/issue/37#/updated_at"],
                 "title": assertions["$github/issue/37#title"],
             },
-            "pull": {
+            "pull_115": {
+                "state": facts["$github/pull/115#/state"],
+                "merged": facts["$github/pull/115#/merged"],
+                "merge_commit_sha": facts["$github/pull/115#/merge_commit_sha"],
+                "head_sha": facts["$github/pull/115#/head/sha"],
+                "title": assertions["$github/pull/115#title"],
+                "body_mentions_issue_37": "#37" in assertions["$github/pull/115#body"],
+            },
+            "pull_117": {
                 "state": facts["$github/pull/117#/state"],
                 "draft": facts["$github/pull/117#/draft"],
                 "head_sha": facts["$github/pull/117#/head/sha"],
