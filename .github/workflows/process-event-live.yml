@@ -1,0 +1,32 @@
+name: process-event-live
+
+on:
+  push:
+    branches:
+      - m0/github-process-event-history
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  process-event-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - name: Offline regression suite
+        run: pytest
+      - name: Live CSD issue-event capture
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/run_github_process_event_probe.py --json /tmp/process-events.json
+          echo '=== LEMMAMIND PROCESS EVENT PROBE BEGIN ==='
+          cat /tmp/process-events.json
+          echo '=== LEMMAMIND PROCESS EVENT PROBE END ==='
