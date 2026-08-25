@@ -16,9 +16,9 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-**M0 — Minimum System Contracts: implementation active; deterministic evidence spine complete for the frozen external corpus.**
+**M0 — Minimum System Contracts: implementation active; deterministic evidence spine complete for the frozen external corpus, first evidence-supported Observation transition live-validated.**
 
-The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit-metadata capture, deterministic artifact extraction, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, and an executable pilot evidence-coverage harness.
+The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit-metadata capture, deterministic artifact extraction, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, an executable pilot evidence-coverage harness, and explicit candidate `Observation` construction with typed support edges.
 
 The evidence layer preserves artifact path facts, selected `pyproject.toml` / `package.json` facts, ordinary Markdown prose, Markdown list items, exact Git root-tree structure, exact commit metadata, Python syntax, and TypeScript/TSX syntax with line/column provenance. Authored prose, commit messages, Python docstrings, and TypeScript comments remain `SourceAssertion`; Git object structure, metadata, and parser-derived syntax remain `EvidenceFact`.
 
@@ -33,9 +33,11 @@ Live external evidence coverage has progressed against the same 12 frozen requir
 
 OpenBot, OpenClaw, Hermes, and the OPD research-index case are all 3/3 at the deterministic evidence-recovery layer. Historical reports are preserved rather than overwritten.
 
-The 12/12 result is deliberately narrow: it means the frozen corpus's selected source-addressed evidence can be recovered deterministically. It does **not** mean golden observations, architecture profiles, patterns, tensions, or knowledge can be generated or promoted without reasoning and review.
+The first live `Evidence → ObservationSupport → Observation` probe then replayed the two frozen OpenBot golden observations against freshly captured evidence. Workflow run `32851722987` passed **66 offline tests** and constructed both golden statements with matching epistemic types, exact runtime support edges, and one pinned OpenBot `SourceRevision`. The fresh runtime records correctly remained **`candidate`** even though the golden evaluation targets are `validated` and `reviewed`.
 
-The implementation remains deliberately below autonomous architecture profiling, pattern/insight synthesis, embeddings, autonomous reasoning, and UI. The next measured boundary is the evidence-to-`Observation` link with explicit support and validation state; adding more parsers without a measured gap is not the next objective.
+That result is deliberately narrow: LemmaMind can now preserve a correct evidence-supported candidate claim graph for this case. It still does **not** generate the claim, choose the support set autonomously, independently validate the claim, or promote it to knowledge.
+
+The implementation remains deliberately below autonomous architecture profiling, pattern/insight synthesis, embeddings, autonomous reasoning, and UI. The next measured boundary is to exercise the same Observation contract against the hardest M−1 distinctions—belief revision, correct no-action behavior, CI-state interpretation, and source-role constraints—before introducing model-generated claims.
 
 ## Start here
 
@@ -46,6 +48,7 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`docs/M0-CAPTURE.md`](docs/M0-CAPTURE.md) — deterministic GitHub capture semantics and trust boundary
 - [`docs/M0-EXTRACTION.md`](docs/M0-EXTRACTION.md) — deterministic facts/assertions, provenance, and epistemic boundary
 - [`docs/M0-TYPESCRIPT-EVIDENCE.md`](docs/M0-TYPESCRIPT-EVIDENCE.md) — pinned TypeScript parser trust surface and compatibility evidence
+- [`docs/M0-OBSERVATIONS.md`](docs/M0-OBSERVATIONS.md) — supported Observation construction, support/provenance rules, and validation-state boundary
 - [`eval/pilot/coverage/external-v1.yaml`](eval/pilot/coverage/external-v1.yaml) — machine-readable external evidence-recovery checks
 - [`eval/pilot/coverage/reports/external-v1.md`](eval/pilot/coverage/reports/external-v1.md) — first live external baseline (4/12)
 - [`eval/pilot/coverage/reports/external-v1-markdown-list.md`](eval/pilot/coverage/reports/external-v1-markdown-list.md) — post-P0 baseline (6/12)
@@ -53,6 +56,7 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`eval/pilot/coverage/reports/external-v1-commit-evidence.md`](eval/pilot/coverage/reports/external-v1-commit-evidence.md) — post-commit baseline (8/12)
 - [`eval/pilot/coverage/reports/external-v1-python-ast.md`](eval/pilot/coverage/reports/external-v1-python-ast.md) — post-Python-AST baseline (10/12)
 - [`eval/pilot/coverage/reports/external-v1-typescript.md`](eval/pilot/coverage/reports/external-v1-typescript.md) — complete deterministic evidence checkpoint (12/12)
+- [`eval/pilot/observation-reports/external-openbot-v1.md`](eval/pilot/observation-reports/external-openbot-v1.md) — first live evidence-supported Observation probe
 - [`docs/M0-NEXT-EXTRACTORS.md`](docs/M0-NEXT-EXTRACTORS.md) — measured extractor progression and exit condition
 - [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned M0 contract models
 - [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — atomic append-only SQLite contract persistence
@@ -62,11 +66,13 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`src/lemmamind/git_commit.py`](src/lemmamind/git_commit.py) — exact Git commit-metadata capture, metadata facts, and commit-message assertions
 - [`src/lemmamind/python_ast.py`](src/lemmamind/python_ast.py) — deterministic Python AST facts and docstring assertions
 - [`src/lemmamind/typescript_ast.py`](src/lemmamind/typescript_ast.py) — deterministic TypeScript/TSX syntax facts and comment assertions
+- [`src/lemmamind/observations.py`](src/lemmamind/observations.py) — candidate Observation construction with validated support provenance
+- [`src/lemmamind/pilot_observations.py`](src/lemmamind/pilot_observations.py) — golden-driven live OpenBot Observation probe
 - [`src/lemmamind/extraction.py`](src/lemmamind/extraction.py) — deterministic artifact extractors and extraction service
 - [`src/lemmamind/pilot_coverage.py`](src/lemmamind/pilot_coverage.py) — base evidence-coverage evaluator
 - [`src/lemmamind/pilot_coverage_v2.py`](src/lemmamind/pilot_coverage_v2.py) — historical Git-object + Python AST coverage policy
 - [`src/lemmamind/pilot_coverage_v3.py`](src/lemmamind/pilot_coverage_v3.py) — TypeScript-aware deterministic coverage policy
-- [`tests/`](tests/) — contract, persistence, capture, extraction, coverage, object-integrity, and golden-corpus regression tests
+- [`tests/`](tests/) — contract, persistence, capture, extraction, observation, coverage, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
@@ -133,10 +139,13 @@ deterministic text / metadata / Python / TypeScript syntax evidence
       ↓
 EvidenceFact / SourceAssertion
       ↓
-pilot evidence-coverage measurement: 12/12
+12/12 frozen deterministic evidence recovery
+      ↓
+Observation + ObservationSupport
+(manual / golden-driven candidate construction)
 ```
 
-The next measured implementation slice is **evidence-supported Observation construction and validation**, not additional extraction. It must preserve explicit support links, epistemic type, validation state, and the distinction between source assertions, deterministic facts, and interpretation. No autonomous insight synthesis is required for M0/V1.
+The next measured implementation slice is **hard-case Observation validation**, not autonomous claim generation: exercise belief revision/supersession, no-action outcomes, CI-state interpretation, and source-role constraints while preserving exact support provenance and independent review state. Model-proposed observations come only after these support-graph invariants survive the golden corpus.
 
 ## Canonical home
 
