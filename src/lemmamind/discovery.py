@@ -1,9 +1,10 @@
-"""M1 curated-discovery lineage over already-resolved Sources.
+"""M1 curated-discovery lineage over raw channel hits and optional Source links.
 
-Discovery answers why and when a Source entered LemmaMind. It deliberately does
-not create canonical Source identities, infer source roles, assign repository
-relationships, or capture revisions. Those responsibilities belong to adjacent
-layers, especially the M2 repository registry.
+Discovery answers why and when a candidate entered LemmaMind. It deliberately
+does not create canonical Source identities, infer source roles, assign repository
+relationships, or capture revisions. A hit may already be linked to a Source when
+identity is known; otherwise the raw locator remains durable for later M2 registry
+resolution.
 """
 from __future__ import annotations
 
@@ -26,15 +27,15 @@ from .contracts import (
 
 
 class DiscoveryError(RuntimeError):
-    """A discovery run violates lineage or source-identity constraints."""
+    """A discovery run violates lineage or identity-link constraints."""
 
 
 @dataclass(frozen=True)
 class DiscoveryCandidate:
-    """One channel-local locator already resolved to a canonical Source."""
+    """One channel-local locator, optionally linked to a canonical Source."""
 
-    source_id: str
     discovered_locator: str
+    source_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,33 +74,41 @@ class DiscoveryService:
         candidates: tuple[DiscoveryCandidate, ...],
         input_snapshot: object,
     ) -> DiscoveryResult:
-        """Record one channel run after Source identities have already been resolved.
+        """Record one channel run without requiring M2 identity completion.
 
-        Zero-hit runs are valid: a saved search or other future channel may execute
-        successfully without discovering any Sources. Within one run, however, a
-        Source may appear only once so repeated aliases cannot inflate discovery
-        counts.
+        Zero-hit runs are valid. Each raw locator may occur only once per run. If
+        multiple hits are already linked to Sources, one Source may also occur only
+        once so known aliases cannot inflate the run.
         """
 
         started_at = self._aware_now()
+        seen_locators: set[str] = set()
         seen_sources: set[str] = set()
         normalized: list[DiscoveryCandidate] = []
         for candidate in candidates:
-            source_id = candidate.source_id.strip()
             locator = candidate.discovered_locator.strip()
-            if not source_id:
-                raise DiscoveryError("DiscoveryCandidate.source_id must not be empty")
             if not locator:
                 raise DiscoveryError("DiscoveryCandidate.discovered_locator must not be empty")
-            if source_id in seen_sources:
-                raise DiscoveryError(f"duplicate Source in one discovery run: {source_id}")
-            if self.store.get(Source, source_id) is None:
-                raise DiscoveryError(
-                    "discovery requires an already-resolved Source; "
-                    f"unknown source_id: {source_id}"
-                )
-            seen_sources.add(source_id)
-            normalized.append(DiscoveryCandidate(source_id, locator))
+            if locator in seen_locators:
+                raise DiscoveryError(f"duplicate locator in one discovery run: {locator}")
+            seen_locators.add(locator)
+
+            source_id: str | None = None
+            if candidate.source_id is not None:
+                source_id = candidate.source_id.strip()
+                if not source_id:
+                    raise DiscoveryError(
+                        "DiscoveryCandidate.source_id must be non-empty when provided"
+                    )
+                if source_id in seen_sources:
+                    raise DiscoveryError(f"duplicate Source in one discovery run: {source_id}")
+                if self.store.get(Source, source_id) is None:
+                    raise DiscoveryError(
+                        "discovery Source link must resolve to an existing Source; "
+                        f"unknown source_id: {source_id}"
+                    )
+                seen_sources.add(source_id)
+            normalized.append(DiscoveryCandidate(locator, source_id))
 
         discovery_run_id = f"discovery-run:{self.id_factory()}"
         pipeline_run_id = f"run:{self.id_factory()}"
