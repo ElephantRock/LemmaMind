@@ -1,34 +1,41 @@
 """Read-only GitHub acquisition into the M0 evidence spine."""
-
 from __future__ import annotations
 
 import base64
 import hashlib
 import json
-import mimetypes
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import PurePosixPath
 from typing import Any, Callable, Mapping, Protocol
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from .contracts import (
-    CONTRACT_SCHEMA_VERSION,
-    Artifact,
-    CaptureArtifactRef,
-    CaptureManifest,
-    PipelineRun,
-    RepositoryIdentity,
-    RetrievalStatus,
-    RunType,
-    Source,
-    SourceKind,
-    SourceRevision,
-    SourceRole,
+    CONTRACT_SCHEMA_VERSION, Artifact, CaptureArtifactRef, CaptureManifest,
+    PipelineRun, RepositoryIdentity, RetrievalStatus, RunType, Source,
+    SourceKind, SourceRevision, SourceRole,
 )
 from .objects import ContentAddressedFileStore
+
+_MEDIA_TYPES = {
+    ".md": "text/markdown",
+    ".txt": "text/plain",
+    ".py": "text/x-python",
+    ".json": "application/json",
+    ".toml": "application/toml",
+    ".yaml": "application/yaml",
+    ".yml": "application/yaml",
+    ".xml": "application/xml",
+    ".html": "text/html",
+    ".css": "text/css",
+    ".js": "text/javascript",
+    ".ts": "text/typescript",
+    ".rs": "text/x-rust",
+    ".go": "text/x-go",
+}
 
 
 class GitHubAPIError(RuntimeError):
@@ -76,15 +83,15 @@ class GitHubRESTReader:
         *,
         base_url: str = "https://api.github.com",
         user_agent: str = "LemmaMind/0.1",
+        timeout: float = 30.0,
     ) -> None:
         self.token = token
         self.base_url = base_url.rstrip("/")
         self.user_agent = user_agent
+        self.timeout = timeout
 
     def _get_json(self, path: str, query: Mapping[str, str] | None = None) -> Any:
-        url = f"{self.base_url}{path}"
-        if query:
-            url = f"{url}?{urlencode(query)}"
+        url = f"{self.base_url}{path}" + (f"?{urlencode(query)}" if query else "")
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
@@ -92,10 +99,9 @@ class GitHubRESTReader:
         }
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-
         request = Request(url, headers=headers, method="GET")
         try:
-            with urlopen(request) as response:  # noqa: S310 - GitHub API is HTTPS by default.
+            with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             try:
@@ -115,25 +121,20 @@ class GitHubRESTReader:
         )
 
     def get_file(self, owner: str, repo: str, path: str, ref: str) -> bytes:
-        encoded_path = quote(path, safe="/")
+        prefix = f"/repos/{quote(owner, safe='')}/{quote(repo, safe='')}"
         payload = self._get_json(
-            f"/repos/{quote(owner, safe='')}/{quote(repo, safe='')}/contents/{encoded_path}",
+            f"{prefix}/contents/{quote(path, safe='/')}",
             {"ref": ref},
         )
         if not isinstance(payload, Mapping) or payload.get("type") != "file":
             raise GitHubAPIError(f"GitHub path is not a file: {path}")
-
         content = payload.get("content")
         if payload.get("encoding") == "base64" and isinstance(content, str):
             return base64.b64decode(content, validate=False)
-
         blob_sha = payload.get("sha")
         if not isinstance(blob_sha, str):
             raise GitHubAPIError(f"GitHub file payload omitted content and blob SHA: {path}")
-
-        blob = self._get_json(
-            f"/repos/{quote(owner, safe='')}/{quote(repo, safe='')}/git/blobs/{quote(blob_sha, safe='')}"
-        )
+        blob = self._get_json(f"{prefix}/git/blobs/{quote(blob_sha, safe='')}")
         blob_content = blob.get("content") if isinstance(blob, Mapping) else None
         if not isinstance(blob_content, str) or blob.get("encoding") != "base64":
             raise GitHubAPIError(f"GitHub blob could not be decoded: {path}")
@@ -161,12 +162,7 @@ class GitHubCaptureResult:
 
 
 class GitHubCaptureService:
-    """Resolve and persist one explicit-path capture at an exact Git revision.
-
-    The service never executes captured content and never performs a GitHub write.
-    It resolves a branch/tag/ref once, pins the resulting commit SHA, and uses that
-    immutable SHA for every artifact read in the capture.
-    """
+    """Capture explicit files without executing source or performing GitHub writes."""
 
     def __init__(
         self,
@@ -198,7 +194,6 @@ class GitHubCaptureService:
         owner, repo = self._split_repository(repository)
         normalized_paths = self._normalize_paths(paths)
         started_at = self._aware_now()
-
         metadata = self.reader.get_repository(owner, repo)
         provider_id = str(metadata["id"])
         current_owner = str(metadata["owner"]["login"])
@@ -206,20 +201,22 @@ class GitHubCaptureService:
         default_branch = str(metadata["default_branch"])
         archived = bool(metadata.get("archived", False))
         source_id = f"github:{provider_id}"
-        canonical_locator = f"https://github.com/{current_owner}/{current_name}"
 
-        source = self._stable_source(source_id, canonical_locator, source_role, started_at)
-        repository_identity = self._stable_repository(
-            source_id=source_id,
-            provider_id=provider_id,
-            owner=current_owner,
-            name=current_name,
-            default_branch=default_branch,
-            archived=archived,
+        source = self._stable_source(
+            source_id,
+            f"https://github.com/{current_owner}/{current_name}",
+            source_role,
+            started_at,
         )
-
-        requested_ref = ref or default_branch
-        commit = self.reader.get_commit(current_owner, current_name, requested_ref)
+        repository_identity = self._stable_repository(
+            source_id,
+            provider_id,
+            current_owner,
+            current_name,
+            default_branch,
+            archived,
+        )
+        commit = self.reader.get_commit(current_owner, current_name, ref or default_branch)
         commit_sha = str(commit["sha"])
         tree_sha = str(commit["commit"]["tree"]["sha"])
         revision = self._stable_revision(source_id, commit_sha, tree_sha, started_at)
@@ -227,7 +224,6 @@ class GitHubCaptureService:
         capture_id = f"capture:{self.id_factory()}"
         artifact_records: list[Artifact] = []
         artifact_refs: list[CaptureArtifactRef] = []
-
         for path in normalized_paths:
             artifact_id = self._artifact_id(capture_id, path)
             try:
@@ -241,9 +237,8 @@ class GitHubCaptureService:
                     )
                 )
                 continue
-
             content_hash = self.object_store.put(data)
-            media_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+            media_type = self._media_type(path)
             artifact = Artifact(
                 artifact_id=artifact_id,
                 capture_id=capture_id,
@@ -262,15 +257,13 @@ class GitHubCaptureService:
                 )
             )
 
-        captured_at = self._aware_now()
         manifest = CaptureManifest(
             capture_id=capture_id,
             source_revision_id=revision.source_revision_id,
             capture_policy_version=self.capture_policy_version,
-            captured_at=captured_at,
+            captured_at=self._aware_now(),
             artifacts=tuple(artifact_refs),
         )
-
         inputs_hash = self._digest_json(
             {
                 "repository": f"{current_owner}/{current_name}",
@@ -305,14 +298,13 @@ class GitHubCaptureService:
             inputs_hash=inputs_hash,
             outputs_hash=outputs_hash,
         )
-
         result = GitHubCaptureResult(
-            source=source,
-            repository=repository_identity,
-            revision=revision,
-            manifest=manifest,
-            artifacts=tuple(artifact_records),
-            run=run,
+            source,
+            repository_identity,
+            revision,
+            manifest,
+            tuple(artifact_records),
+            run,
         )
         self.store.put_many(result.records())
         return result
@@ -338,7 +330,6 @@ class GitHubCaptureService:
                     f"{source_id} canonical locator changed; M2 identity evolution is required"
                 )
             return existing
-
         return Source(
             source_id=source_id,
             source_kind=SourceKind.GITHUB_REPOSITORY,
@@ -350,7 +341,6 @@ class GitHubCaptureService:
 
     def _stable_repository(
         self,
-        *,
         source_id: str,
         provider_id: str,
         owner: str,
@@ -374,7 +364,6 @@ class GitHubCaptureService:
                     "M2 rename/archive handling is required"
                 )
             return existing
-
         return RepositoryIdentity(
             source_id=source_id,
             provider_repository_id=provider_id,
@@ -396,13 +385,12 @@ class GitHubCaptureService:
         existing = self.store.get(SourceRevision, revision_id)
         if existing is not None:
             if (
-                existing.source_id != source_id
-                or existing.commit_sha != commit_sha
-                or existing.tree_sha != tree_sha
-            ):
+                existing.source_id,
+                existing.commit_sha,
+                existing.tree_sha,
+            ) != (source_id, commit_sha, tree_sha):
                 raise RepositoryIdentityDrift(f"revision identity collision: {revision_id}")
             return existing
-
         return SourceRevision(
             source_revision_id=revision_id,
             source_id=source_id,
@@ -440,6 +428,13 @@ class GitHubCaptureService:
     def _artifact_id(capture_id: str, path: str) -> str:
         digest = hashlib.sha256(f"{capture_id}\0{path}".encode("utf-8")).hexdigest()
         return f"artifact:{digest}"
+
+    @staticmethod
+    def _media_type(path: str) -> str:
+        return _MEDIA_TYPES.get(
+            PurePosixPath(path).suffix.lower(),
+            "application/octet-stream",
+        )
 
     @staticmethod
     def _digest_json(value: object) -> str:
