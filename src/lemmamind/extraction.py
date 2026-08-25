@@ -44,7 +44,7 @@ class ContractStore(Protocol):
     def put_many(self, records): ...
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True)
 class FactSpec:
     locator: str
     raw_value: object
@@ -53,7 +53,7 @@ class FactSpec:
     extractor_version: str
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True)
 class AssertionSpec:
     locator: str
     statement: str
@@ -68,6 +68,36 @@ class ArtifactExtractor(Protocol):
     def supports(self, artifact: Artifact) -> bool: ...
 
     def extract(self, artifact: Artifact, data: bytes) -> tuple[FactSpec | AssertionSpec, ...]: ...
+
+
+class ArtifactPathExtractor:
+    """Emit path facts about one captured artifact, not the whole repository."""
+
+    name = "artifact-path"
+    version = "1"
+
+    def supports(self, artifact: Artifact) -> bool:
+        return True
+
+    def extract(self, artifact: Artifact, data: bytes) -> tuple[FactSpec, ...]:
+        del data
+        path = PurePosixPath(artifact.source_locator)
+        parts = path.parts
+        return (
+            self._fact(artifact, "basename", path.name),
+            self._fact(artifact, "suffix", path.suffix.lower()),
+            self._fact(artifact, "path_depth", len(parts)),
+            self._fact(artifact, "top_level_entry", parts[0]),
+        )
+
+    def _fact(self, artifact: Artifact, key: str, value: object) -> FactSpec:
+        return FactSpec(
+            locator=f"{artifact.source_locator}#$path.{key}",
+            raw_value=value,
+            normalized_value=value,
+            extractor_name=self.name,
+            extractor_version=self.version,
+        )
 
 
 class PyProjectExtractor:
@@ -165,7 +195,11 @@ class PackageJsonExtractor:
 
         engines = document.get("engines")
         if isinstance(engines, dict):
-            normalized = {str(key): value for key, value in sorted(engines.items()) if isinstance(value, str)}
+            normalized = {
+                str(key): value
+                for key, value in sorted(engines.items())
+                if isinstance(value, str)
+            }
             facts.append(self._fact(artifact, "engines", engines, normalized))
 
         for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
@@ -204,7 +238,6 @@ class MarkdownAssertionExtractor:
 
     name = "markdown-prose"
     version = "1"
-
     _list_item = re.compile(r"^(?:[-+*]\s+|\d+[.)]\s+)")
 
     def supports(self, artifact: Artifact) -> bool:
@@ -268,51 +301,6 @@ class MarkdownAssertionExtractor:
         return False
 
 
-class CaptureStructureExtractor:
-    """Facts about the *captured path set*, never the complete repository tree."""
-
-    name = "capture-structure"
-    version = "1"
-
-    def extract(self, manifest: CaptureManifest) -> tuple[FactSpec, ...]:
-        requested = [item.source_locator for item in manifest.artifacts]
-        captured = [
-            item.source_locator
-            for item in manifest.artifacts
-            if item.retrieval_status is RetrievalStatus.CAPTURED
-        ]
-        missing = [
-            item.source_locator
-            for item in manifest.artifacts
-            if item.retrieval_status is RetrievalStatus.MISSING
-        ]
-        extensions = sorted(
-            {
-                PurePosixPath(path).suffix.lower()
-                for path in requested
-                if PurePosixPath(path).suffix
-            }
-        )
-        top_level = sorted({PurePosixPath(path).parts[0] for path in requested if path})
-        base = f"capture:{manifest.capture_id}"
-        return (
-            self._fact(base, "requested_paths", requested, sorted(requested)),
-            self._fact(base, "captured_paths", captured, sorted(captured)),
-            self._fact(base, "missing_paths", missing, sorted(missing)),
-            self._fact(base, "extensions", extensions, extensions),
-            self._fact(base, "top_level_entries", top_level, top_level),
-        )
-
-    def _fact(self, base: str, key: str, raw: object, normalized: object) -> FactSpec:
-        return FactSpec(
-            locator=f"{base}#{key}",
-            raw_value=raw,
-            normalized_value=normalized,
-            extractor_name=self.name,
-            extractor_version=self.version,
-        )
-
-
 @dataclass(frozen=True)
 class ExtractionResult:
     capture_id: str
@@ -333,7 +321,6 @@ class DeterministicExtractionService:
         object_store: ContentAddressedFileStore,
         *,
         artifact_extractors: Iterable[ArtifactExtractor] | None = None,
-        structure_extractor: CaptureStructureExtractor | None = None,
         extraction_policy_version: str = "deterministic-evidence.v1",
         code_version: str = "lemmamind-0.1.0",
         clock: Callable[[], datetime] | None = None,
@@ -344,9 +331,13 @@ class DeterministicExtractionService:
         self.artifact_extractors = tuple(
             artifact_extractors
             if artifact_extractors is not None
-            else (PyProjectExtractor(), PackageJsonExtractor(), MarkdownAssertionExtractor())
+            else (
+                ArtifactPathExtractor(),
+                PyProjectExtractor(),
+                PackageJsonExtractor(),
+                MarkdownAssertionExtractor(),
+            )
         )
-        self.structure_extractor = structure_extractor or CaptureStructureExtractor()
         self.extraction_policy_version = extraction_policy_version
         self.code_version = code_version
         self.clock = clock or (lambda: datetime.now(timezone.utc))
@@ -359,8 +350,8 @@ class DeterministicExtractionService:
 
         started_at = self._aware_now()
         run_id = f"run:{self.id_factory()}"
-        fact_specs: list[FactSpec] = list(self.structure_extractor.extract(manifest))
-        assertion_specs: list[AssertionSpec] = []
+        fact_specs: list[tuple[str, FactSpec]] = []
+        assertion_specs: list[tuple[str, AssertionSpec]] = []
 
         for reference in manifest.artifacts:
             if reference.retrieval_status is not RetrievalStatus.CAPTURED:
@@ -377,17 +368,25 @@ class DeterministicExtractionService:
                     continue
                 for spec in extractor.extract(artifact, data):
                     if isinstance(spec, FactSpec):
-                        fact_specs.append(spec)
+                        fact_specs.append((artifact.artifact_id, spec))
                     else:
-                        assertion_specs.append(spec)
+                        assertion_specs.append((artifact.artifact_id, spec))
 
-        fact_specs.sort(key=lambda item: (item.extractor_name, item.locator, self._stable_value(item.normalized_value)))
-        assertion_specs.sort(key=lambda item: (item.extractor_name, item.locator, item.statement))
+        fact_specs.sort(
+            key=lambda pair: (
+                pair[1].extractor_name,
+                pair[1].locator,
+                self._stable_value(pair[1].normalized_value),
+            )
+        )
+        assertion_specs.sort(
+            key=lambda pair: (pair[1].extractor_name, pair[1].locator, pair[1].statement)
+        )
 
         facts = tuple(
             EvidenceFact(
                 evidence_id=self._record_id("fact", run_id, index, spec.extractor_name, spec.locator),
-                artifact_id=self._artifact_id_for_fact(spec, manifest),
+                artifact_id=artifact_id,
                 locator=spec.locator,
                 raw_value=spec.raw_value,
                 normalized_value=spec.normalized_value,
@@ -395,19 +394,21 @@ class DeterministicExtractionService:
                 extractor_version=spec.extractor_version,
                 run_id=run_id,
             )
-            for index, spec in enumerate(fact_specs, start=1)
+            for index, (artifact_id, spec) in enumerate(fact_specs, start=1)
         )
         assertions = tuple(
             SourceAssertion(
-                assertion_id=self._record_id("assertion", run_id, index, spec.extractor_name, spec.locator),
-                artifact_id=self._artifact_id_for_locator(spec.locator, manifest),
+                assertion_id=self._record_id(
+                    "assertion", run_id, index, spec.extractor_name, spec.locator
+                ),
+                artifact_id=artifact_id,
                 locator=spec.locator,
                 statement=spec.statement,
                 extractor_name=spec.extractor_name,
                 extractor_version=spec.extractor_version,
                 run_id=run_id,
             )
-            for index, spec in enumerate(assertion_specs, start=1)
+            for index, (artifact_id, spec) in enumerate(assertion_specs, start=1)
         )
 
         inputs_hash = self._digest_json(
@@ -417,17 +418,13 @@ class DeterministicExtractionService:
                     {"name": extractor.name, "version": extractor.version}
                     for extractor in self.artifact_extractors
                 ],
-                "structure_extractor": {
-                    "name": self.structure_extractor.name,
-                    "version": self.structure_extractor.version,
-                },
                 "policy_version": self.extraction_policy_version,
             }
         )
         outputs_hash = self._digest_json(
             {
-                "facts": [self._spec_payload(spec) for spec in fact_specs],
-                "assertions": [self._spec_payload(spec) for spec in assertion_specs],
+                "facts": [self._spec_payload(spec) for _, spec in fact_specs],
+                "assertions": [self._spec_payload(spec) for _, spec in assertion_specs],
             }
         )
         run = PipelineRun(
@@ -463,34 +460,6 @@ class DeterministicExtractionService:
             raise ArtifactContractMismatch(
                 f"Artifact record disagrees with capture manifest: {artifact.artifact_id}"
             )
-
-    @staticmethod
-    def _artifact_id_for_fact(spec: FactSpec, manifest: CaptureManifest) -> str:
-        if spec.extractor_name == CaptureStructureExtractor.name:
-            captured = next(
-                (item.artifact_id for item in manifest.artifacts if item.retrieval_status is RetrievalStatus.CAPTURED),
-                None,
-            )
-            if captured is None:
-                # EvidenceFact currently requires an artifact_id. M0 represents a
-                # manifest-level structural fact by binding it to the manifest's
-                # first requested artifact identity when no bytes were captured.
-                return manifest.artifacts[0].artifact_id
-            return captured
-        return DeterministicExtractionService._artifact_id_for_locator(spec.locator, manifest)
-
-    @staticmethod
-    def _artifact_id_for_locator(locator: str, manifest: CaptureManifest) -> str:
-        matches = [
-            item.artifact_id
-            for item in manifest.artifacts
-            if locator == item.source_locator
-            or locator.startswith(f"{item.source_locator}#")
-            or locator.startswith(f"{item.source_locator}:")
-        ]
-        if len(matches) != 1:
-            raise ArtifactContractMismatch(f"cannot bind locator to one artifact: {locator}")
-        return matches[0]
 
     @staticmethod
     def _record_id(kind: str, run_id: str, index: int, extractor_name: str, locator: str) -> str:
