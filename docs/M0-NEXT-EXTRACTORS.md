@@ -2,90 +2,64 @@
 
 ## Decision basis
 
-The first live external coverage run recovered **4 of 12** golden-evidence requirements from four pinned read-only repositories. That baseline remains preserved in:
+LemmaMind now has three preserved live external coverage checkpoints against the same four pinned read-only repositories and 12 explicit golden-evidence requirements:
 
-- `eval/pilot/coverage/external-v1.yaml`
-- `eval/pilot/coverage/reports/external-v1.json`
-- `eval/pilot/coverage/reports/external-v1.md`
+- initial deterministic baseline: **4/12 (33.3%)**
+- after `markdown-list.v1`: **6/12 (50.0%)**
+- after exact Git root-tree evidence: **7/12 (58.3%)**
 
-Priority 0 Markdown list extraction was then implemented and the **same frozen coverage specification** was rerun. The second live run recovered **6 of 12** requirements. Its report is preserved in:
-
-- `eval/pilot/coverage/reports/external-v1-markdown-list.json`
-- `eval/pilot/coverage/reports/external-v1-markdown-list.md`
-- live workflow run `32812194683`
-
-The purpose of this document is to select subsequent deterministic capabilities from measured coverage gaps rather than from speculative platform design.
+Reports are preserved under `eval/pilot/coverage/reports/`; new capabilities never rewrite historical evidence.
 
 ## Selection principles
 
-1. Prefer extractors that preserve source material or deterministic structure without interpretation.
-2. Prefer capabilities that unlock current golden requirements.
-3. Do not introduce a generic “code semantics” extractor that silently embeds reasoning into `EvidenceFact`.
-4. Keep `SourceAssertion` distinct from facts about source structure or execution behavior.
-5. Do not claim complete repository structure from explicit-path capture.
-6. Prefer language-native parsers or Git object structure over regex when structural correctness matters.
-7. Preserve earlier coverage reports; new capabilities produce new reports rather than rewriting history.
+1. Prefer deterministic source preservation and syntax/structure before interpretation.
+2. Prefer capabilities tied to measured golden-case gaps.
+3. Never encode architectural meaning directly as `EvidenceFact` merely to improve coverage.
+4. Keep source claims as `SourceAssertion`.
+5. Do not infer complete repository structure from selected files.
+6. Prefer Git object structure and language-native parsers over regex when structural correctness matters.
+7. Treat coverage as evidence-recovery measurement, not automatic observation validity.
 
 ## Priority 0 — Markdown structural source assertions: COMPLETE
 
-**Gap addressed:** 2 requirements
+`markdown-list.v1` preserves ordered/unordered list items, nested items, and indented continuation lines with exact line provenance while excluding fenced code. It remains separate from `markdown-prose.v1`.
 
-- `openbot-authority-1`
-- `openclaw-sandbox-3`
-
-### Implemented behavior
-
-`markdown-list.v1` now preserves explicit source text from Markdown list structure:
-
-- unordered list items;
-- ordered list items;
-- indented continuation lines belonging to the same item;
-- nested list items as separate assertions;
-- exact source line ranges.
-
-Fenced code is excluded, and table/block-quote lines are not absorbed as list continuations. List markers are treated as Markdown syntax and removed; authored text is retained as `SourceAssertion`.
-
-The existing `markdown-prose.v1` extractor remains unchanged, preserving backward reproducibility. Combined assertion ordering is by source path and numeric line range.
-
-### Live result
-
-The same external coverage specification moved from **4/12 (33.3%)** to **6/12 (50.0%)**:
+Live effect:
 
 - OpenBot: `0/3 → 1/3`
 - OpenClaw: `2/3 → 3/3`
-- Hermes: `0/3 → 0/3`
-- OPD index: `2/3 → 2/3`
+- overall: `4/12 → 6/12`
 
-This eliminated `markdown-list-source-assertions` from the current gap set without introducing inference.
+## Priority 1 — Exact Git root-tree capture and facts: COMPLETE
 
-## Priority 1 — Exact Git tree capture and tree facts: NEXT
+**Gap closed:** `opd-source-3`
 
-**Gap addressed directly:** 1 requirement
+Implemented behavior:
 
-- `opd-source-3`
+- follows the already pinned `SourceRevision.tree_sha`;
+- calls the non-recursive Git Trees endpoint read-only;
+- rejects a returned SHA that differs from the pinned tree SHA;
+- canonicalizes the root tree into UTF-8 JSON;
+- stores those bytes as a SHA-256 content-addressed `Artifact` in a dedicated `CaptureManifest`;
+- emits deterministic facts for tree SHA, recursive/truncated state, root entry count and path set, and per-entry type/mode/SHA/size where supplied;
+- fails an exact-root coverage check if the tree is truncated, any expected entry is missing, or any unexpected entry appears.
 
-### Required behavior
+For the pinned OPD revision `e4b5e7334ccd3437ccab8d4eef770ed02c4f9934`, the commit resolves to root tree `c159887c873d5003aec7dabb0ee579f22a18e82b`. The live run observed an exact non-truncated root of:
 
-Persist an exact Git tree artifact tied to the already pinned `SourceRevision.tree_sha`, then emit deterministic facts such as:
+- `.claude`
+- `CITATION.cff`
+- `CONTRIBUTING.md`
+- `LICENSE`
+- `README.md`
 
-- root entry path;
-- entry type (`blob`, `tree`, `commit`/submodule when applicable);
-- Git object SHA;
-- executable/file mode;
-- root entry count;
-- whether a requested recursive tree response was truncated.
+Live effect:
 
-For the OPD case, a non-recursive root tree is sufficient and preferable to inferring repository structure from selected files.
+- OPD index: `2/3 → 3/3`
+- overall: `6/12 → 7/12`
 
-### Epistemic output
+The tree facts support the existing source-role interpretation; they do not themselves classify the repository.
 
-Tree membership and Git object identities are `EvidenceFact`.
-
-### Why next
-
-Repository structure is foundational for later change intelligence and architecture profiling. It closes a current source-role evidence gap with low semantic risk and removes the explicit-path capture blind spot before code-level analysis begins.
-
-## Priority 1 — Durable commit metadata/change artifact
+## Priority 1 — Durable commit metadata/change artifact: NEXT
 
 **Gap addressed directly:** 1 requirement
 
@@ -93,25 +67,28 @@ Repository structure is foundational for later change intelligence and architect
 
 ### Required behavior
 
-The GitHub capture adapter already resolves commit metadata to pin a revision. Preserve a canonical immutable subset as content-addressed source evidence rather than discarding it after resolution. At minimum:
+The GitHub file capture path already retrieves the pinned commit to resolve `commit_sha` and `tree_sha`. The next slice should preserve a canonical immutable commit artifact rather than discarding that metadata after resolution.
+
+At minimum preserve:
 
 - commit SHA;
 - tree SHA;
 - parent SHAs;
-- author/committer timestamps;
+- author timestamp;
+- committer timestamp;
 - commit message;
-- verification state if supplied by the source API.
-
-The commit message itself remains a source statement. Facts such as parent identities and timestamps are deterministic metadata facts.
+- source-supplied verification state.
 
 ### Epistemic output
 
-- commit structure/timestamps → `EvidenceFact`
-- commit-message prose → `SourceAssertion`
+- commit identity, parent structure, tree identity, timestamps, verification metadata → `EvidenceFact`
+- commit-message text → `SourceAssertion`
 
-### Why early
+The commit message must not be promoted to an observed behavioral fact merely because it describes a fix.
 
-Change-intelligence cases cannot be reconstructed from file snapshots alone. Persisting commit evidence is a prerequisite for later M5 meaningful-change analysis.
+### Why next
+
+Hermes `hermes-containment-1` is specifically a change-intelligence requirement. File snapshots alone cannot establish what changed or why a revision exists. Durable commit evidence is also prerequisite infrastructure for M5 meaningful-change analysis.
 
 ## Priority 2 — Python AST structural facts
 
@@ -120,60 +97,29 @@ Change-intelligence cases cannot be reconstructed from file snapshots alone. Per
 - `hermes-containment-2`
 - `hermes-containment-3`
 
-### Required behavior
+Use Python's standard-library `ast` to emit deterministic source ranges and syntax facts such as function/class definitions, call expressions, keyword/literal arguments, try/except structure, assertions, test function names, and statement ordering.
 
-Use Python's standard-library `ast` parser to emit source-addressed structural facts such as:
+Do not emit conclusions such as “descendants are fully contained”; that remains later reviewed reasoning.
 
-- function/class definitions;
-- call expressions and qualified call names when deterministically resolvable from syntax;
-- keyword arguments and literal values;
-- `try`/`except` structure;
-- assertion statements;
-- test function names;
-- source line/column ranges;
-- statement ordering by source position.
-
-Do not emit claims such as “this fully contains descendants” from AST structure. A later reviewed interpretation can combine calls, ordering, tests, and commit evidence.
-
-### Epistemic output
-
-Syntactic structure is `EvidenceFact`; comments/docstrings remain `SourceAssertion` when preserved as source claims.
-
-### Why before broad code analysis
-
-Hermes provides a concrete Python case with known expected evidence. Built-in `ast` keeps the extractor deterministic and inspectable without introducing a general semantic-analysis engine.
-
-## Priority 2 — TypeScript source structure, not generic semantics
+## Priority 2 — TypeScript comments + structural facts
 
 **Gaps informed:** 2 OpenBot requirements
 
 - `openbot-authority-2`
 - `openbot-authority-3`
 
-### Required behavior
+Preserve explicit TypeScript comments/doc comments first as `SourceAssertion`. Add version-pinned syntax/AST extraction only where needed to recover deterministic control-flow or grant-intersection structure.
 
-First preserve explicit TypeScript comments/doc comments as `SourceAssertion` with exact line ranges. Then add syntax/AST facts only if needed to corroborate the relevant control flow and grant-intersection behavior.
-
-Any parser dependency must be pinned and treated as an extractor implementation detail with explicit versioning.
-
-### Epistemic output
-
-- comments/doc comments → `SourceAssertion`
-- syntax/AST structure → `EvidenceFact`
-- architectural meaning → later `Observation`
-
-### Why not a “source-code-semantic-facts” extractor
-
-That gap label is a coverage category, not an implementation design. Encoding semantic conclusions directly as deterministic facts would collapse the Evidence → Observation boundary established by M−1.
+The existing `source-code-semantic-facts` gap label is a coverage category, not an implementation contract.
 
 ## Current sequence
 
 ```text
-P0  Markdown structural assertions       COMPLETE — 6/12 coverage
+P0  Markdown structural assertions       COMPLETE — 6/12
         ↓
-P1  Git tree capture/facts               NEXT
+P1  Git root-tree capture/facts          COMPLETE — 7/12
         ↓
-P1  Commit metadata/change artifact
+P1  Commit metadata/change artifact      NEXT
         ↓
 P2  Python AST structural facts
         ↓
@@ -182,11 +128,9 @@ P2  TypeScript comments + structural facts
 rerun external coverage after each slice
 ```
 
-After each slice, rerun `external-golden-evidence-v1` and compare the new transient-ID-free report to the preserved historical reports. The goal is not to maximize a percentage mechanically; the goal is to recover the evidence necessary for the golden cases **without weakening epistemic typing**.
-
 ## Explicitly deferred
 
-Still not justified by the measured gaps:
+Still not justified by the measured corpus:
 
 - LLM-based code interpretation;
 - embeddings;
