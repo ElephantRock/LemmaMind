@@ -7,7 +7,8 @@ import argparse
 import os
 from pathlib import Path
 
-from lemmamind.pilot_coverage import dump_report_json, report_markdown, run_live_coverage
+from lemmamind.pilot_coverage import dump_report_json, report_markdown
+from lemmamind.pilot_coverage_v2 import run_live_coverage
 
 
 def parse_args() -> argparse.Namespace:

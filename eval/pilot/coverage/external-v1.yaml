@@ -119,5 +119,13 @@ cases:
       - evidence_id: opd-source-3
         evidence_type: ObservedFact
         check:
-          kind: unsupported
+          kind: git_root_tree_contains
+          require_complete: true
+          exact_entries: true
+          entries:
+            - .claude
+            - CITATION.cff
+            - CONTRIBUTING.md
+            - LICENSE
+            - README.md
         needed_capability_if_missing: complete-repository-tree-facts
