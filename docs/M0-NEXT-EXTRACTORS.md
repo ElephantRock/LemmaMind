@@ -2,11 +2,12 @@
 
 ## Decision basis
 
-LemmaMind now has three preserved live external coverage checkpoints against the same four pinned read-only repositories and 12 explicit golden-evidence requirements:
+LemmaMind now has four preserved live external coverage checkpoints against the same four pinned read-only repositories and 12 explicit golden-evidence requirements:
 
 - initial deterministic baseline: **4/12 (33.3%)**
 - after `markdown-list.v1`: **6/12 (50.0%)**
 - after exact Git root-tree evidence: **7/12 (58.3%)**
+- after durable Git commit evidence: **8/12 (66.7%)**
 
 Reports are preserved under `eval/pilot/coverage/reports/`; new capabilities never rewrite historical evidence.
 
@@ -15,7 +16,7 @@ Reports are preserved under `eval/pilot/coverage/reports/`; new capabilities nev
 1. Prefer deterministic source preservation and syntax/structure before interpretation.
 2. Prefer capabilities tied to measured golden-case gaps.
 3. Never encode architectural meaning directly as `EvidenceFact` merely to improve coverage.
-4. Keep source claims as `SourceAssertion`.
+4. Keep authored source claims as `SourceAssertion`.
 5. Do not infer complete repository structure from selected files.
 6. Prefer Git object structure and language-native parsers over regex when structural correctness matters.
 7. Treat coverage as evidence-recovery measurement, not automatic observation validity.
@@ -34,17 +35,9 @@ Live effect:
 
 **Gap closed:** `opd-source-3`
 
-Implemented behavior:
+The root-tree path follows the pinned `SourceRevision.tree_sha`, captures the exact non-recursive Git tree as content-addressed JSON, and emits deterministic facts for tree identity, truncation state, path membership, object type, mode, SHA, and size where supplied.
 
-- follows the already pinned `SourceRevision.tree_sha`;
-- calls the non-recursive Git Trees endpoint read-only;
-- rejects a returned SHA that differs from the pinned tree SHA;
-- canonicalizes the root tree into UTF-8 JSON;
-- stores those bytes as a SHA-256 content-addressed `Artifact` in a dedicated `CaptureManifest`;
-- emits deterministic facts for tree SHA, recursive/truncated state, root entry count and path set, and per-entry type/mode/SHA/size where supplied;
-- fails an exact-root coverage check if the tree is truncated, any expected entry is missing, or any unexpected entry appears.
-
-For the pinned OPD revision `e4b5e7334ccd3437ccab8d4eef770ed02c4f9934`, the commit resolves to root tree `c159887c873d5003aec7dabb0ee579f22a18e82b`. The live run observed an exact non-truncated root of:
+For the pinned OPD revision `e4b5e7334ccd3437ccab8d4eef770ed02c4f9934`, the exact non-truncated root tree is:
 
 - `.claude`
 - `CITATION.cff`
@@ -57,60 +50,66 @@ Live effect:
 - OPD index: `2/3 → 3/3`
 - overall: `6/12 → 7/12`
 
-The tree facts support the existing source-role interpretation; they do not themselves classify the repository.
+The tree facts support the source-role interpretation; they do not themselves classify the repository.
 
-## Priority 1 — Durable commit metadata/change artifact: NEXT
+## Priority 1 — Durable commit metadata/change evidence: COMPLETE
 
-**Gap addressed directly:** 1 requirement
+**Gap closed:** `hermes-containment-1`
 
-- `hermes-containment-1`
+Implemented behavior:
 
-### Required behavior
+- follows the already pinned `SourceRevision.commit_sha`;
+- rejects a returned commit SHA or tree SHA that disagrees with the pinned revision;
+- stores a canonical immutable commit artifact in the content-addressed object store;
+- preserves commit SHA, tree SHA, parent SHAs, author/committer timestamps, and source-supplied verification metadata as deterministic `EvidenceFact` records;
+- preserves the authored commit message separately as `SourceAssertion`;
+- does not interpret the commit message as proof of runtime behavior.
 
-The GitHub file capture path already retrieves the pinned commit to resolve `commit_sha` and `tree_sha`. The next slice should preserve a canonical immutable commit artifact rather than discarding that metadata after resolution.
+For Hermes revision `41447a6d7063b2772b0c2f26a5b22d9bd444fb43`, the commit-message assertion records that the terminal fix sweeps `setsid` descendants after the local timeout group-kill. This closes the change-statement requirement while leaving implementation and test behavior to later source-structure evidence.
 
-At minimum preserve:
+Live effect:
 
-- commit SHA;
-- tree SHA;
-- parent SHAs;
-- author timestamp;
-- committer timestamp;
-- commit message;
-- source-supplied verification state.
+- Hermes: `0/3 → 1/3`
+- overall: `7/12 → 8/12`
 
-### Epistemic output
+## Priority 2 — Python AST structural facts: NEXT
 
-- commit identity, parent structure, tree identity, timestamps, verification metadata → `EvidenceFact`
-- commit-message text → `SourceAssertion`
-
-The commit message must not be promoted to an observed behavioral fact merely because it describes a fix.
-
-### Why next
-
-Hermes `hermes-containment-1` is specifically a change-intelligence requirement. File snapshots alone cannot establish what changed or why a revision exists. Durable commit evidence is also prerequisite infrastructure for M5 meaningful-change analysis.
-
-## Priority 2 — Python AST structural facts
-
-**Gaps informed:** 2 Hermes requirements
+**Measured gaps addressed:** 2 Hermes requirements
 
 - `hermes-containment-2`
 - `hermes-containment-3`
 
-Use Python's standard-library `ast` to emit deterministic source ranges and syntax facts such as function/class definitions, call expressions, keyword/literal arguments, try/except structure, assertions, test function names, and statement ordering.
+Use Python's standard-library `ast` parser. The first implementation should emit only deterministic source structure with exact source ranges, including:
 
-Do not emit conclusions such as “descendants are fully contained”; that remains later reviewed reasoning.
+- function and class definitions;
+- call expressions and syntactically resolvable qualified call names;
+- attribute access;
+- literal positional and keyword arguments;
+- assignment targets where useful to connect local names to calls/literals;
+- `try` / `except` structure;
+- assertion statements;
+- test function names;
+- statement ordering by line/column position;
+- docstrings as `SourceAssertion` where they carry authored claims.
+
+The Hermes implementation case should be able to recover structural evidence for descendant snapshotting, process-group signaling, survivor sweeping, and their source order. The test case should recover the `setsid` regression-test function, relevant calls/assertions, and the snapshot-failure regression.
+
+Do **not** emit conclusions such as “descendants are fully contained” or “this test proves containment.” Those remain later reviewed `Observation` reasoning over the AST facts and source assertions.
+
+### Why Python first
+
+It can target two of the four remaining requirements with the standard library and no new parser dependency. That makes it the highest-yield remaining deterministic slice with a small trust surface.
 
 ## Priority 2 — TypeScript comments + structural facts
 
-**Gaps informed:** 2 OpenBot requirements
+**Measured gaps addressed:** 2 OpenBot requirements
 
 - `openbot-authority-2`
 - `openbot-authority-3`
 
-Preserve explicit TypeScript comments/doc comments first as `SourceAssertion`. Add version-pinned syntax/AST extraction only where needed to recover deterministic control-flow or grant-intersection structure.
+Preserve explicit TypeScript comments/doc comments first as `SourceAssertion`. Add a version-pinned syntax/AST parser only where needed to recover deterministic grant-intersection and gateway-control structure.
 
-The existing `source-code-semantic-facts` gap label is a coverage category, not an implementation contract.
+The existing `source-code-semantic-facts` coverage label is a missing-capability category, not an implementation contract. Architectural meaning still belongs in a later `Observation`.
 
 ## Current sequence
 
@@ -119,9 +118,9 @@ P0  Markdown structural assertions       COMPLETE — 6/12
         ↓
 P1  Git root-tree capture/facts          COMPLETE — 7/12
         ↓
-P1  Commit metadata/change artifact      NEXT
+P1  Commit metadata/change evidence      COMPLETE — 8/12
         ↓
-P2  Python AST structural facts
+P2  Python AST structural facts          NEXT
         ↓
 P2  TypeScript comments + structural facts
         ↓

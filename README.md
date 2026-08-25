@@ -18,19 +18,20 @@ The completed pilot contains a controlled ElephantRock corpus plus four real ext
 
 **M0 — Minimum System Contracts: implementation active.**
 
-The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, deterministic evidence extraction, and an executable pilot evidence-coverage harness.
+The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit-metadata capture, deterministic evidence extraction, and an executable pilot evidence-coverage harness.
 
-The extractor set currently preserves artifact path facts, selected `pyproject.toml` / `package.json` facts, ordinary Markdown prose, Markdown list items, and exact Git root-tree structure. Source prose remains `SourceAssertion`; Git object structure remains `EvidenceFact`.
+The evidence layer currently preserves artifact path facts, selected `pyproject.toml` / `package.json` facts, ordinary Markdown prose, Markdown list items, exact Git root-tree structure, and exact commit metadata. Authored prose and commit messages remain `SourceAssertion`; Git object structure and metadata remain `EvidenceFact`.
 
 Live external evidence coverage has progressed against the same 12 frozen requirements:
 
 - initial baseline: **4/12 (33.3%)**
 - after Markdown list extraction: **6/12 (50.0%)**
 - after exact Git root-tree evidence: **7/12 (58.3%)**
+- after durable Git commit evidence: **8/12 (66.7%)**
 
-OpenClaw and the OPD research-index case are now both 3/3 at the deterministic evidence layer. Historical reports are preserved rather than overwritten.
+OpenClaw and the OPD research-index case are 3/3 at the deterministic evidence layer; Hermes is now 1/3. Historical reports are preserved rather than overwritten.
 
-The five remaining measured gaps are durable commit/change evidence, three source-code structural evidence requirements, and one test-code structural evidence requirement. The implementation remains deliberately below autonomous observations, architecture profiling, pattern/insight synthesis, embeddings, autonomous reasoning, and UI.
+The four remaining measured gaps are language-specific source/test structure: three source-code requirements and one test-code requirement. The implementation remains deliberately below autonomous observations, architecture profiling, pattern/insight synthesis, embeddings, autonomous reasoning, and UI.
 
 ## Start here
 
@@ -44,15 +45,17 @@ The five remaining measured gaps are durable commit/change evidence, three sourc
 - [`eval/pilot/coverage/reports/external-v1.md`](eval/pilot/coverage/reports/external-v1.md) — first live external baseline (4/12)
 - [`eval/pilot/coverage/reports/external-v1-markdown-list.md`](eval/pilot/coverage/reports/external-v1-markdown-list.md) — post-P0 baseline (6/12)
 - [`eval/pilot/coverage/reports/external-v1-git-tree.md`](eval/pilot/coverage/reports/external-v1-git-tree.md) — post-tree baseline (7/12)
+- [`eval/pilot/coverage/reports/external-v1-commit-evidence.md`](eval/pilot/coverage/reports/external-v1-commit-evidence.md) — post-commit baseline (8/12)
 - [`docs/M0-NEXT-EXTRACTORS.md`](docs/M0-NEXT-EXTRACTORS.md) — extractor priorities selected from measured gaps
 - [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned M0 contract models
 - [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — atomic append-only SQLite contract persistence
 - [`src/lemmamind/objects.py`](src/lemmamind/objects.py) — SHA-256 content-addressed captured bytes
 - [`src/lemmamind/github.py`](src/lemmamind/github.py) — read-only GitHub file capture path
 - [`src/lemmamind/git_tree.py`](src/lemmamind/git_tree.py) — exact Git root-tree capture and deterministic tree facts
+- [`src/lemmamind/git_commit.py`](src/lemmamind/git_commit.py) — exact Git commit-metadata capture, metadata facts, and commit-message assertions
 - [`src/lemmamind/extraction.py`](src/lemmamind/extraction.py) — deterministic artifact extractors and extraction service
 - [`src/lemmamind/pilot_coverage.py`](src/lemmamind/pilot_coverage.py) — base evidence-coverage evaluator
-- [`src/lemmamind/pilot_coverage_v2.py`](src/lemmamind/pilot_coverage_v2.py) — live coverage with exact root-tree evidence
+- [`src/lemmamind/pilot_coverage_v2.py`](src/lemmamind/pilot_coverage_v2.py) — live coverage with Git-tree and commit evidence
 - [`tests/`](tests/) — contract, persistence, capture, extraction, coverage, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
@@ -114,14 +117,14 @@ GitHub metadata
       ↓
 exact commit + tree revision
       ↓
-content-addressed file / Git-tree artifacts
+content-addressed file / Git-tree / commit artifacts
       ↓
 deterministic EvidenceFact / SourceAssertion
       ↓
 pilot evidence-coverage measurement
 ```
 
-The next implementation slice is **durable commit metadata/change evidence**, targeting the Hermes change-intelligence requirement. Python AST and TypeScript structural extraction follow only after that evidence is preserved. No autonomous insight synthesis is required for M0/V1.
+The next implementation slice is **Python AST structural facts**, selected because the two remaining Hermes source/test requirements can be approached using Python's standard-library parser without introducing generic semantic program analysis. TypeScript source structure follows for OpenBot. No autonomous insight synthesis is required for M0/V1.
 
 ## Canonical home
 

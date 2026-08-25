@@ -76,9 +76,12 @@ cases:
       - tests/tools/test_local_setsid_descendant_sweep.py
     requirements:
       - evidence_id: hermes-containment-1
-        evidence_type: ObservedFact
+        evidence_type: SourceAssertion
         check:
-          kind: unsupported
+          kind: commit_message_contains
+          fragments:
+            - sweep setsid descendants
+            - local timeout group-kill
         needed_capability_if_missing: commit-metadata-and-change-facts
       - evidence_id: hermes-containment-2
         evidence_type: ObservedFact
