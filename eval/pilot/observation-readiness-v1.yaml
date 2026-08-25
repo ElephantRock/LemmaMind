@@ -1,0 +1,91 @@
+schema_version: lemmamind.observation-readiness.v1
+readiness_id: hard-golden-observation-v1
+description: >-
+  Measured readiness of the current M0/V1 epistemic spine against hard frozen
+  golden cases. Ready means the case can be represented without weakening the
+  current evidence/Observation boundary. Blocked means a concrete earlier-layer
+  capability is missing. Deferred means the case belongs to a later semantic
+  object rather than source-level Observation.
+
+capabilities:
+  supported_observation_v2:
+    state: implemented
+    reason: One Observation remains revision-bound; supersession may cross revisions of the same Source.
+  deterministic_external_repository_evidence:
+    state: implemented
+    reason: The frozen external repository corpus is at 12/12 deterministic evidence recovery.
+  source_role_contract:
+    state: implemented
+    reason: Source.source_role distinguishes implementation, research_index, research_program, mixed, and unknown.
+  git_root_tree_evidence:
+    state: implemented
+    reason: Exact pinned Git root-tree capture and facts are available.
+  github_issue_pr_evidence:
+    state: missing
+    reason: Durable issue and pull-request capture is not yet part of the M0 evidence spine.
+  github_workflow_run_evidence:
+    state: missing
+    reason: Durable workflow-run/job/step outcome capture is not yet part of the M0 evidence spine.
+  temporal_change_reconciliation:
+    state: missing
+    reason: Multi-revision frontier reconciliation belongs to change intelligence and is not yet executable.
+  action_policy_validation:
+    state: missing
+    reason: ActionRecommendation exists as a contract but no authority/governance validation service exists yet.
+  cross_repository_pattern_layer:
+    state: deferred
+    reason: Cross-repository synthesis belongs to Pattern/Insight semantics rather than source-level Observation.
+
+cases:
+  - case_id: external-opd-source-type
+    golden_case: eval/pilot/cases/external-opd-source-type.yaml
+    expected_case_type: source_type_boundary
+    requires:
+      - supported_observation_v2
+      - deterministic_external_repository_evidence
+      - source_role_contract
+      - git_root_tree_evidence
+    expected_outcome: ready
+    boundary: >-
+      The two golden observations are single-source/single-revision and can retain
+      curated field claims as SourceAssertion while using root-tree facts and the
+      research_index source role.
+
+  - case_id: csd-foundry-frontier
+    golden_case: eval/pilot/cases/csd-foundry-frontier.yaml
+    expected_case_type: frontier_reconciliation
+    requires:
+      - supported_observation_v2
+      - github_issue_pr_evidence
+      - temporal_change_reconciliation
+    expected_outcome: blocked
+    boundary: >-
+      Supersession history can now cross revisions of the same Source, but the
+      frozen golden reconciliation itself combines evidence from multiple
+      revisions and should not be forced into one revision-bound Observation.
+
+  - case_id: resonance-world-confirmatory
+    golden_case: eval/pilot/cases/resonance-world-confirmatory.yaml
+    expected_case_type: scientific_integrity
+    requires:
+      - supported_observation_v2
+      - github_issue_pr_evidence
+      - github_workflow_run_evidence
+      - action_policy_validation
+    expected_outcome: blocked
+    boundary: >-
+      The epistemic statements are source-local, but reconstructing the frozen
+      execution state requires durable PR/workflow-run evidence and the no-rerun
+      decision requires an authority/governance-aware action policy.
+
+  - case_id: private-actions-pattern
+    golden_case: eval/pilot/cases/private-actions-pattern.yaml
+    expected_case_type: cross_repository_pattern
+    requires:
+      - github_workflow_run_evidence
+      - cross_repository_pattern_layer
+    expected_outcome: deferred
+    boundary: >-
+      The useful conclusion depends on matched signatures and negative controls
+      across several repositories. Source-level Observation must reject this
+      rather than weakening its one-revision invariant.
