@@ -16,11 +16,13 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-**M0 — Minimum System Contracts: implementation active; deterministic repository evidence, source-local Observation construction, mutable GitHub process/workflow evidence, action-policy validation, and temporal belief revision are live-validated.**
+**M0 — Minimum System Contracts: implementation active; the corpus-selected evidence, source-local Observation, mutable GitHub process/workflow, action-policy, and temporal belief-revision paths are live-validated. An M8-lite Pattern vertical slice now closes representability of the remaining cross-repository hard case without weakening Observation provenance.**
 
-The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, evidence-bound action-policy evaluation, and temporal frontier reconciliation.
+The executable foundation includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, repository-metadata visibility evidence, evidence-bound action-policy evaluation, and temporal frontier reconciliation.
 
-The evidence layer preserves artifact path facts, selected `pyproject.toml` / `package.json` facts, ordinary Markdown prose, Markdown list items, exact Git root-tree structure, exact commit metadata, Python syntax, TypeScript/TSX syntax, current GitHub issue/PR process metadata, GitHub issue event metadata, GitHub Actions run/job/step metadata, and opt-in scalar JSON Pointer facts for explicitly governed JSON artifacts. Authored prose, commit messages, Python docstrings, TypeScript comments, and issue/PR titles/bodies remain `SourceAssertion`; Git object structure, provider/process/event metadata, workflow metadata, JSON scalar values, and parser-derived syntax remain `EvidenceFact`.
+The first M8-lite vertical slice adds `Pattern`, `PatternOccurrence`, and `PatternOccurrenceSupport` above source-local Observations. It supports explicit supporting cases, negative controls, and contradicting occurrences; prevents repeated revisions of one Source from becoming pseudo-replication; and always constructs a candidate `SYNTHESIS` result rather than self-validating a cross-source claim.
+
+The evidence layer preserves artifact path facts, selected `pyproject.toml` / `package.json` facts, ordinary Markdown prose, Markdown list items, exact Git root-tree structure, exact commit metadata, Python syntax, TypeScript/TSX syntax, current GitHub repository/issue/PR process metadata, GitHub issue event metadata, GitHub Actions run/job/step metadata, and opt-in scalar JSON Pointer facts for explicitly governed JSON artifacts. Authored prose, commit messages, Python docstrings, TypeScript comments, and issue/PR titles/bodies remain `SourceAssertion`; Git object structure, provider/process/event metadata, workflow metadata, JSON scalar values, repository visibility, and parser-derived syntax remain `EvidenceFact`.
 
 Live external repository evidence coverage progressed against the same 12 frozen requirements:
 
@@ -47,14 +49,20 @@ GitHub process event history was then live-validated against CSD issue #37. Run 
 
 Temporal frontier reconciliation completed the CSD belief-revision path. Live run `32870568177` passed **101 offline tests**, verified that open/draft PR #117 is based on D5 merge revision `aa2f1a79c7dfe57a0107a8ffe971e3f6affb96c7` with head `2d910f3ff83f061409ca9d8f2e3709fde7c13f6e`, preserved the prior “#37 can close” Observation unchanged, and created a candidate superseding Evaluation that narrows the conclusion to implementation landed while qualification/closure remains open. The runtime did not self-promote either new candidate to reviewed/validated state.
 
-The hard-case readiness matrix is now **3 ready / 0 blocked / 1 deferred**:
+The private-Actions provider signature was rechecked across ExpertOS, ExpertForge, ERLab, and Resonance-ContextGraph. The two private repositories retain the frozen pre-step/zero-step failure signatures, while the two public controls retain normal successful step execution. M8-lite represents those as two supporting `PatternOccurrence` records plus two negative controls. The shared private-repository provisioning/entitlement/billing explanation remains a **candidate inference**, not a confirmed account-level cause.
+
+The hard-case readiness matrix is now **4 ready / 0 blocked / 0 deferred**:
 
 - OPD source-role case: ready;
 - Resonance-World confirmatory case: ready;
 - CSD-Foundry frontier/belief-revision case: ready;
-- private-Actions case: deliberately deferred to the cross-repository Pattern layer.
+- private-Actions cross-repository Pattern case: ready in the M8-lite Pattern layer.
 
-The implementation remains deliberately below autonomous architecture profiling, Pattern/Insight synthesis, embeddings, autonomous reasoning, action execution, authorization issuance, and UI. The next corpus-selected semantic boundary is a real **cross-repository Pattern / PatternOccurrence layer** for the private-Actions case; source-level Observation constraints should not be weakened to make that case pass.
+This means the four selected hard golden cases are representable in their correct semantic layers. It does **not** mean full M8 or the roadmap is complete.
+
+The implementation remains deliberately below formal M1 discovery lineage, mature M2 registry evolution, general M5 delta machinery, M6 ArchitectureProfile/triage, M6.5 embeddings/representation, autonomous model-generated reasoning, the real M7.5 attention-budgeted review queue, full M8 automatic pattern discovery/cohorts/tensions, M9 Insight/Knowledge promotion, action execution, authorization issuance, and UI.
+
+The next roadmap move is therefore back to the missing **V1 foundation**, beginning with formal **M1 Curated Discovery lineage** rather than advancing directly into M9.
 
 ## Start here
 
@@ -72,6 +80,7 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`docs/M0-GITHUB-WORKFLOW-EVIDENCE.md`](docs/M0-GITHUB-WORKFLOW-EVIDENCE.md) — durable workflow-run/job/step evidence and safe log-availability boundary
 - [`docs/M0-ACTION-POLICY.md`](docs/M0-ACTION-POLICY.md) — evidence-bound operational policy and authorization separation
 - [`docs/M0-TEMPORAL-RECONCILIATION.md`](docs/M0-TEMPORAL-RECONCILIATION.md) — source-local temporal frontier reconciliation and immutable belief revision
+- [`docs/M8-PATTERN-INTELLIGENCE-LITE.md`](docs/M8-PATTERN-INTELLIGENCE-LITE.md) — first cross-repository Pattern/negative-control boundary
 - [`eval/pilot/coverage/external-v1.yaml`](eval/pilot/coverage/external-v1.yaml) — machine-readable external evidence-recovery checks
 - [`eval/pilot/coverage/reports/external-v1-typescript.md`](eval/pilot/coverage/reports/external-v1-typescript.md) — complete deterministic repository-evidence checkpoint (12/12)
 - [`eval/pilot/observation-reports/external-openbot-v1.md`](eval/pilot/observation-reports/external-openbot-v1.md) — first live evidence-supported Observation probe
@@ -81,12 +90,14 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`eval/pilot/workflow-reports/resonance-world-confirmatory-v1.md`](eval/pilot/workflow-reports/resonance-world-confirmatory-v1.md) — live workflow evidence checkpoint
 - [`eval/pilot/action-policy-reports/resonance-world-confirmatory-v1.md`](eval/pilot/action-policy-reports/resonance-world-confirmatory-v1.md) — live operational policy checkpoint
 - [`eval/pilot/temporal-reports/csd-frontier-reconciliation-v1.md`](eval/pilot/temporal-reports/csd-frontier-reconciliation-v1.md) — live temporal belief-revision checkpoint
-- [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned M0 contract models
+- [`eval/pilot/pattern-reports/private-actions-v1.md`](eval/pilot/pattern-reports/private-actions-v1.md) — first cross-repository Pattern checkpoint
+- [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned contracts
 - [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — atomic append-only SQLite contract persistence
 - [`src/lemmamind/objects.py`](src/lemmamind/objects.py) — SHA-256 content-addressed captured bytes
 - [`src/lemmamind/github.py`](src/lemmamind/github.py) — read-only GitHub repository/file capture path
 - [`src/lemmamind/git_tree.py`](src/lemmamind/git_tree.py) — exact Git root-tree capture and deterministic tree facts
 - [`src/lemmamind/git_commit.py`](src/lemmamind/git_commit.py) — exact Git commit metadata and message assertions
+- [`src/lemmamind/github_repository_metadata.py`](src/lemmamind/github_repository_metadata.py) — content-addressed mutable repository metadata such as visibility
 - [`src/lemmamind/github_process.py`](src/lemmamind/github_process.py) — current GitHub issue/PR snapshot capture and deterministic process evidence
 - [`src/lemmamind/github_process_events.py`](src/lemmamind/github_process_events.py) — paginated durable GitHub issue-event history evidence
 - [`src/lemmamind/github_workflow.py`](src/lemmamind/github_workflow.py) — workflow-run/job/step snapshot capture and deterministic evidence
@@ -98,8 +109,9 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`src/lemmamind/typescript_ast.py`](src/lemmamind/typescript_ast.py) — deterministic TypeScript/TSX syntax facts and comment assertions
 - [`src/lemmamind/observations.py`](src/lemmamind/observations.py) — candidate Observation construction with validated support provenance
 - [`src/lemmamind/observations_v2.py`](src/lemmamind/observations_v2.py) — revision-aware same-source supersession while preserving one-revision Observation support
+- [`src/lemmamind/pattern_intelligence.py`](src/lemmamind/pattern_intelligence.py) — candidate cross-source Pattern construction over source-local Observations
 - [`src/lemmamind/observation_readiness.py`](src/lemmamind/observation_readiness.py) — deterministic hard-case readiness evaluator
-- [`tests/`](tests/) — contract, persistence, capture, extraction, observation, process/event/workflow/policy/temporal, coverage, object-integrity, and golden-corpus regression tests
+- [`tests/`](tests/) — contract, persistence, capture, extraction, observation, process/event/workflow/policy/temporal/pattern, coverage, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
@@ -131,27 +143,7 @@ What should I pay attention to?
        REVALIDATE
 ```
 
-## M0 rule
-
-The implementation target remains deliberately small:
-
-```text
-Source
-  ↓
-SourceRevision
-  ↓
-CaptureManifest
-  ↓
-Artifact
-  ↓
-EvidenceFact / SourceAssertion
-  ↓
-Observation + explicit support
-```
-
-Cross-cutting from the start: `PipelineRun`, `RepositoryRelationship`, `ActionRecommendation`, and `ReviewDecision`.
-
-Current implemented boundary:
+## Current executable vertical path
 
 ```text
 GitHub repository/process/event/workflow metadata
@@ -167,25 +159,22 @@ revision-bound Observation + ObservationSupport
 same-Source revision-aware supersession
       ↓
 Temporal frontier reconciliation
-(preserve prior + construct narrower candidate)
       ↓
+PatternOccurrence across distinct Sources
+      ↓
+candidate cross-repository Pattern
+```
+
+Operational reasoning remains separate:
+
+```text
 RepositoryRelationship + evidence-bound governance
       ↓
 Action-policy evaluation
 (reject / recommend / require authorization; never authorize)
 ```
 
-The remaining hard-case boundary is deliberately multi-source:
-
-```text
-repository-local observations
-      ↓
-Pattern / PatternOccurrence
-      ↓
-cross-repository inference
-```
-
-The next measured implementation slice is the **cross-repository Pattern layer**. Model-proposed observations and action execution remain deferred.
+The next implementation priority is formal **M1 Curated Discovery** lineage. Model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred.
 
 ## Canonical home
 
