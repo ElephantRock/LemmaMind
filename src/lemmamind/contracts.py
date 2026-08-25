@@ -1,8 +1,9 @@
-"""Versioned M0 contracts selected from the M-1 golden corpus.
+"""Versioned contracts selected from the LemmaMind golden corpus.
 
-The contracts in this module intentionally stop at the reproducible evidence spine,
-review state, and action boundary. Pattern, insight, embedding, and autonomous
-reasoning objects remain deferred by the M0 contract document.
+The module began as the M0 reproducible-evidence spine. The first M8-lite vertical
+slice adds only Pattern/PatternOccurrence contracts justified by the frozen
+private-Actions case. Cohort, prevalence, tension, insight, embedding, and
+autonomous reasoning objects remain deferred until real cases require them.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ ContentDigest = Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$
 
 
 class ContractModel(BaseModel):
-    """Immutable, strict base model for all persisted M0 contracts."""
+    """Immutable, strict base model for persisted LemmaMind contracts."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     schema_version: Literal[CONTRACT_SCHEMA_VERSION] = CONTRACT_SCHEMA_VERSION
@@ -71,6 +72,12 @@ class SupportType(StrEnum):
     EVIDENCE_FACT = "EvidenceFact"
     SOURCE_ASSERTION = "SourceAssertion"
     OBSERVATION = "Observation"
+
+
+class PatternOccurrenceRole(StrEnum):
+    SUPPORTING = "supporting"
+    NEGATIVE_CONTROL = "negative_control"
+    CONTRADICTING = "contradicting"
 
 
 class RunType(StrEnum):
@@ -278,6 +285,42 @@ class ObservationSupport(ContractModel):
     support_type: SupportType
 
 
+class Pattern(ContractModel):
+    """Cross-source derived claim whose provenance flows through occurrences."""
+
+    record_id_field = "pattern_id"
+
+    pattern_id: Identifier
+    logical_claim_id: Identifier
+    epistemic_type: ObservationEpistemicType
+    statement: Identifier
+    validation_state: ValidationState
+    synthesis_run_id: Identifier
+    created_at: AwareDatetime
+
+
+class PatternOccurrence(ContractModel):
+    """One source-revision-local instantiation or counterexample for a Pattern."""
+
+    record_id_field = "occurrence_id"
+
+    occurrence_id: Identifier
+    pattern_id: Identifier
+    source_revision_id: Identifier
+    role: PatternOccurrenceRole
+    summary: Identifier
+
+
+class PatternOccurrenceSupport(ContractModel):
+    """Trace a PatternOccurrence to one source-local Observation."""
+
+    record_id_field = "support_edge_id"
+
+    support_edge_id: Identifier
+    occurrence_id: Identifier
+    observation_id: Identifier
+
+
 class RepositoryRelationship(ContractModel):
     record_id_field = "relationship_id"
 
@@ -340,6 +383,9 @@ CONTRACT_TYPES: dict[str, type[ContractModel]] = {
         SourceAssertion,
         Observation,
         ObservationSupport,
+        Pattern,
+        PatternOccurrence,
+        PatternOccurrenceSupport,
         RepositoryRelationship,
         ActionRecommendation,
         ReviewDecision,

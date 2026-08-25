@@ -17,9 +17,9 @@ def test_hard_case_readiness_matches_frozen_boundaries() -> None:
 
     assert report["summary"] == {
         "case_count": 4,
-        "ready": 3,
+        "ready": 4,
         "blocked": 0,
-        "deferred": 1,
+        "deferred": 0,
     }
     by_case = {item["case_id"]: item for item in report["cases"]}
 
@@ -33,16 +33,14 @@ def test_hard_case_readiness_matches_frozen_boundaries() -> None:
     assert by_case["resonance-world-confirmatory"]["outcome"] == "ready"
     assert by_case["resonance-world-confirmatory"]["blockers"] == []
 
-    assert by_case["private-actions-pattern"]["outcome"] == "deferred"
-    assert {item["capability"] for item in by_case["private-actions-pattern"]["blockers"]} == {
-        "cross_repository_pattern_layer",
-    }
+    assert by_case["private-actions-pattern"]["outcome"] == "ready"
+    assert by_case["private-actions-pattern"]["blockers"] == []
     assert by_case["private-actions-pattern"]["source_count"] == 4
 
 
 def test_readiness_fails_closed_when_declared_outcome_hides_missing_capability(tmp_path) -> None:
     payload = yaml.safe_load(SPEC.read_text(encoding="utf-8"))
-    payload["capabilities"]["temporal_change_reconciliation"]["state"] = "missing"
+    payload["capabilities"]["cross_repository_pattern_layer"]["state"] = "deferred"
     broken = tmp_path / "broken.yaml"
     broken.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 

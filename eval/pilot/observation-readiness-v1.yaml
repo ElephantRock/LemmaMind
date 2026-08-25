@@ -1,11 +1,11 @@
 schema_version: lemmamind.observation-readiness.v1
 readiness_id: hard-golden-observation-v1
 description: >-
-  Measured readiness of the current M0/V1 epistemic spine against hard frozen
-  golden cases. Ready means the case can be represented without weakening the
-  current evidence/Observation boundary. Blocked means a concrete earlier-layer
+  Measured readiness of the current LemmaMind epistemic spine against hard frozen
+  golden cases. Ready means the case can be represented in its correct semantic
+  layer without weakening source-local provenance. Blocked means a concrete
   capability is missing. Deferred means the case belongs to a later semantic
-  object rather than source-level Observation.
+  object that has not yet been implemented.
 
 capabilities:
   supported_observation_v2:
@@ -31,13 +31,13 @@ capabilities:
     reason: Durable content-addressed workflow-run snapshots preserve run/job/step outcomes, timestamps, artifact metadata, and safe job-log availability without retaining log contents or inferring causes.
   temporal_change_reconciliation:
     state: implemented
-    reason: Evidence-bound temporal reconciliation now validates explicit current process facts, exact PR base/head revision relationships, and ordered provider event transitions before constructing immutable superseding candidate Observations while preserving prior history.
+    reason: Evidence-bound temporal reconciliation validates current process facts, exact PR base/head revision relationships, and ordered provider event transitions before constructing immutable superseding candidate Observations while preserving prior history.
   action_policy_validation:
     state: implemented
     reason: Evidence-bound policy evaluation separates repository capability from governance, blocks explicit prohibitions, enforces actor-role separation, and leaves independent authorization outside the evaluator.
   cross_repository_pattern_layer:
-    state: deferred
-    reason: Cross-repository synthesis belongs to Pattern/Insight semantics rather than source-level Observation.
+    state: implemented
+    reason: M8-lite Pattern and PatternOccurrence contracts now preserve cross-source synthesis above source-local Observations, count Sources rather than repeated revisions, and represent explicit negative controls without converting the cross-repository claim into an Observation.
 
 cases:
   - case_id: external-opd-source-type
@@ -91,9 +91,10 @@ cases:
     requires:
       - github_workflow_run_evidence
       - cross_repository_pattern_layer
-    expected_outcome: deferred
+    expected_outcome: ready
     boundary: >-
-      Workflow evidence can represent zero-step/missing-log signatures, but
-      the useful conclusion depends on comparison and negative controls across
-      several repositories. Source-level Observation must reject this rather than
-      weakening its one-revision invariant.
+      Each repository first yields a source-local Observation. PatternOccurrences
+      then represent the two private zero-step failures as supporting cases and the
+      two healthy public workflow runs as negative controls. The shared
+      provisioning/entitlement/billing explanation remains a candidate
+      cross-repository Inference rather than a confirmed fact.
