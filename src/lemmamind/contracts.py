@@ -211,13 +211,13 @@ class DiscoveryRun(ContractModel):
 
 
 class DiscoveryHit(ContractModel):
-    """One Source observed through one DiscoveryRun."""
+    """One raw channel hit, optionally linked to an already-resolved Source."""
 
     record_id_field = "discovery_hit_id"
 
     discovery_hit_id: Identifier
     discovery_run_id: Identifier
-    source_id: Identifier
+    source_id: Identifier | None = None
     ordinal: int = Field(ge=1)
     discovered_locator: Identifier
 
