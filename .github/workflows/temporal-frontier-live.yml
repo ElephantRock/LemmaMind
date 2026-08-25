@@ -1,0 +1,33 @@
+name: temporal-frontier-live
+
+on:
+  push:
+    branches:
+      - m0/temporal-frontier-reconciliation
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  temporal-frontier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - name: Offline regression suite
+        run: pytest
+      - name: Live CSD temporal frontier probe
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/run_temporal_frontier_probe.py --json /tmp/temporal-frontier.json
+          echo '=== LEMMAMIND TEMPORAL FRONTIER PROBE BEGIN ==='
+          cat /tmp/temporal-frontier.json
+          echo '=== LEMMAMIND TEMPORAL FRONTIER PROBE END ==='
