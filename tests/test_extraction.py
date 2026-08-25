@@ -129,7 +129,7 @@ def semantic_assertions(result):
 
 
 def test_extracts_manifest_path_facts_and_markdown_source_assertions(tmp_path) -> None:
-    readme = b"""# Demo\n\nLemmaMind preserves exact evidence.\nThis remains the source's own claim.\n\n- list item is intentionally excluded\n\n```python\nprint('not an assertion')\n```\n\nA second explicit paragraph.\n"""
+    readme = b"""# Demo\n\nLemmaMind preserves exact evidence.\nThis remains the source's own claim.\n\n- list item is preserved separately\n\n```python\nprint('not an assertion')\n```\n\nA second explicit paragraph.\n"""
     pyproject = b"""[build-system]\nrequires = [\"wheel\", \"setuptools>=68\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"demo\"\nversion = \"1.2.3\"\nrequires-python = \">=3.11\"\ndependencies = [\"zeta>=1\", \"alpha>=2\", \"alpha>=2\"]\n\n[project.optional-dependencies]\ntest = [\"pytest\"]\ndocs = [\"mkdocs\"]\n"""
     store, _, manifest, artifacts, service = build_capture(
         tmp_path,
@@ -162,10 +162,13 @@ def test_extracts_manifest_path_facts_and_markdown_source_assertions(tmp_path) -
             "README.md:L3-L4",
             "LemmaMind preserves exact evidence. This remains the source's own claim.",
         ),
+        ("README.md:L6-L6", "list item is preserved separately"),
         ("README.md:L12-L12", "A second explicit paragraph."),
     ]
+    assert result.assertions[1].extractor_name == "markdown-list"
+    assert result.assertions[1].extractor_version == "1"
     assert len(store.list(EvidenceFact)) == len(result.facts)
-    assert len(store.list(SourceAssertion)) == 2
+    assert len(store.list(SourceAssertion)) == 3
 
 
 def test_extracts_package_json_without_interpreting_dependency_meaning(tmp_path) -> None:

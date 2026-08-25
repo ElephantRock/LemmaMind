@@ -301,6 +301,100 @@ class MarkdownAssertionExtractor:
         return False
 
 
+class MarkdownListAssertionExtractor:
+    """Preserve Markdown list items as exact source assertions.
+
+    The list marker itself is structural syntax and is removed. Item text and
+    indented continuation lines are preserved verbatim apart from whitespace
+    normalization. Nested list items become separate assertions. Fenced code,
+    block quotes, and tables are not promoted into list assertions.
+    """
+
+    name = "markdown-list"
+    version = "1"
+    _list_item = re.compile(
+        r"^(?P<indent>[ \t]*)(?P<marker>[-+*]|\d+[.)])[ \t]+(?P<body>\S.*)$"
+    )
+
+    def supports(self, artifact: Artifact) -> bool:
+        return PurePosixPath(artifact.source_locator).suffix.lower() in {".md", ".markdown"}
+
+    def extract(self, artifact: Artifact, data: bytes) -> tuple[AssertionSpec, ...]:
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ExtractionError(f"Markdown is not UTF-8: {artifact.source_locator}") from exc
+
+        assertions: list[AssertionSpec] = []
+        item_parts: list[str] = []
+        start_line: int | None = None
+        item_indent = -1
+        last_content_line: int | None = None
+        in_fence = False
+
+        def flush() -> None:
+            nonlocal item_parts, start_line, item_indent, last_content_line
+            if item_parts and start_line is not None and last_content_line is not None:
+                statement = " ".join(part.strip() for part in item_parts if part.strip()).strip()
+                if statement:
+                    assertions.append(
+                        AssertionSpec(
+                            locator=(
+                                f"{artifact.source_locator}:L{start_line}-L{last_content_line}"
+                            ),
+                            statement=statement,
+                            extractor_name=self.name,
+                            extractor_version=self.version,
+                        )
+                    )
+            item_parts = []
+            start_line = None
+            item_indent = -1
+            last_content_line = None
+
+        for index, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            if stripped.startswith("```") or stripped.startswith("~~~"):
+                flush()
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+
+            match = self._list_item.match(line)
+            if match is not None:
+                flush()
+                start_line = index
+                item_indent = len(match.group("indent").expandtabs(4))
+                item_parts = [match.group("body").strip()]
+                last_content_line = index
+                continue
+
+            if not item_parts:
+                continue
+            if not stripped:
+                flush()
+                continue
+
+            indentation = len(line) - len(line.lstrip(" \t"))
+            if indentation > item_indent and self._is_continuation(stripped):
+                item_parts.append(stripped)
+                last_content_line = index
+                continue
+            flush()
+
+        flush()
+        return tuple(assertions)
+
+    @staticmethod
+    def _is_continuation(line: str) -> bool:
+        if line.startswith(("#", ">", "<", "<!--", "|")):
+            return False
+        if "|" in line and re.fullmatch(r"[|:\-\s]+", line):
+            return False
+        return True
+
+
 @dataclass(frozen=True)
 class ExtractionResult:
     capture_id: str
@@ -338,6 +432,7 @@ class DeterministicExtractionService:
                 PyProjectExtractor(),
                 PackageJsonExtractor(),
                 MarkdownAssertionExtractor(),
+                MarkdownListAssertionExtractor(),
             )
         )
         self.extraction_policy_version = extraction_policy_version
@@ -465,12 +560,12 @@ class DeterministicExtractionService:
     def _assertion_sort_key(cls, spec: AssertionSpec) -> tuple[object, ...]:
         match = cls._line_locator.match(spec.locator)
         if match is None:
-            return (spec.extractor_name, spec.locator, -1, -1, spec.statement)
+            return (spec.locator, -1, -1, spec.extractor_name, spec.statement)
         return (
-            spec.extractor_name,
             match.group("path"),
             int(match.group("start")),
             int(match.group("end")),
+            spec.extractor_name,
             spec.statement,
         )
 
