@@ -1,0 +1,91 @@
+{
+  "schema_version": "lemmamind.pilot-observation-probe.v1",
+  "case_id": "external-openbot-capability-authority",
+  "repository": "CopilotKit/OpenBot",
+  "revision": "d293f2331bd5ff9ba4ad17af6ac94570a157d26d",
+  "source_revision_id": "github:1336502227@d293f2331bd5ff9ba4ad17af6ac94570a157d26d",
+  "observation_count": 2,
+  "observations": [
+    {
+      "golden_index": 1,
+      "epistemic_type": "Interpretation",
+      "statement_matches_golden": true,
+      "epistemic_type_matches_golden": true,
+      "runtime_validation_state": "candidate",
+      "golden_validation_target": "validated",
+      "support_edge_count": 8,
+      "golden_support_groups": [
+        {
+          "golden_evidence_id": "openbot-authority-1",
+          "runtime_support_count": 1,
+          "runtime_support_types": ["SourceAssertion"],
+          "runtime_locators": ["README.md:L151-L151"]
+        },
+        {
+          "golden_evidence_id": "openbot-authority-2",
+          "runtime_support_count": 7,
+          "runtime_support_types": ["EvidenceFact", "SourceAssertion"],
+          "runtime_locators": [
+            "server/src/tenant-package.ts:L145-L156",
+            "server/src/tenant-package.ts:L586:C9-L851:C4#typescript/call",
+            "server/src/tenant-package.ts:L812:C14-L812:C44#typescript/call",
+            "server/src/tenant-package.ts:L812:C14-L818:C9#typescript/call",
+            "server/src/tenant-package.ts:L831:C14-L832:C31#typescript/call",
+            "server/src/tenant-package.ts:L831:C14-L840:C11#typescript/call",
+            "server/src/tenant-package.ts:L831:C14-L846:C12#typescript/call"
+          ]
+        }
+      ]
+    },
+    {
+      "golden_index": 2,
+      "epistemic_type": "Evaluation",
+      "statement_matches_golden": true,
+      "epistemic_type_matches_golden": true,
+      "runtime_validation_state": "candidate",
+      "golden_validation_target": "reviewed",
+      "support_edge_count": 11,
+      "golden_support_groups": [
+        {
+          "golden_evidence_id": "openbot-authority-2",
+          "runtime_support_count": 7,
+          "runtime_support_types": ["EvidenceFact", "SourceAssertion"],
+          "runtime_locators": [
+            "server/src/tenant-package.ts:L145-L156",
+            "server/src/tenant-package.ts:L586:C9-L851:C4#typescript/call",
+            "server/src/tenant-package.ts:L812:C14-L812:C44#typescript/call",
+            "server/src/tenant-package.ts:L812:C14-L818:C9#typescript/call",
+            "server/src/tenant-package.ts:L831:C14-L832:C31#typescript/call",
+            "server/src/tenant-package.ts:L831:C14-L840:C11#typescript/call",
+            "server/src/tenant-package.ts:L831:C14-L846:C12#typescript/call"
+          ]
+        },
+        {
+          "golden_evidence_id": "openbot-authority-3",
+          "runtime_support_count": 4,
+          "runtime_support_types": ["EvidenceFact", "SourceAssertion"],
+          "runtime_locators": [
+            "server/src/tenant-package.ts:L116-L125",
+            "server/src/tenant-package.ts:L399-L407",
+            "server/src/tenant-package.ts:L408:C6-L412:C7#typescript/if",
+            "server/src/tenant-package.ts:L409:C8-L411:C10#typescript/throw"
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "all_statements_match_golden": true,
+    "all_epistemic_types_match_golden": true,
+    "all_runtime_states_candidate": true,
+    "all_support_revision_bound": true
+  },
+  "live_execution": {
+    "workflow_run": 32851722987,
+    "branch_head": "82e004808740291b0ad0a758317dab76103fd461",
+    "offline_tests_passed": 66,
+    "live_step": "success",
+    "permissions": ["contents: read", "metadata: read"]
+  },
+  "interpretation_boundary": "The probe replays frozen golden Observation statements with exact runtime support. It does not generate or independently validate the statements, and it does not copy the golden reviewed/validated state into newly constructed candidates."
+}
