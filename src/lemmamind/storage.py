@@ -64,6 +64,46 @@ class SQLiteContractStore:
         digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
         return encoded, digest
 
+    def _put_on_connection(self, connection: sqlite3.Connection, record: ContractModel) -> bool:
+        payload_json, payload_sha256 = self._canonical_payload(record)
+        contract_type = type(record).__name__
+
+        existing = connection.execute(
+            """
+            SELECT payload_sha256
+            FROM contract_records
+            WHERE contract_type = ? AND record_id = ?
+            """,
+            (contract_type, record.record_id),
+        ).fetchone()
+
+        if existing is not None:
+            if existing["payload_sha256"] == payload_sha256:
+                return False
+            raise RecordConflict(
+                f"{contract_type}:{record.record_id} already exists with different content"
+            )
+
+        connection.execute(
+            """
+            INSERT INTO contract_records (
+                contract_type,
+                record_id,
+                schema_version,
+                payload_json,
+                payload_sha256
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                contract_type,
+                record.record_id,
+                record.schema_version,
+                payload_json,
+                payload_sha256,
+            ),
+        )
+        return True
+
     def put(self, record: ContractModel) -> bool:
         """Persist one record.
 
@@ -71,51 +111,23 @@ class SQLiteContractStore:
         raises RecordConflict if the same typed identity has different content.
         """
 
-        payload_json, payload_sha256 = self._canonical_payload(record)
-        contract_type = type(record).__name__
-
         with self._connect() as connection:
-            existing = connection.execute(
-                """
-                SELECT payload_sha256
-                FROM contract_records
-                WHERE contract_type = ? AND record_id = ?
-                """,
-                (contract_type, record.record_id),
-            ).fetchone()
-
-            if existing is not None:
-                if existing["payload_sha256"] == payload_sha256:
-                    return False
-                raise RecordConflict(
-                    f"{contract_type}:{record.record_id} already exists with different content"
-                )
-
-            connection.execute(
-                """
-                INSERT INTO contract_records (
-                    contract_type,
-                    record_id,
-                    schema_version,
-                    payload_json,
-                    payload_sha256
-                ) VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    contract_type,
-                    record.record_id,
-                    record.schema_version,
-                    payload_json,
-                    payload_sha256,
-                ),
-            )
-        return True
+            return self._put_on_connection(connection, record)
 
     def put_many(self, records: Iterable[ContractModel]) -> int:
-        inserted = 0
-        for record in records:
-            inserted += int(self.put(record))
-        return inserted
+        """Persist a batch atomically.
+
+        Any identity conflict rolls back the whole batch. This matters for capture
+        envelopes: Source/Revision/Artifact/Manifest/Run records must not be left
+        partially committed when one immutable identity disagrees with storage.
+        """
+
+        pending = tuple(records)
+        with self._connect() as connection:
+            inserted = 0
+            for record in pending:
+                inserted += int(self._put_on_connection(connection, record))
+            return inserted
 
     def get(self, model: type[TContract], record_id: str) -> TContract | None:
         with self._connect() as connection:
