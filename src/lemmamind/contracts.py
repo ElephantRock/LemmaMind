@@ -105,6 +105,10 @@ class ActionType(StrEnum):
     CONTRIBUTE_UPSTREAM = "contribute_upstream"
     FORK_VENDOR = "fork_vendor"
     REVALIDATE = "revalidate"
+    PRESERVE = "preserve"
+    RERUN = "rerun"
+    CLASSIFY = "classify"
+    PROMOTE = "promote"
     NO_ACTION = "no_action"
 
 
