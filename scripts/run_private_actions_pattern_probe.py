@@ -12,6 +12,7 @@ from pathlib import Path
 from lemmamind.contracts import (
     EvidenceFact,
     ObservationEpistemicType,
+    PatternOccurrenceRole,
     RepositoryIdentity,
     Source,
     SourceKind,
@@ -33,7 +34,6 @@ from lemmamind.objects import ContentAddressedFileStore
 from lemmamind.observations import SupportRef
 from lemmamind.observations_v2 import ObservationConstructionServiceV2
 from lemmamind.pattern_intelligence import OccurrenceProposal, PatternConstructionService
-from lemmamind.contracts import PatternOccurrenceRole
 from lemmamind.storage import SQLiteContractStore
 
 CASES = (
@@ -75,7 +75,7 @@ CASES = (
     },
     {
         "repository": "ElephantRock/Resonance-ContextGraph",
-        "revision": "7caa57fa3650a9aba92628fd98dec80204e095" if False else "7caa57fa3650ed29e00ffd482b99ac571d294fc3",
+        "revision": "7caa57fa3650ed29e00ffd482b99ac571d294fc3",
         "run_id": 32780247570,
         "role": PatternOccurrenceRole.NEGATIVE_CONTROL,
         "visibility": "public",
@@ -108,6 +108,14 @@ def one(facts: tuple[EvidenceFact, ...], locator: str) -> EvidenceFact:
 
 def suffix(facts: tuple[EvidenceFact, ...], tail: str) -> list[EvidenceFact]:
     return [fact for fact in facts if fact.locator.endswith(tail)]
+
+
+def job_facts(facts: tuple[EvidenceFact, ...], tail: str) -> list[EvidenceFact]:
+    return [
+        fact
+        for fact in facts
+        if "#/jobs/" in fact.locator and "/steps/" not in fact.locator and fact.locator.endswith(tail)
+    ]
 
 
 def create_source_context(store, reader, repository: str, revision_sha: str, now: datetime):
@@ -151,8 +159,8 @@ def select_supports(case, metadata_facts, workflow_facts):
         one(metadata_facts, "$github/repository#/visibility"),
         one(workflow_facts, f"{root}#/run/conclusion"),
     ]
-    step_counts = suffix(workflow_facts, "/step_count")
-    job_conclusions = suffix(workflow_facts, "/conclusion")
+    step_counts = job_facts(workflow_facts, "/step_count")
+    job_conclusions = job_facts(workflow_facts, "/conclusion")
     log_availability = suffix(workflow_facts, "/log/availability")
 
     if case["role"] is PatternOccurrenceRole.SUPPORTING:
@@ -163,24 +171,28 @@ def select_supports(case, metadata_facts, workflow_facts):
         if not step_counts or not any(f.normalized_value == 0 for f in step_counts):
             raise RuntimeError(f"{case['repository']} lacks zero-step workflow evidence")
         if case["repository"].endswith("ExpertOS"):
-            if not all(f.normalized_value == 0 for f in step_counts):
-                raise RuntimeError("ExpertOS expected every workflow job to have zero steps")
-            if not log_availability or not all(f.normalized_value == "missing" for f in log_availability):
-                raise RuntimeError("ExpertOS expected all job logs to be unavailable")
+            if len(step_counts) != 4 or not all(f.normalized_value == 0 for f in step_counts):
+                raise RuntimeError("ExpertOS expected four workflow jobs with zero steps")
+            if len(log_availability) != 4 or not all(
+                f.normalized_value == "missing" for f in log_availability
+            ):
+                raise RuntimeError("ExpertOS expected all four job logs to be unavailable")
             selected.extend(step_counts)
             selected.extend(log_availability)
         else:
             failed = [f for f in job_conclusions if f.normalized_value == "failure"]
             skipped = [f for f in job_conclusions if f.normalized_value == "skipped"]
-            if not failed or len(skipped) < 1:
-                raise RuntimeError("ExpertForge expected failed first job and skipped dependents")
+            if len(step_counts) != 3 or not failed or len(skipped) < 2:
+                raise RuntimeError("ExpertForge expected one failed zero-step job and skipped dependents")
             selected.extend(step_counts)
             selected.extend(failed)
             selected.extend(skipped)
     else:
         if one(metadata_facts, "$github/repository#/visibility").normalized_value != "public":
             raise RuntimeError(f"{case['repository']} is not public in live metadata")
-        positive_steps = [f for f in step_counts if isinstance(f.normalized_value, int) and f.normalized_value > 0]
+        positive_steps = [
+            f for f in step_counts if isinstance(f.normalized_value, int) and f.normalized_value > 0
+        ]
         success = [f for f in job_conclusions if f.normalized_value == "success"]
         if not positive_steps or not success:
             raise RuntimeError(f"{case['repository']} lacks successful step execution")
