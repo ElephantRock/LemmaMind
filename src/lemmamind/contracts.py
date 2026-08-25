@@ -1,9 +1,10 @@
 """Versioned contracts selected from the LemmaMind golden corpus.
 
-The module began as the M0 reproducible-evidence spine. The first M8-lite vertical
-slice adds only Pattern/PatternOccurrence contracts justified by the frozen
-private-Actions case. Cohort, prevalence, tension, insight, embedding, and
-autonomous reasoning objects remain deferred until real cases require them.
+The module began as the M0 reproducible-evidence spine. Later corpus-selected
+vertical slices add only the contracts required by demonstrated cases and roadmap
+gates: M8-lite Pattern objects and M1 discovery lineage are additive here. Cohort,
+prevalence, tension, insight, embedding, and autonomous reasoning objects remain
+deferred until real cases require them.
 """
 
 from __future__ import annotations
@@ -42,6 +43,12 @@ class SourceRole(StrEnum):
     RESEARCH_PROGRAM = "research_program"
     MIXED = "mixed"
     UNKNOWN = "unknown"
+
+
+class DiscoveryChannelType(StrEnum):
+    MANUAL_WATCHLIST = "manual_watchlist"
+    GITHUB_STARS = "github_stars"
+    SAVED_SEARCH = "saved_search"
 
 
 class RetrievalStatus(StrEnum):
@@ -177,6 +184,42 @@ class SourceRevision(ContractModel):
     commit_sha: GitSha
     tree_sha: GitSha
     observed_at: AwareDatetime
+
+
+class DiscoveryChannel(ContractModel):
+    """Stable configured entry point through which Sources may be discovered."""
+
+    record_id_field = "discovery_channel_id"
+
+    discovery_channel_id: Identifier
+    channel_type: DiscoveryChannelType
+    name: Identifier
+    canonical_locator: Identifier
+    created_at: AwareDatetime
+
+
+class DiscoveryRun(ContractModel):
+    """One domain-level execution of a DiscoveryChannel."""
+
+    record_id_field = "discovery_run_id"
+
+    discovery_run_id: Identifier
+    discovery_channel_id: Identifier
+    pipeline_run_id: Identifier
+    observed_at: AwareDatetime
+    hit_count: int = Field(ge=0)
+
+
+class DiscoveryHit(ContractModel):
+    """One Source observed through one DiscoveryRun."""
+
+    record_id_field = "discovery_hit_id"
+
+    discovery_hit_id: Identifier
+    discovery_run_id: Identifier
+    source_id: Identifier
+    ordinal: int = Field(ge=1)
+    discovered_locator: Identifier
 
 
 class CaptureArtifactRef(BaseModel):
@@ -376,6 +419,9 @@ CONTRACT_TYPES: dict[str, type[ContractModel]] = {
         Source,
         RepositoryIdentity,
         SourceRevision,
+        DiscoveryChannel,
+        DiscoveryRun,
+        DiscoveryHit,
         CaptureManifest,
         Artifact,
         PipelineRun,
