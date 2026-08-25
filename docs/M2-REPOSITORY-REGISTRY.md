@@ -231,9 +231,23 @@ Each accepted change links to the previously recorded assignment using `supersed
 
 M2 provides tracking-aware adapters rather than weakening existing services.
 
-### Repository file capture
+### Repository metadata
 
-`TrackingAwareGitHubCaptureService` requires at least level `2` and the `explicit_files` artifact class before the existing registry-aware capture path runs.
+`TrackingAwareGitHubRepositoryMetadataCaptureService` requires level `1+` and the `repository_metadata` artifact class before the existing repository-metadata snapshot path reaches its provider reader.
+
+The existing metadata path is revision-anchored. Therefore level `1` policy is executable for a Source that already has a `SourceRevision`; this slice does not invent a pre-revision metadata scheduler. That bootstrap/scheduling concern belongs to the M3 and scheduler reconciliation.
+
+### Explicit repository files
+
+`TrackingAwareGitHubCaptureService` requires level `2+` and the `explicit_files` artifact class before the existing registry-aware repository-file capture path proceeds beyond repository identity lookup.
+
+### Git commit metadata
+
+`TrackingAwareGitHubCommitCaptureService` requires level `2+` and the `commit_metadata` artifact class before the provider commit read.
+
+### Git root tree
+
+`TrackingAwareGitHubRootTreeCaptureService` requires level `3+` and the `git_tree` artifact class before the provider tree read.
 
 ### Current issue / pull-request snapshots
 
@@ -243,11 +257,19 @@ M2 provides tracking-aware adapters rather than weakening existing services.
 
 `TrackingAwareGitHubProcessEventCaptureService` requires deep tracking (`4` or `5`) before historical provider reads occur.
 
+### Workflow-run evidence
+
+`TrackingAwareGitHubWorkflowCaptureService` requires deep tracking (`4` or `5`) and the `workflow_runs` artifact class before workflow provider reads occur.
+
 ### Source-local Observation construction
 
 `TrackingAwareObservationConstructionService` resolves support provenance to its SourceRevision and requires structural-or-deeper tracking (`3`, `4`, or `5`) **before** persisting a candidate Observation.
 
 Tracking level makes a reasoning path eligible; it does not validate, promote, or authorize the resulting claim.
+
+### Deterministic structure extraction
+
+The policy exposes `deterministic_structure` eligibility from level `3`, but existing deterministic extractors remain replayable over already-captured artifacts. This slice gates capture and reasoning entry points rather than making historical evidence extraction depend on today's tracking level.
 
 ### Polling
 
@@ -270,9 +292,9 @@ No polling scheduler is implemented in this slice. A future scheduler must consu
 
 The first tracking implementation passed the permanent PR suite at **147 tests**.
 
-Review then exposed a future-scheduling governance ambiguity: a scheduled promotion could become difficult to cancel safely while preserving monotonic effective history. V1 was narrowed to immediate-only assignments and the tests were revised accordingly.
+Review then exposed a future-scheduling governance ambiguity: a scheduled promotion could become difficult to cancel safely while preserving monotonic effective history. V1 was narrowed to immediate-only assignments and the tests were revised accordingly. The corrected tracking/history and initial adapter set reached **148 passed**.
 
-The corrected tracking branch reached **148 passed**.
+A final capture-surface audit then added policy adapters and pre-provider-read tests for repository metadata, commit metadata, Git root-tree capture, and workflow-run capture. Permanent PR workflow run `32912533399` passed **152 tests in 1.58s** on head `3b29af8e4da4075416fdc6b0f19fe2dab5169722`.
 
 The test matrix covers:
 
@@ -286,8 +308,12 @@ The test matrix covers:
 - future scheduling rejection;
 - backdating rejection;
 - generic untyped persistence reconstruction;
-- repository-file capture blocked below level 2 and allowed at level 2;
-- process snapshot/history gates before provider reads;
+- repository metadata blocked below level 1 and admitted to the provider read at level 1;
+- explicit repository-file capture blocked below level 2 and allowed at level 2;
+- commit metadata blocked below level 2 and admitted to the provider read at level 2;
+- Git root-tree capture blocked below level 3 and admitted to the provider read at level 3;
+- workflow-run capture blocked below level 4 and admitted to the provider read at level 4;
+- current process snapshot/history gates before provider reads below level 4;
 - reasoning blocked below level 3 before candidate persistence;
 - reasoning allowed at level 3 while the resulting Observation remains `candidate`.
 
@@ -306,12 +332,14 @@ The V1 M2 core now covers:
 - current-locator enforcement for registry-aware capture;
 - immutable governed tracking-level history;
 - deterministic latest-effective tracking policy;
-- concrete capture/process/history/reasoning gates;
+- policy gating across the current repository metadata/file/commit/tree/process/history/workflow capture surface;
+- source-local reasoning eligibility gates;
 - polling-mode output for a future scheduler.
 
 Still deferred beyond this core:
 
 - scheduler cadence and budget policy;
+- pre-revision metadata-only scheduling/bootstrap;
 - automatic resolution of every discovery channel in one scheduler;
 - webhook-driven provider-state observation;
 - mutable `RepositoryRelationship` reconciliation inside the registry loop;
