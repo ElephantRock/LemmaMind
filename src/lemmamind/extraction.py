@@ -315,6 +315,8 @@ class ExtractionResult:
 class DeterministicExtractionService:
     """Extract facts/assertions from one persisted capture without inference."""
 
+    _line_locator = re.compile(r"^(?P<path>.*):L(?P<start>\d+)-L(?P<end>\d+)$")
+
     def __init__(
         self,
         store: ContractStore,
@@ -379,9 +381,7 @@ class DeterministicExtractionService:
                 self._stable_value(pair[1].normalized_value),
             )
         )
-        assertion_specs.sort(
-            key=lambda pair: (pair[1].extractor_name, pair[1].locator, pair[1].statement)
-        )
+        assertion_specs.sort(key=lambda pair: self._assertion_sort_key(pair[1]))
 
         facts = tuple(
             EvidenceFact(
@@ -460,6 +460,19 @@ class DeterministicExtractionService:
             raise ArtifactContractMismatch(
                 f"Artifact record disagrees with capture manifest: {artifact.artifact_id}"
             )
+
+    @classmethod
+    def _assertion_sort_key(cls, spec: AssertionSpec) -> tuple[object, ...]:
+        match = cls._line_locator.match(spec.locator)
+        if match is None:
+            return (spec.extractor_name, spec.locator, -1, -1, spec.statement)
+        return (
+            spec.extractor_name,
+            match.group("path"),
+            int(match.group("start")),
+            int(match.group("end")),
+            spec.statement,
+        )
 
     @staticmethod
     def _record_id(kind: str, run_id: str, index: int, extractor_name: str, locator: str) -> str:
