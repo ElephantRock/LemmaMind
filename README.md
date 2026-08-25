@@ -18,11 +18,13 @@ The completed pilot contains a controlled ElephantRock corpus plus four real ext
 
 **M0 — Minimum System Contracts: implementation active.**
 
-The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, the first real read-only GitHub capture path, and deterministic evidence extraction from captured artifacts.
+The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, the first real read-only GitHub capture path, deterministic evidence extraction from captured artifacts, and an executable pilot evidence-coverage harness.
 
 The initial extractor set emits artifact-scoped path facts, selected `pyproject.toml` / `package.json` facts, and explicit Markdown prose as line-addressed `SourceAssertion` records. It does not execute source content or convert source claims into observed facts.
 
-The implementation remains deliberately below change intelligence, architecture profiling, pattern/insight synthesis, embeddings, autonomous reasoning, and UI.
+A live run against all four pinned external M−1 cases recovered **4 of 12** explicit golden-evidence requirements (33.3%). The baseline shows that ordinary Markdown prose is already useful while list-structured prose, exact Git tree evidence, commit/change metadata, and language-specific code structure remain deterministic extraction gaps. Those measured gaps now drive extractor priority.
+
+The implementation remains deliberately below autonomous observations, architecture profiling, pattern/insight synthesis, embeddings, autonomous reasoning, and UI.
 
 ## Start here
 
@@ -32,12 +34,16 @@ The implementation remains deliberately below change intelligence, architecture 
 - [`docs/M0-IMPLEMENTATION.md`](docs/M0-IMPLEMENTATION.md) — rationale for executable M0 contracts and persistence
 - [`docs/M0-CAPTURE.md`](docs/M0-CAPTURE.md) — deterministic GitHub capture semantics and trust boundary
 - [`docs/M0-EXTRACTION.md`](docs/M0-EXTRACTION.md) — deterministic facts/assertions, provenance, and epistemic boundary
+- [`eval/pilot/coverage/external-v1.yaml`](eval/pilot/coverage/external-v1.yaml) — machine-readable external evidence-recovery checks
+- [`eval/pilot/coverage/reports/external-v1.md`](eval/pilot/coverage/reports/external-v1.md) — first live external deterministic-evidence baseline
+- [`docs/M0-NEXT-EXTRACTORS.md`](docs/M0-NEXT-EXTRACTORS.md) — extractor priorities selected from measured gaps
 - [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned M0 contract models
 - [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — atomic append-only SQLite contract persistence
 - [`src/lemmamind/objects.py`](src/lemmamind/objects.py) — SHA-256 content-addressed captured bytes
 - [`src/lemmamind/github.py`](src/lemmamind/github.py) — read-only GitHub REST adapter and capture service
 - [`src/lemmamind/extraction.py`](src/lemmamind/extraction.py) — deterministic artifact extractors and extraction service
-- [`tests/`](tests/) — contract, persistence, capture, extraction, object-integrity, and golden-corpus regression tests
+- [`src/lemmamind/pilot_coverage.py`](src/lemmamind/pilot_coverage.py) — live pinned coverage runner and evaluator
+- [`tests/`](tests/) — contract, persistence, capture, extraction, coverage, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
@@ -101,9 +107,11 @@ exact revision
 content-addressed captured artifacts
       ↓
 deterministic EvidenceFact / SourceAssertion
+      ↓
+pilot evidence-coverage measurement
 ```
 
-The next validation step is to run this capture + extraction path against selected pinned pilot artifacts and measure whether the deterministic evidence is sufficient to reconstruct the golden observations without adding inference prematurely. No autonomous insight synthesis is required for M0/V1.
+The next implementation slice is **Markdown structural source assertions** (especially list items), selected because the live external baseline shows it can close two evidence gaps without weakening epistemic typing. Git tree and commit metadata capture follow. No autonomous insight synthesis is required for M0/V1.
 
 ## Canonical home
 
