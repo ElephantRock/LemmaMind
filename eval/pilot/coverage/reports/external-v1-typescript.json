@@ -1,0 +1,74 @@
+{
+  "coverage_id": "external-golden-evidence-v1",
+  "schema_version": "lemmamind.pilot-coverage-report.v1",
+  "source_spec_schema_version": "lemmamind.pilot-coverage.v1",
+  "interpretation_boundary": "Evidence recovery measures deterministic source-addressed coverage only; it does not generate or validate golden Observations.",
+  "summary": {
+    "case_count": 4,
+    "evidence_requirement_count": 12,
+    "recovered_count": 12,
+    "gap_count": 0,
+    "coverage_fraction": 1.0,
+    "gaps_by_needed_capability": {}
+  },
+  "cases": [
+    {
+      "case_id": "external-openbot-capability-authority",
+      "repository": "CopilotKit/OpenBot",
+      "revision": "d293f2331bd5ff9ba4ad17af6ac94570a157d26d",
+      "extraction": {
+        "typescript_ast_fact_count": 307,
+        "typescript_comment_assertion_count": 28,
+        "fact_count": 315,
+        "source_assertion_count": 133
+      },
+      "summary": {"total": 3, "recovered": 3, "coverage_fraction": 1.0},
+      "requirements": [
+        {"evidence_id": "openbot-authority-1", "status": "recovered", "check_kind": "source_assertion_contains", "matched_locators": ["README.md:L151-L151"]},
+        {"evidence_id": "openbot-authority-2", "status": "recovered", "check_kind": "typescript_evidence_bundle", "matched_locators": ["server/src/tenant-package.ts:L145-L156", "server/src/tenant-package.ts:L586:C9-L851:C4#typescript/call", "server/src/tenant-package.ts:L812:C14-L812:C44#typescript/call", "server/src/tenant-package.ts:L812:C14-L818:C9#typescript/call", "server/src/tenant-package.ts:L831:C14-L832:C31#typescript/call", "server/src/tenant-package.ts:L831:C14-L840:C11#typescript/call", "server/src/tenant-package.ts:L831:C14-L846:C12#typescript/call"]},
+        {"evidence_id": "openbot-authority-3", "status": "recovered", "check_kind": "typescript_evidence_bundle", "matched_locators": ["server/src/tenant-package.ts:L116-L125", "server/src/tenant-package.ts:L399-L407", "server/src/tenant-package.ts:L408:C6-L412:C7#typescript/if", "server/src/tenant-package.ts:L409:C8-L411:C10#typescript/throw"]}
+      ]
+    },
+    {
+      "case_id": "external-openclaw-sandbox-posture",
+      "repository": "openclaw/openclaw",
+      "revision": "c50f90251ebf1c420b8b8fbbff65fb39f77558f0",
+      "summary": {"total": 3, "recovered": 3, "coverage_fraction": 1.0}
+    },
+    {
+      "case_id": "external-hermes-process-containment",
+      "repository": "NousResearch/hermes-agent",
+      "revision": "41447a6d7063b2772b0c2f26a5b22d9bd444fb43",
+      "extraction": {
+        "python_ast_fact_count": 769,
+        "python_docstring_assertion_count": 53,
+        "commit_fact_count": 9,
+        "commit_source_assertion_count": 1
+      },
+      "summary": {"total": 3, "recovered": 3, "coverage_fraction": 1.0}
+    },
+    {
+      "case_id": "external-opd-source-type",
+      "repository": "chrisliu298/awesome-on-policy-distillation",
+      "revision": "e4b5e7334ccd3437ccab8d4eef770ed02c4f9934",
+      "summary": {"total": 3, "recovered": 3, "coverage_fraction": 1.0}
+    }
+  ],
+  "parser_trust_surface": {
+    "tree_sitter": "0.24.0",
+    "tree_sitter_typescript": "0.23.2",
+    "rejected_pairing": {
+      "tree_sitter": "0.26.0",
+      "tree_sitter_typescript": "0.23.2",
+      "live_result": "segmentation fault (exit 139) during pinned external coverage",
+      "workflow_run": 32850400232
+    }
+  },
+  "live_execution": {
+    "workflow_run": 32850490426,
+    "branch_head": "2430be25d0aa0a6ac8087dcb19b5d21a79e148e6",
+    "offline_tests_passed": 60,
+    "live_step": "success",
+    "permissions": ["contents: read", "metadata: read"]
+  }
+}
