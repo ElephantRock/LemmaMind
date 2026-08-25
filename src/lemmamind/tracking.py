@@ -164,7 +164,13 @@ class TrackingStore(Protocol):
 
 
 class RepositoryTrackingService:
-    """Append tracking assignments and resolve the effective operational policy."""
+    """Append tracking assignments and resolve the effective operational policy.
+
+    V1 accepts only immediately effective new assignments. Scheduled future changes
+    and retroactive corrections need explicit cancellation/correction semantics and
+    are therefore deferred rather than smuggled into this append-only timeline.
+    Exact replay of an existing assignment remains idempotent.
+    """
 
     def __init__(
         self,
@@ -194,8 +200,6 @@ class RepositoryTrackingService:
         effective = effective_at or recorded_at
         if effective.tzinfo is None or effective.utcoffset() is None:
             raise TrackingPolicyError("tracking effective_at must be timezone-aware")
-        if effective < source.first_seen_at:
-            raise TrackingConflict("tracking level cannot become effective before Source first_seen_at")
 
         assigned_by = assigned_by.strip()
         reason = reason.strip()
@@ -218,14 +222,20 @@ class RepositoryTrackingService:
             ):
                 return existing
             raise TrackingConflict(
-                "tracking effective_at is already occupied; append a later effective change"
+                "tracking effective_at is already occupied; append a later immediate change"
             )
 
-        latest = history[-1] if history else None
-        if latest is not None and effective < latest.effective_at:
+        if effective != recorded_at:
             raise TrackingConflict(
-                "backdated tracking changes are not allowed because they rewrite effective history"
+                "repository-tracking.v1 permits only immediately effective new assignments; "
+                "future scheduling and backdating are deferred"
             )
+        if effective < source.first_seen_at:
+            raise TrackingConflict("tracking level cannot become effective before Source first_seen_at")
+
+        latest = history[-1] if history else None
+        if latest is not None and recorded_at < latest.recorded_at:
+            raise TrackingConflict("tracking clock moved backward relative to existing history")
 
         assignment = RepositoryTrackingAssignment(
             tracking_assignment_id=self._assignment_id(source_id, effective),
