@@ -25,13 +25,13 @@ capabilities:
     reason: Durable content-addressed current issue and pull-request snapshots emit deterministic metadata facts and authored title/body assertions while keeping process timestamps and PR SHAs distinct from the repository analysis anchor.
   github_process_event_history:
     state: implemented
-    reason: Durable paginated issue-event history now preserves provider event IDs, event kinds, actors, timestamps, and optional commit links; CSD issue #37 live validation directly recovered its close followed by reopen transition.
+    reason: Durable paginated issue-event history preserves provider event IDs, event kinds, actors, timestamps, and optional commit links; CSD issue #37 live validation directly recovered its close followed by reopen transition.
   github_workflow_run_evidence:
     state: implemented
     reason: Durable content-addressed workflow-run snapshots preserve run/job/step outcomes, timestamps, artifact metadata, and safe job-log availability without retaining log contents or inferring causes.
   temporal_change_reconciliation:
-    state: missing
-    reason: Multi-revision frontier reconciliation belongs to change intelligence and is not yet executable.
+    state: implemented
+    reason: Evidence-bound temporal reconciliation now validates explicit current process facts, exact PR base/head revision relationships, and ordered provider event transitions before constructing immutable superseding candidate Observations while preserving prior history.
   action_policy_validation:
     state: implemented
     reason: Evidence-bound policy evaluation separates repository capability from governance, blocks explicit prohibitions, enforces actor-role separation, and leaves independent authorization outside the evaluator.
@@ -62,13 +62,13 @@ cases:
       - github_issue_pr_evidence
       - github_process_event_history
       - temporal_change_reconciliation
-    expected_outcome: blocked
+    expected_outcome: ready
     boundary: >-
       Current issue/PR snapshots recover the open umbrella, merged D5 PR, and
-      still-open qualification PR. Provider event history now directly proves that
-      issue #37 was closed and later reopened. The remaining blocker is the
-      higher-level temporal reconciliation that distinguishes implementation
-      completion from evidentiary closure without rewriting prior history.
+      still-open qualification PR; provider event history proves close followed by
+      reopen; temporal reconciliation verifies PR #117 is based on the D5 merge
+      revision and constructs a narrower superseding candidate without mutating
+      the prior closure conclusion or auto-promoting review state.
 
   - case_id: resonance-world-confirmatory
     golden_case: eval/pilot/cases/resonance-world-confirmatory.yaml
