@@ -238,6 +238,7 @@ class RepositoryLocator(ContractModel):
     default_branch: Identifier
     archived: bool
     fork: bool
+    parent_provider_repository_id: Identifier | None = None
     observed_at: AwareDatetime
     pipeline_run_id: Identifier
 
