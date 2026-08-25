@@ -1,0 +1,199 @@
+{
+  "cases": [
+    {
+      "capture": {
+        "artifact_statuses": [
+          {"path": "README.md", "status": "captured"},
+          {"path": "server/src/tenant-package.ts", "status": "captured"}
+        ],
+        "requested_paths": ["README.md", "server/src/tenant-package.ts"]
+      },
+      "case_id": "external-openbot-capability-authority",
+      "extraction": {"fact_count": 8, "source_assertion_count": 41},
+      "repository": "CopilotKit/OpenBot",
+      "requirements": [
+        {
+          "check_kind": "source_assertion_contains",
+          "evidence_id": "openbot-authority-1",
+          "evidence_type": "SourceAssertion",
+          "matched_locators": [],
+          "missing_fragments": ["Skills are instructions, not capabilities"],
+          "needed_capability": "markdown-list-source-assertions",
+          "status": "gap"
+        },
+        {
+          "check_kind": "unsupported",
+          "evidence_id": "openbot-authority-2",
+          "evidence_type": "ObservedFact",
+          "matched_locators": [],
+          "missing_fragments": [],
+          "needed_capability": "source-code-semantic-facts",
+          "status": "gap"
+        },
+        {
+          "check_kind": "unsupported",
+          "evidence_id": "openbot-authority-3",
+          "evidence_type": "ObservedFact",
+          "matched_locators": [],
+          "missing_fragments": [],
+          "needed_capability": "source-code-semantic-facts",
+          "status": "gap"
+        }
+      ],
+      "revision": "d293f2331bd5ff9ba4ad17af6ac94570a157d26d",
+      "source_role": "implementation",
+      "summary": {"coverage_fraction": 0.0, "recovered": 0, "total": 3}
+    },
+    {
+      "capture": {
+        "artifact_statuses": [
+          {"path": "README.md", "status": "captured"},
+          {"path": "docs/gateway/sandboxing.md", "status": "captured"}
+        ],
+        "requested_paths": ["README.md", "docs/gateway/sandboxing.md"]
+      },
+      "case_id": "external-openclaw-sandbox-posture",
+      "extraction": {"fact_count": 8, "source_assertion_count": 94},
+      "repository": "openclaw/openclaw",
+      "requirements": [
+        {
+          "check_kind": "source_assertion_contains",
+          "evidence_id": "openclaw-sandbox-1",
+          "evidence_type": "SourceAssertion",
+          "matched_locators": ["docs/gateway/sandboxing.md:L9-L9"],
+          "missing_fragments": [],
+          "status": "recovered"
+        },
+        {
+          "check_kind": "source_assertion_contains",
+          "evidence_id": "openclaw-sandbox-2",
+          "evidence_type": "SourceAssertion",
+          "matched_locators": ["docs/gateway/sandboxing.md:L9-L9"],
+          "missing_fragments": [],
+          "status": "recovered"
+        },
+        {
+          "check_kind": "source_assertion_contains",
+          "evidence_id": "openclaw-sandbox-3",
+          "evidence_type": "SourceAssertion",
+          "matched_locators": [],
+          "missing_fragments": ["Elevated exec bypasses sandboxing"],
+          "needed_capability": "markdown-list-source-assertions",
+          "status": "gap"
+        }
+      ],
+      "revision": "c50f90251ebf1c420b8b8fbbff65fb39f77558f0",
+      "source_role": "implementation",
+      "summary": {"coverage_fraction": 0.6666666666666666, "recovered": 2, "total": 3}
+    },
+    {
+      "capture": {
+        "artifact_statuses": [
+          {"path": "tests/tools/test_local_setsid_descendant_sweep.py", "status": "captured"},
+          {"path": "tools/environments/local.py", "status": "captured"}
+        ],
+        "requested_paths": [
+          "tools/environments/local.py",
+          "tests/tools/test_local_setsid_descendant_sweep.py"
+        ]
+      },
+      "case_id": "external-hermes-process-containment",
+      "extraction": {"fact_count": 8, "source_assertion_count": 0},
+      "repository": "NousResearch/hermes-agent",
+      "requirements": [
+        {
+          "check_kind": "unsupported",
+          "evidence_id": "hermes-containment-1",
+          "evidence_type": "ObservedFact",
+          "matched_locators": [],
+          "missing_fragments": [],
+          "needed_capability": "commit-metadata-and-change-facts",
+          "status": "gap"
+        },
+        {
+          "check_kind": "unsupported",
+          "evidence_id": "hermes-containment-2",
+          "evidence_type": "ObservedFact",
+          "matched_locators": [],
+          "missing_fragments": [],
+          "needed_capability": "source-code-semantic-facts",
+          "status": "gap"
+        },
+        {
+          "check_kind": "unsupported",
+          "evidence_id": "hermes-containment-3",
+          "evidence_type": "ObservedFact",
+          "matched_locators": [],
+          "missing_fragments": [],
+          "needed_capability": "test-code-semantic-facts",
+          "status": "gap"
+        }
+      ],
+      "revision": "41447a6d7063b2772b0c2f26a5b22d9bd444fb43",
+      "source_role": "implementation",
+      "summary": {"coverage_fraction": 0.0, "recovered": 0, "total": 3}
+    },
+    {
+      "capture": {
+        "artifact_statuses": [
+          {"path": "CITATION.cff", "status": "captured"},
+          {"path": "CONTRIBUTING.md", "status": "captured"},
+          {"path": "LICENSE", "status": "captured"},
+          {"path": "README.md", "status": "captured"}
+        ],
+        "requested_paths": ["README.md", "CONTRIBUTING.md", "CITATION.cff", "LICENSE"]
+      },
+      "case_id": "external-opd-source-type",
+      "extraction": {"fact_count": 16, "source_assertion_count": 34},
+      "repository": "chrisliu298/awesome-on-policy-distillation",
+      "requirements": [
+        {
+          "check_kind": "source_assertion_contains",
+          "evidence_id": "opd-source-1",
+          "evidence_type": "SourceAssertion",
+          "matched_locators": ["README.md:L14-L14"],
+          "missing_fragments": [],
+          "status": "recovered"
+        },
+        {
+          "check_kind": "source_assertions_cover",
+          "evidence_id": "opd-source-2",
+          "evidence_type": "SourceAssertion",
+          "matched_locators": ["README.md:L18-L18", "README.md:L20-L20"],
+          "missing_fragments": [],
+          "status": "recovered"
+        },
+        {
+          "check_kind": "unsupported",
+          "evidence_id": "opd-source-3",
+          "evidence_type": "ObservedFact",
+          "matched_locators": [],
+          "missing_fragments": [],
+          "needed_capability": "complete-repository-tree-facts",
+          "status": "gap"
+        }
+      ],
+      "revision": "e4b5e7334ccd3437ccab8d4eef770ed02c4f9934",
+      "source_role": "research_index",
+      "summary": {"coverage_fraction": 0.6666666666666666, "recovered": 2, "total": 3}
+    }
+  ],
+  "coverage_id": "external-golden-evidence-v1",
+  "interpretation_boundary": "Evidence recovery measures deterministic source-addressed coverage only; it does not generate or validate golden Observations.",
+  "schema_version": "lemmamind.pilot-coverage-report.v1",
+  "source_spec_schema_version": "lemmamind.pilot-coverage.v1",
+  "summary": {
+    "case_count": 4,
+    "coverage_fraction": 0.3333333333333333,
+    "evidence_requirement_count": 12,
+    "gap_count": 8,
+    "gaps_by_needed_capability": {
+      "commit-metadata-and-change-facts": 1,
+      "complete-repository-tree-facts": 1,
+      "markdown-list-source-assertions": 2,
+      "source-code-semantic-facts": 3,
+      "test-code-semantic-facts": 1
+    },
+    "recovered_count": 4
+  }
+}
