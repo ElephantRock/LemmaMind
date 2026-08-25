@@ -56,8 +56,8 @@ def test_records_typed_discovery_lineage_in_channel_order(tmp_path) -> None:
     result = service(store).record_run(
         channel=channel(),
         candidates=(
-            DiscoveryCandidate("source:two", "example/two"),
-            DiscoveryCandidate("source:one", "example/one"),
+            DiscoveryCandidate("example/two", "source:two"),
+            DiscoveryCandidate("example/one", "source:one"),
         ),
         input_snapshot={"content_sha256": "sha256:" + "a" * 64},
     )
@@ -76,6 +76,19 @@ def test_records_typed_discovery_lineage_in_channel_order(tmp_path) -> None:
     assert store.get_untyped("DiscoveryHit", result.hits[0].discovery_hit_id) == result.hits[0]
 
 
+def test_unresolved_hit_is_valid_before_m2_identity_resolution(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+    result = service(store).record_run(
+        channel=channel(),
+        candidates=(DiscoveryCandidate("new-owner/new-repo"),),
+        input_snapshot={"channel_generation": 1},
+    )
+
+    assert result.discovery_run.hit_count == 1
+    assert result.hits[0].source_id is None
+    assert result.hits[0].discovered_locator == "new-owner/new-repo"
+
+
 def test_zero_hit_discovery_run_is_valid(tmp_path) -> None:
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     result = service(store).record_run(
@@ -89,12 +102,12 @@ def test_zero_hit_discovery_run_is_valid(tmp_path) -> None:
     assert store.list(DiscoveryHit) == []
 
 
-def test_unknown_source_is_rejected_at_m1_m2_boundary(tmp_path) -> None:
+def test_invalid_source_link_is_rejected_without_losing_raw_hit_semantics(tmp_path) -> None:
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
-    with pytest.raises(DiscoveryError, match="already-resolved Source"):
+    with pytest.raises(DiscoveryError, match="existing Source"):
         service(store).record_run(
             channel=channel(),
-            candidates=(DiscoveryCandidate("source:missing", "example/missing"),),
+            candidates=(DiscoveryCandidate("example/missing", "source:missing"),),
             input_snapshot={},
         )
 
@@ -110,8 +123,22 @@ def test_duplicate_source_cannot_inflate_one_discovery_run(tmp_path) -> None:
         service(store).record_run(
             channel=channel(),
             candidates=(
-                DiscoveryCandidate("source:one", "example/one"),
-                DiscoveryCandidate("source:one", "renamed/one"),
+                DiscoveryCandidate("example/one", "source:one"),
+                DiscoveryCandidate("renamed/one", "source:one"),
+            ),
+            input_snapshot={},
+        )
+
+
+def test_duplicate_raw_locator_is_rejected_even_when_unresolved(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+
+    with pytest.raises(DiscoveryError, match="duplicate locator"):
+        service(store).record_run(
+            channel=channel(),
+            candidates=(
+                DiscoveryCandidate("example/one"),
+                DiscoveryCandidate("example/one"),
             ),
             input_snapshot={},
         )
@@ -124,7 +151,7 @@ def test_non_json_input_snapshot_fails_before_persistence(tmp_path) -> None:
     with pytest.raises(DiscoveryError, match="canonical JSON"):
         service(store).record_run(
             channel=channel(),
-            candidates=(DiscoveryCandidate("source:one", "example/one"),),
+            candidates=(DiscoveryCandidate("example/one", "source:one"),),
             input_snapshot={"bad": object()},
         )
 
