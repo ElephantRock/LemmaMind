@@ -1,0 +1,54 @@
+{
+  "schema_version": "lemmamind.github-process-probe.v1",
+  "repository": "ElephantRock/CSD-Foundry",
+  "live_execution": {
+    "workflow_run": 32862376557,
+    "branch_head": "6c271e9f95ba198cac4defb65cb059668e6eea8b",
+    "offline_tests_passed": 75,
+    "live_step": "success",
+    "permissions": [
+      "contents: read",
+      "issues: read",
+      "metadata: read",
+      "pull-requests: read"
+    ]
+  },
+  "analysis_anchor": {
+    "source_revision_id": "github:1318635781@aa2f1a79c7dfe57a0107a8ffe971e3f6affb96c7",
+    "commit_sha": "aa2f1a79c7dfe57a0107a8ffe971e3f6affb96c7"
+  },
+  "capture": {
+    "capture_id_omitted_from_stable_report": true,
+    "artifact_locators": [
+      "$github/issue/37",
+      "$github/pull/115",
+      "$github/pull/117"
+    ]
+  },
+  "extraction": {
+    "fact_count": 73,
+    "source_assertion_count": 6
+  },
+  "issue_37": {
+    "state": "open",
+    "title": "Implement v0.5-D governed registries",
+    "updated_at": "2026-08-24T21:36:20Z"
+  },
+  "pull_115": {
+    "state": "closed",
+    "merged": true,
+    "merge_commit_sha": "aa2f1a79c7dfe57a0107a8ffe971e3f6affb96c7",
+    "head_sha": "955e1991cad1c74ddf15ea385c375a3d814d9cc3",
+    "title": "P3.6: D5 atomic multi-registry temporal integration",
+    "body_mentions_issue_37": true
+  },
+  "pull_117": {
+    "state": "open",
+    "draft": true,
+    "head_sha": "2d910f3ff83f061409ca9d8f2e3709fde7c13f6e",
+    "base_sha": "aa2f1a79c7dfe57a0107a8ffe971e3f6affb96c7",
+    "updated_at": "2026-08-15T22:06:50Z",
+    "title": "P3.7: Phase-3 integrated qualification and closure"
+  },
+  "interpretation_boundary": "Issue/PR snapshots are mutable process evidence observed during this capture. The SourceRevision is the repository analysis anchor, not a claim that process state is historically determined by that Git commit. This checkpoint proves current issue/PR snapshot acquisition, not issue close/reopen event history or temporal frontier reconciliation."
+}

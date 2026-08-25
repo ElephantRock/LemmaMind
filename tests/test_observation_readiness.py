@@ -28,14 +28,13 @@ def test_hard_case_readiness_matches_frozen_boundaries() -> None:
 
     assert by_case["csd-foundry-frontier"]["outcome"] == "blocked"
     assert {item["capability"] for item in by_case["csd-foundry-frontier"]["blockers"]} == {
-        "github_issue_pr_evidence",
+        "github_process_event_history",
         "temporal_change_reconciliation",
     }
     assert by_case["csd-foundry-frontier"]["belief_revision_required"] is True
 
     assert by_case["resonance-world-confirmatory"]["outcome"] == "blocked"
     assert {item["capability"] for item in by_case["resonance-world-confirmatory"]["blockers"]} == {
-        "github_issue_pr_evidence",
         "github_workflow_run_evidence",
         "action_policy_validation",
     }

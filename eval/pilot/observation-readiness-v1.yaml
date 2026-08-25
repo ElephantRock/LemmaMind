@@ -21,8 +21,11 @@ capabilities:
     state: implemented
     reason: Exact pinned Git root-tree capture and facts are available.
   github_issue_pr_evidence:
+    state: implemented
+    reason: Durable content-addressed current issue and pull-request snapshots now emit deterministic metadata facts and authored title/body assertions while keeping process timestamps and PR SHAs distinct from the repository analysis anchor.
+  github_process_event_history:
     state: missing
-    reason: Durable issue and pull-request capture is not yet part of the M0 evidence spine.
+    reason: Current process snapshots do not yet preserve issue/PR timeline events such as a prior close followed by reopen.
   github_workflow_run_evidence:
     state: missing
     reason: Durable workflow-run/job/step outcome capture is not yet part of the M0 evidence spine.
@@ -57,12 +60,14 @@ cases:
     requires:
       - supported_observation_v2
       - github_issue_pr_evidence
+      - github_process_event_history
       - temporal_change_reconciliation
     expected_outcome: blocked
     boundary: >-
-      Supersession history can now cross revisions of the same Source, but the
-      frozen golden reconciliation itself combines evidence from multiple
-      revisions and should not be forced into one revision-bound Observation.
+      Current issue/PR snapshots recover the open umbrella, merged D5 PR, and
+      still-open qualification PR, but the frozen golden case also requires the
+      prior close/reopen history and a temporal reconciliation across revisions.
+      Those must not be inferred from the current snapshots alone.
 
   - case_id: resonance-world-confirmatory
     golden_case: eval/pilot/cases/resonance-world-confirmatory.yaml
@@ -74,8 +79,8 @@ cases:
       - action_policy_validation
     expected_outcome: blocked
     boundary: >-
-      The epistemic statements are source-local, but reconstructing the frozen
-      execution state requires durable PR/workflow-run evidence and the no-rerun
+      Durable issue/PR snapshots are now available, but reconstructing the frozen
+      execution state still requires workflow-run evidence and the no-rerun
       decision requires an authority/governance-aware action policy.
 
   - case_id: private-actions-pattern
