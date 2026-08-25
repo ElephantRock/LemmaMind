@@ -162,7 +162,7 @@ def test_extracts_manifest_path_facts_and_markdown_source_assertions(tmp_path) -
             "README.md:L3-L4",
             "LemmaMind preserves exact evidence. This remains the source's own claim.",
         ),
-        ("README.md:L13-L13", "A second explicit paragraph."),
+        ("README.md:L12-L12", "A second explicit paragraph."),
     ]
     assert len(store.list(EvidenceFact)) == len(result.facts)
     assert len(store.list(SourceAssertion)) == 2
