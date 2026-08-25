@@ -16,11 +16,11 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-**M0 — Minimum System Contracts: implementation active; deterministic repository evidence complete for the frozen external corpus, evidence-supported Observation construction live-validated, and GitHub issue/PR snapshot evidence live-validated.**
+**M0 — Minimum System Contracts: implementation active; deterministic repository evidence complete for the frozen external corpus, evidence-supported Observation construction live-validated, and GitHub issue/PR plus workflow-run snapshot evidence live-validated.**
 
-The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit-metadata capture, deterministic artifact extraction, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, an executable hard-case readiness matrix, and durable current GitHub issue/pull-request process snapshots.
+The executable M0 now includes strict versioned contracts, append-only SQLite persistence, a SHA-256 content-addressed artifact store, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit-metadata capture, deterministic artifact extraction, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, an executable hard-case readiness matrix, durable current GitHub issue/pull-request process snapshots, and durable workflow-run/job/step evidence.
 
-The evidence layer preserves artifact path facts, selected `pyproject.toml` / `package.json` facts, ordinary Markdown prose, Markdown list items, exact Git root-tree structure, exact commit metadata, Python syntax, TypeScript/TSX syntax, and current GitHub issue/PR process metadata. Authored prose, commit messages, Python docstrings, TypeScript comments, and issue/PR titles/bodies remain `SourceAssertion`; Git object structure, provider/process metadata, and parser-derived syntax remain `EvidenceFact`.
+The evidence layer preserves artifact path facts, selected `pyproject.toml` / `package.json` facts, ordinary Markdown prose, Markdown list items, exact Git root-tree structure, exact commit metadata, Python syntax, TypeScript/TSX syntax, current GitHub issue/PR process metadata, and GitHub Actions run/job/step metadata. Authored prose, commit messages, Python docstrings, TypeScript comments, and issue/PR titles/bodies remain `SourceAssertion`; Git object structure, provider/process metadata, workflow metadata, and parser-derived syntax remain `EvidenceFact`.
 
 Live external repository evidence coverage progressed against the same 12 frozen requirements:
 
@@ -37,9 +37,11 @@ The first live `Evidence → ObservationSupport → Observation` probe replayed 
 
 Hard-case evaluation then corrected supersession semantics: one source-level Observation remains bound to one revision, but a later candidate may supersede an earlier observation from another revision of the **same Source**. Cross-source/mixed-revision support inside one Observation remains rejected. The current hard-case readiness matrix is **1 ready / 2 blocked / 1 deferred**.
 
-The first durable GitHub process-state slice was then live-validated against CSD-Foundry. Workflow run `32862376557` passed **75 offline tests** and captured issue #37, merged PR #115, and open/draft PR #117 as immutable current snapshots, emitting **73 metadata facts** and **6 authored assertions**. This closes current `github_issue_pr_evidence`; it does not prove issue close→reopen history or perform temporal frontier reconciliation.
+The first durable GitHub process-state slice was live-validated against CSD-Foundry. Workflow run `32862376557` passed **75 offline tests** and captured issue #37, merged PR #115, and open/draft PR #117 as immutable current snapshots, emitting **73 metadata facts** and **6 authored assertions**. This closes current `github_issue_pr_evidence`; it does not prove issue close→reopen history or perform temporal frontier reconciliation.
 
-The implementation remains deliberately below autonomous architecture profiling, pattern/insight synthesis, embeddings, autonomous reasoning, and UI. The next measured acquisition boundary is **durable GitHub workflow-run/job/step evidence**, because it is required by both the Resonance-World execution-integrity case and the private-repository Actions pattern.
+Durable GitHub Actions evidence was then live-validated against frozen Resonance-World workflow run `31895957256`. LemmaMind run `32864264454` passed **79 offline tests** and recovered **139 deterministic workflow facts**, including the cancelled provider step, skipped upload step, two zero-step dependent jobs, zero artifacts, and safe job-log availability without reading log contents. This closes `github_workflow_run_evidence` while preserving the boundary that workflow status is evidence, not a causal diagnosis or rerun decision.
+
+The implementation remains deliberately below autonomous architecture profiling, pattern/insight synthesis, embeddings, autonomous reasoning, and UI. The next measured decision boundary is **authority/governance-aware action-policy validation**, because the Resonance-World source-local execution state is now representable but the scientifically important `do not rerun` recommendation must still be validated against explicit authority and governance constraints.
 
 ## Start here
 
@@ -53,6 +55,7 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`docs/M0-OBSERVATIONS.md`](docs/M0-OBSERVATIONS.md) — supported Observation construction, support/provenance rules, and validation-state boundary
 - [`docs/M0-OBSERVATION-READINESS.md`](docs/M0-OBSERVATION-READINESS.md) — hard-case readiness, supersession, and semantic-layer boundaries
 - [`docs/M0-GITHUB-PROCESS-EVIDENCE.md`](docs/M0-GITHUB-PROCESS-EVIDENCE.md) — durable current issue/PR process snapshots and mutable-state boundary
+- [`docs/M0-GITHUB-WORKFLOW-EVIDENCE.md`](docs/M0-GITHUB-WORKFLOW-EVIDENCE.md) — durable workflow-run/job/step evidence and safe log-availability boundary
 - [`eval/pilot/coverage/external-v1.yaml`](eval/pilot/coverage/external-v1.yaml) — machine-readable external evidence-recovery checks
 - [`eval/pilot/coverage/reports/external-v1.md`](eval/pilot/coverage/reports/external-v1.md) — first live external baseline (4/12)
 - [`eval/pilot/coverage/reports/external-v1-markdown-list.md`](eval/pilot/coverage/reports/external-v1-markdown-list.md) — post-P0 baseline (6/12)
@@ -63,6 +66,7 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`eval/pilot/observation-reports/external-openbot-v1.md`](eval/pilot/observation-reports/external-openbot-v1.md) — first live evidence-supported Observation probe
 - [`eval/pilot/observation-readiness-v1.yaml`](eval/pilot/observation-readiness-v1.yaml) — executable hard-case readiness state
 - [`eval/pilot/process-reports/csd-issue-pr-v1.md`](eval/pilot/process-reports/csd-issue-pr-v1.md) — live current issue/PR process-evidence checkpoint
+- [`eval/pilot/workflow-reports/resonance-world-confirmatory-v1.md`](eval/pilot/workflow-reports/resonance-world-confirmatory-v1.md) — live workflow evidence checkpoint
 - [`docs/M0-NEXT-EXTRACTORS.md`](docs/M0-NEXT-EXTRACTORS.md) — measured repository extractor progression and exit condition
 - [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned M0 contract models
 - [`src/lemmamind/storage.py`](src/lemmamind/storage.py) — atomic append-only SQLite contract persistence
@@ -71,6 +75,8 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`src/lemmamind/git_tree.py`](src/lemmamind/git_tree.py) — exact Git root-tree capture and deterministic tree facts
 - [`src/lemmamind/git_commit.py`](src/lemmamind/git_commit.py) — exact Git commit-metadata capture, metadata facts, and commit-message assertions
 - [`src/lemmamind/github_process.py`](src/lemmamind/github_process.py) — current GitHub issue/PR snapshot capture and deterministic process evidence
+- [`src/lemmamind/github_workflow.py`](src/lemmamind/github_workflow.py) — workflow-run/job/step snapshot capture and deterministic evidence
+- [`src/lemmamind/github_workflow_http.py`](src/lemmamind/github_workflow_http.py) — no-redirect job-log availability transport
 - [`src/lemmamind/python_ast.py`](src/lemmamind/python_ast.py) — deterministic Python AST facts and docstring assertions
 - [`src/lemmamind/typescript_ast.py`](src/lemmamind/typescript_ast.py) — deterministic TypeScript/TSX syntax facts and comment assertions
 - [`src/lemmamind/observations.py`](src/lemmamind/observations.py) — v1 candidate Observation construction with validated support provenance
@@ -81,7 +87,7 @@ The implementation remains deliberately below autonomous architecture profiling,
 - [`src/lemmamind/pilot_coverage.py`](src/lemmamind/pilot_coverage.py) — base evidence-coverage evaluator
 - [`src/lemmamind/pilot_coverage_v2.py`](src/lemmamind/pilot_coverage_v2.py) — historical Git-object + Python AST coverage policy
 - [`src/lemmamind/pilot_coverage_v3.py`](src/lemmamind/pilot_coverage_v3.py) — TypeScript-aware deterministic coverage policy
-- [`tests/`](tests/) — contract, persistence, capture, extraction, observation, process-evidence, coverage, object-integrity, and golden-corpus regression tests
+- [`tests/`](tests/) — contract, persistence, capture, extraction, observation, process/workflow-evidence, coverage, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
@@ -138,13 +144,13 @@ Cross-cutting from the start: `PipelineRun`, `RepositoryRelationship`, `ActionRe
 Current implemented boundary:
 
 ```text
-GitHub repository/process metadata
+GitHub repository/process/workflow metadata
       ↓
 exact commit + tree analysis anchor
       ↓
-content-addressed file / Git-tree / commit / issue / PR artifacts
+content-addressed file / Git-tree / commit / issue / PR / workflow artifacts
       ↓
-deterministic text / metadata / Python / TypeScript / process evidence
+deterministic text / metadata / Python / TypeScript / process / workflow evidence
       ↓
 EvidenceFact / SourceAssertion
       ↓
@@ -156,9 +162,9 @@ Observation + ObservationSupport
 revision-aware same-source supersession
 ```
 
-Current process snapshots deliberately stop before issue/PR event history, workflow-run/job/step evidence, temporal frontier reconciliation, action-policy validation, and cross-repository Pattern semantics.
+Current evidence acquisition deliberately stops before issue/PR event history. The semantic layer still stops before temporal frontier reconciliation, authority-aware action-policy validation, and cross-repository Pattern semantics.
 
-The next measured implementation slice is **durable workflow-run/job/step evidence**. Model-proposed observations remain deferred until the evidence and support-graph invariants survive the hard golden corpus.
+The next measured implementation slice is **authority/governance-aware action-policy validation**. Model-proposed observations remain deferred until the evidence and support-graph invariants survive the hard golden corpus.
 
 ## Canonical home
 

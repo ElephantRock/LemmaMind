@@ -22,13 +22,13 @@ capabilities:
     reason: Exact pinned Git root-tree capture and facts are available.
   github_issue_pr_evidence:
     state: implemented
-    reason: Durable content-addressed current issue and pull-request snapshots now emit deterministic metadata facts and authored title/body assertions while keeping process timestamps and PR SHAs distinct from the repository analysis anchor.
+    reason: Durable content-addressed current issue and pull-request snapshots emit deterministic metadata facts and authored title/body assertions while keeping process timestamps and PR SHAs distinct from the repository analysis anchor.
   github_process_event_history:
     state: missing
     reason: Current process snapshots do not yet preserve issue/PR timeline events such as a prior close followed by reopen.
   github_workflow_run_evidence:
-    state: missing
-    reason: Durable workflow-run/job/step outcome capture is not yet part of the M0 evidence spine.
+    state: implemented
+    reason: Durable content-addressed workflow-run snapshots now preserve run/job/step outcomes, timestamps, artifact metadata, and safe job-log availability without retaining log contents or inferring causes.
   temporal_change_reconciliation:
     state: missing
     reason: Multi-revision frontier reconciliation belongs to change intelligence and is not yet executable.
@@ -79,9 +79,9 @@ cases:
       - action_policy_validation
     expected_outcome: blocked
     boundary: >-
-      Durable issue/PR snapshots are now available, but reconstructing the frozen
-      execution state still requires workflow-run evidence and the no-rerun
-      decision requires an authority/governance-aware action policy.
+      Durable issue/PR and workflow-run evidence can now reconstruct the source-local
+      execution state, but the no-rerun decision still requires an authority/governance-aware
+      action policy. Evidence capture must not self-authorize that operational conclusion.
 
   - case_id: private-actions-pattern
     golden_case: eval/pilot/cases/private-actions-pattern.yaml
@@ -91,6 +91,7 @@ cases:
       - cross_repository_pattern_layer
     expected_outcome: deferred
     boundary: >-
-      The useful conclusion depends on matched signatures and negative controls
-      across several repositories. Source-level Observation must reject this
-      rather than weakening its one-revision invariant.
+      Workflow evidence can now represent zero-step/missing-log signatures, but
+      the useful conclusion depends on comparison and negative controls across
+      several repositories. Source-level Observation must reject this rather than
+      weakening its one-revision invariant.

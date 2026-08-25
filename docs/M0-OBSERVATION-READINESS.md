@@ -2,7 +2,7 @@
 
 ## Status
 
-The first executable `Evidence → Observation` slice and revision-aware supersession are merged. The current branch also live-validates durable GitHub issue/PR **current snapshot** evidence.
+The executable `Evidence → Observation` slice, revision-aware supersession, durable GitHub issue/PR current snapshots, and durable GitHub workflow-run evidence are now implemented and live-validated.
 
 The key result remains that not every golden case should be made to pass by broadening `Observation` until it can hold arbitrary synthesis. The hard cases separate source-local observation, process/event evidence, temporal belief revision, action/governance policy, and cross-repository pattern synthesis.
 
@@ -36,9 +36,15 @@ Cross-source support remains rejected.
 
 Issue and pull-request state is mutable independently of Git state. `SourceRevision` is therefore an analysis-generation anchor, not a claim that issue/PR state is historically determined by the anchor commit.
 
-The new process evidence path preserves current observed state in immutable content-addressed snapshots with provider timestamps and PR head/base/merge SHAs. Authored title/body text remains `SourceAssertion`; deterministic process metadata becomes `EvidenceFact`.
+The process evidence path preserves current observed state in immutable content-addressed snapshots with provider timestamps and PR head/base/merge SHAs. Authored title/body text remains `SourceAssertion`; deterministic process metadata becomes `EvidenceFact`.
 
 Live CSD validation captured issue #37, merged PR #115, and open/draft PR #117. See `docs/M0-GITHUB-PROCESS-EVIDENCE.md` and `eval/pilot/process-reports/csd-issue-pr-v1.*`.
+
+## GitHub workflow-run correction
+
+A workflow conclusion is not itself a code-test diagnosis. The workflow evidence path separately preserves run, job, step, artifact, runner, timestamp, and job-log availability metadata as deterministic facts.
+
+Live Resonance-World validation recovered the cancelled provider execution, the skipped upload step, two zero-step dependent jobs, and zero artifacts without reading log contents. The accepted log probe refuses GitHub's signed redirect and records availability only. See `docs/M0-GITHUB-WORKFLOW-EVIDENCE.md` and `eval/pilot/workflow-reports/resonance-world-confirmatory-v1.*`.
 
 ## Hard-case readiness result
 
@@ -47,15 +53,15 @@ Current deterministic result remains:
 | Case | Outcome | Current blocker boundary |
 | --- | --- | --- |
 | `external-opd-source-type` | **ready** | None at the source-level Observation layer. |
-| `csd-foundry-frontier` | **blocked** | Current issue/PR snapshots now exist; close→reopen event history and temporal multi-revision reconciliation are still missing. |
-| `resonance-world-confirmatory` | **blocked** | Issue/PR snapshots now exist; durable workflow-run evidence and authority/governance-aware action validation remain missing. |
-| `private-actions-pattern` | **deferred** | Workflow evidence is missing, and the useful claim intentionally belongs to the later cross-repository Pattern layer. |
+| `csd-foundry-frontier` | **blocked** | Current issue/PR snapshots exist; close→reopen event history and temporal multi-revision reconciliation remain missing. |
+| `resonance-world-confirmatory` | **blocked** | Source-local issue/PR + workflow evidence now exists; only authority/governance-aware action validation remains missing. |
+| `private-actions-pattern` | **deferred** | Workflow evidence can represent zero-step/missing-log signatures; the useful conclusion intentionally belongs to the later cross-repository Pattern layer. |
 
 Summary: **1 ready / 2 blocked / 1 deferred**.
 
 ## Why CSD is still blocked
 
-Current snapshots now recover important frontier evidence:
+Current snapshots recover important frontier evidence:
 
 ```text
 issue #37: open
@@ -65,7 +71,7 @@ PR #117: open + draft
 
 and PR #117's base SHA is the D5 merge commit while its head is the separate qualification revision.
 
-But the frozen golden case also says issue #37 was previously closed and later reopened. A current snapshot cannot prove that transition. The acquisition gap is now explicitly:
+But the frozen golden case also says issue #37 was previously closed and later reopened. A current snapshot cannot prove that transition. The acquisition gap is:
 
 ```text
 github_process_event_history
@@ -91,13 +97,23 @@ Forcing historical events or multi-revision reconciliation into one source-level
 
 The private-Actions conclusion depends on matching pre-step failure signatures in ExpertOS and ExpertForge, repository privacy metadata, and functioning public-repository Actions as negative controls.
 
-That is a cross-repository inference. The one-revision Observation rule should continue rejecting it. LemmaMind should add the later Pattern layer when justified rather than turn `Observation` into a generic container for every synthesis level.
+Workflow evidence can now represent the local signature correctly:
+
+```text
+run/job conclusion = failure
+step_count = 0
+log availability = missing
+```
+
+without labeling it `tests failed`.
+
+The cross-repository conclusion still requires comparison across several Sources. The one-revision Observation rule should continue rejecting it. LemmaMind should add the later Pattern layer when justified rather than turn `Observation` into a generic container for every synthesis level.
 
 ## Resonance-World implication
 
-The Resonance-World case demonstrates that epistemic support and operational action are separate problems.
+The Resonance-World case now has the source-local evidence needed to reconstruct the cancelled execution state: issue/PR snapshots plus durable workflow-run/job/step evidence.
 
-Current issue/PR snapshot evidence is no longer the blocker. The remaining acquisition gap is durable workflow-run/job/step evidence for the cancelled confirmatory execution. After that, the conclusion `do not blindly rerun` still requires an action-policy service that can reason over repository relationship, prospective no-rerun rules, experiment governance, and separate evaluation/acceptance authority.
+The remaining important boundary is operational rather than acquisitional. The conclusion `do not blindly rerun` requires an action-policy service that can reason over repository relationship, prospective no-rerun rules, experiment governance, and separate evaluation/acceptance authority.
 
 `ActionRecommendation` already exists as a contract, but M0 does not yet have a validation service that can prove such a recommendation respects those constraints.
 
@@ -107,11 +123,10 @@ Do not add autonomous observation generation yet.
 
 The next justified capabilities are:
 
-1. **durable workflow-run / job / step evidence capture** — shared prerequisite for Resonance-World and private-Actions;
+1. **authority-aware action-policy validation** — now the sole Resonance-World blocker;
 2. GitHub issue/PR event-history capture — required for the CSD close→reopen history;
 3. temporal change/frontier reconciliation over revision-bound observations;
-4. authority-aware action-policy validation;
-5. later, cross-repository Pattern semantics.
+4. later, cross-repository Pattern semantics for cases such as private Actions.
 
 The readiness evaluator should be rerun whenever one of those capability states changes. A case may move from `blocked` to `ready`, but `deferred` cases should move only when the correct later semantic layer exists—not because Observation constraints were weakened.
 

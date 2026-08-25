@@ -35,13 +35,11 @@ def test_hard_case_readiness_matches_frozen_boundaries() -> None:
 
     assert by_case["resonance-world-confirmatory"]["outcome"] == "blocked"
     assert {item["capability"] for item in by_case["resonance-world-confirmatory"]["blockers"]} == {
-        "github_workflow_run_evidence",
         "action_policy_validation",
     }
 
     assert by_case["private-actions-pattern"]["outcome"] == "deferred"
     assert {item["capability"] for item in by_case["private-actions-pattern"]["blockers"]} == {
-        "github_workflow_run_evidence",
         "cross_repository_pattern_layer",
     }
     assert by_case["private-actions-pattern"]["source_count"] == 4
