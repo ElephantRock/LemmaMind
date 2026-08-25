@@ -4,10 +4,11 @@
 
 M0 implements only the contracts and deterministic evidence spine justified by the completed M−1 corpus. It does not add broad discovery automation, embeddings, autonomous reasoning, pattern mining, synthesis, or a user interface.
 
-Two executable slices are now defined:
+Three executable slices are now defined:
 
 1. **Core contracts + persistence**
 2. **Deterministic read-only GitHub capture**
+3. **Deterministic artifact evidence extraction**
 
 ## Executable contracts
 
@@ -61,9 +62,7 @@ Insertion semantics are:
 1. a new typed identity is inserted;
 2. an identical re-insert is idempotent;
 3. reusing the same typed identity with different content raises `RecordConflict`;
-4. `put_many()` is transactional, so a conflict rolls back the entire capture batch.
-
-This protects immutable evidence/provenance identities while keeping the physical schema easy to migrate as the ontology develops.
+4. `put_many()` is transactional, so a conflict rolls back the entire batch.
 
 ## Deterministic GitHub capture
 
@@ -100,34 +99,57 @@ Important constraints:
 
 See `docs/M0-CAPTURE.md` for the detailed trust and identity boundary.
 
+## Deterministic evidence extraction
+
+`src/lemmamind/extraction.py` consumes persisted captures and emits only source-addressed `EvidenceFact` and `SourceAssertion` records plus an extraction `PipelineRun`.
+
+The initial extractor set is intentionally small:
+
+- artifact-path facts: basename, suffix, depth, top-level segment;
+- selected `pyproject.toml` structural fields;
+- selected `package.json` structural fields;
+- Markdown prose paragraphs preserved as explicit `SourceAssertion` records with line ranges.
+
+The path extractor describes each captured artifact only. It does **not** claim complete repository structure because the capture policy still acquires explicit paths rather than a recursive tree.
+
+Before parsing, extraction verifies that an `Artifact` agrees with its `CaptureManifest` reference on capture ID, locator, content hash, and media type. Content bytes are reverified by the content-addressed store on read.
+
+Malformed `pyproject.toml` / `package.json` input fails closed. A source assertion remains a source assertion; extraction does not promote source prose to observed fact.
+
+See `docs/M0-EXTRACTION.md` for detailed extractor semantics and the epistemic boundary.
+
 ## Contract invariants enforced now
 
-The implementation rejects several states that would violate pilot conclusions:
+The implementation rejects states that would violate pilot conclusions, including:
 
 - `last_seen_at` before `first_seen_at`;
-- captured artifacts without a content hash and media type;
-- `READ_ONLY` repository relationships that claim direct write authority;
+- captured artifacts without content hash + media type;
+- `READ_ONLY` relationships claiming direct write authority;
 - `OWNED` relationships without write authority;
-- `no_action` recommendations that claim repository modification is required;
-- source evidence classes (`ObservedFact`, `SourceAssertion`) represented as derived `Observation` epistemic types;
+- `no_action` recommendations that require repository modification;
+- source evidence classes represented as derived observation types;
 - malformed Git commit/tree identities and SHA-256 content digests;
 - capture paths containing parent traversal;
-- silent repository identity changes across captures;
-- silent source-role or canonical-locator changes across captures.
+- silent repository identity/source-role drift across captures;
+- manifest/artifact metadata mismatches during extraction;
+- captured manifest entries without corresponding `Artifact` records;
+- malformed structured manifests producing partial persisted evidence.
 
 ## Golden-corpus regression contract
 
 `tests/test_golden_corpus.py` binds M0 to the M−1 evaluation corpus rather than to synthetic examples alone. It requires:
 
 - the five external validation cases to remain present;
-- every repository relationship type in the corpus to be representable by the M0 relationship enum;
-- every expected observation epistemic type and validation state to be representable by M0;
+- repository relationship types to remain representable;
+- expected observation epistemic/validation values to remain representable;
 - evidence classes to remain separated into `ObservedFact` or `SourceAssertion`;
 - source revisions and repository identities to retain explicit source addressing.
 
 The golden cases remain evaluation fixtures, not production database rows.
 
-Capture-specific tests additionally require exact revision pinning, repeat-capture identity stability, explicit missing-file records, content-addressed byte integrity, metadata-drift rejection, and atomic persistence.
+Capture-specific tests require exact revision pinning, repeat-capture identity stability, explicit missing-file records, byte integrity, drift rejection, deterministic media typing, and atomic persistence.
+
+Extraction-specific tests require exact artifact provenance, manifest parsing, Markdown line provenance, source-assertion separation, fail-closed malformed input, and equal semantic output hashes across repeat runs.
 
 ## CI
 
@@ -142,11 +164,13 @@ Still out of scope:
 - releases, PRs, issues, or commit-message ingestion;
 - LFS and submodule traversal;
 - repository rename/transfer/archive history;
-- deterministic evidence extractors;
+- lockfile resolution and package installation;
+- language AST/semantic source-code extraction;
 - change intelligence;
 - architecture profiles;
 - vector or embedding representations;
 - model calls;
+- observations generated by model reasoning;
 - patterns, tensions, insights, or promoted knowledge;
 - ranking/recommendation;
 - graph databases;
@@ -154,17 +178,17 @@ Still out of scope:
 
 ## Current gate
 
-The deterministic capture slice is acceptable when:
+The deterministic extraction slice is acceptable when:
 
-1. package installation succeeds in CI;
-2. contract and storage tests remain green;
-3. every artifact read is pinned to the resolved commit SHA;
-4. captured bytes round-trip through the content-addressed object store;
-5. repeat captures reuse stable identities but create new capture/run identities;
-6. missing paths remain explicit in `CaptureManifest`;
-7. metadata/source-role drift fails loudly;
-8. batch conflicts roll back atomically;
+1. package installation and all existing tests remain green;
+2. evidence records bind to the exact captured artifact;
+3. machine-readable manifest facts are deterministic;
+4. Markdown prose remains a `SourceAssertion`, not an `EvidenceFact`;
+5. line locators remain exact and stable;
+6. malformed structured input fails before evidence persistence;
+7. repeat extraction produces equal semantic outputs/`outputs_hash` under the same policy;
+8. missing capture entries are not fabricated into artifact evidence;
 9. the complete M−1 golden corpus remains green;
-10. no deferred platform capability is introduced accidentally.
+10. no captured source content is executed.
 
-After that, the next M0 slice should implement **deterministic evidence extraction from captured artifacts**. It should begin with a small number of inspectable parsers (for example repository tree/manifests/README assertions) and produce only `EvidenceFact` or `SourceAssertion` records with exact locators and extractor/run versions.
+After that, the next M0 validation step should run **capture + extraction against selected pinned pilot artifacts** and measure whether the deterministic evidence is sufficient to reconstruct the expected golden observations manually. That evaluation should identify the smallest additional deterministic extractors actually required before any reasoning layer is introduced.
