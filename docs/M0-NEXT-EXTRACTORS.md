@@ -2,48 +2,63 @@
 
 ## Decision basis
 
-The first live external coverage run recovered 4 of 12 golden-evidence requirements from four pinned read-only repositories. The baseline is recorded in:
+The first live external coverage run recovered **4 of 12** golden-evidence requirements from four pinned read-only repositories. That baseline remains preserved in:
 
 - `eval/pilot/coverage/external-v1.yaml`
 - `eval/pilot/coverage/reports/external-v1.json`
 - `eval/pilot/coverage/reports/external-v1.md`
 
-The purpose of this document is to select the next deterministic capabilities from observed coverage gaps rather than from speculative platform design.
+Priority 0 Markdown list extraction was then implemented and the **same frozen coverage specification** was rerun. The second live run recovered **6 of 12** requirements. Its report is preserved in:
+
+- `eval/pilot/coverage/reports/external-v1-markdown-list.json`
+- `eval/pilot/coverage/reports/external-v1-markdown-list.md`
+- live workflow run `32812194683`
+
+The purpose of this document is to select subsequent deterministic capabilities from measured coverage gaps rather than from speculative platform design.
 
 ## Selection principles
 
 1. Prefer extractors that preserve source material or deterministic structure without interpretation.
-2. Prefer capabilities that unlock multiple current golden requirements.
+2. Prefer capabilities that unlock current golden requirements.
 3. Do not introduce a generic “code semantics” extractor that silently embeds reasoning into `EvidenceFact`.
 4. Keep `SourceAssertion` distinct from facts about source structure or execution behavior.
 5. Do not claim complete repository structure from explicit-path capture.
 6. Prefer language-native parsers or Git object structure over regex when structural correctness matters.
+7. Preserve earlier coverage reports; new capabilities produce new reports rather than rewriting history.
 
-## Priority 0 — Markdown structural source assertions
+## Priority 0 — Markdown structural source assertions: COMPLETE
 
 **Gap addressed:** 2 requirements
 
 - `openbot-authority-1`
 - `openclaw-sandbox-3`
 
-### Required behavior
+### Implemented behavior
 
-Extend Markdown extraction to preserve explicit source text from structural constructs that v1 currently drops:
+`markdown-list.v1` now preserves explicit source text from Markdown list structure:
 
-- list items;
-- optionally block quotes where the source itself is making the assertion;
-- continuation lines belonging to the same list item;
-- exact line ranges and original text content.
+- unordered list items;
+- ordered list items;
+- indented continuation lines belonging to the same item;
+- nested list items as separate assertions;
+- exact source line ranges.
 
-### Epistemic output
+Fenced code is excluded, and table/block-quote lines are not absorbed as list continuations. List markers are treated as Markdown syntax and removed; authored text is retained as `SourceAssertion`.
 
-`SourceAssertion`, never `EvidenceFact` merely because the text appears in a list.
+The existing `markdown-prose.v1` extractor remains unchanged, preserving backward reproducibility. Combined assertion ordering is by source path and numeric line range.
 
-### Why first
+### Live result
 
-This is the smallest low-risk improvement and should directly recover two existing gaps without inference. It also improves README/documentation coverage generally.
+The same external coverage specification moved from **4/12 (33.3%)** to **6/12 (50.0%)**:
 
-## Priority 1 — Exact Git tree capture and tree facts
+- OpenBot: `0/3 → 1/3`
+- OpenClaw: `2/3 → 3/3`
+- Hermes: `0/3 → 0/3`
+- OPD index: `2/3 → 2/3`
+
+This eliminated `markdown-list-source-assertions` from the current gap set without introducing inference.
+
+## Priority 1 — Exact Git tree capture and tree facts: NEXT
 
 **Gap addressed directly:** 1 requirement
 
@@ -66,9 +81,9 @@ For the OPD case, a non-recursive root tree is sufficient and preferable to infe
 
 Tree membership and Git object identities are `EvidenceFact`.
 
-### Why early
+### Why next
 
-Repository structure is foundational for later change intelligence and architecture profiling. It also closes a current source-role evidence gap with very little semantic risk.
+Repository structure is foundational for later change intelligence and architecture profiling. It closes a current source-role evidence gap with low semantic risk and removes the explicit-path capture blind spot before code-level analysis begins.
 
 ## Priority 1 — Durable commit metadata/change artifact
 
@@ -151,12 +166,12 @@ Any parser dependency must be pinned and treated as an extractor implementation 
 
 That gap label is a coverage category, not an implementation design. Encoding semantic conclusions directly as deterministic facts would collapse the Evidence → Observation boundary established by M−1.
 
-## Expected sequence
+## Current sequence
 
 ```text
-P0  Markdown structural assertions
+P0  Markdown structural assertions       COMPLETE — 6/12 coverage
         ↓
-P1  Git tree capture/facts
+P1  Git tree capture/facts               NEXT
         ↓
 P1  Commit metadata/change artifact
         ↓
@@ -164,14 +179,14 @@ P2  Python AST structural facts
         ↓
 P2  TypeScript comments + structural facts
         ↓
-rerun external coverage baseline
+rerun external coverage after each slice
 ```
 
-After each slice, rerun `external-golden-evidence-v1` and compare the new transient-ID-free report to the committed baseline. The goal is not to maximize a percentage mechanically; the goal is to recover the evidence necessary for the golden cases **without weakening epistemic typing**.
+After each slice, rerun `external-golden-evidence-v1` and compare the new transient-ID-free report to the preserved historical reports. The goal is not to maximize a percentage mechanically; the goal is to recover the evidence necessary for the golden cases **without weakening epistemic typing**.
 
 ## Explicitly deferred
 
-Still not justified by this coverage run:
+Still not justified by the measured gaps:
 
 - LLM-based code interpretation;
 - embeddings;
