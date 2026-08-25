@@ -75,7 +75,9 @@ def test_bundle_requires_comments_and_structural_facts() -> None:
     result = _assess_typescript_bundle(requirement, extracted_fixture())
     assert result.status == "recovered"
     assert result.check_kind == "typescript_evidence_bundle"
-    assert len(result.matched_locators) == 4
+    # Both comment fragments can be supported by the same source comment, and
+    # the result intentionally de-duplicates locators.
+    assert len(result.matched_locators) == 3
 
 
 def test_bundle_reports_missing_fact_without_promoting_comment() -> None:
