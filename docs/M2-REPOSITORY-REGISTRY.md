@@ -1,12 +1,13 @@
-# M2 — Repository registry resolution and evolution
+# M2 — Repository registry and governed tracking policy
 
 ## Status
 
-This slice implements the **identity/evolution half** of roadmap M2.
+The V1 M2 core is implemented in two slices:
 
-It does not complete all of M2: governed tracking levels `0–5` remain a separate M2 slice because they control capture depth, polling frequency, artifact classes, process/history evidence, and reasoning eligibility.
+1. **identity/evolution** — canonical GitHub repository identity plus immutable locator history;
+2. **tracking policy** — immutable tracking-level history plus deterministic operational eligibility.
 
-The implemented boundary is:
+The executable boundary is now:
 
 ```text
 DiscoveryChannel
@@ -19,84 +20,51 @@ DiscoveryResolution             immutable M2 resolution edge
        ↓
 Source                          stable canonical identity
        ↓
-RepositoryLocator*              append-only mutable provider state
+RepositoryLocator*              append-only provider-state history
+       ↓
+RepositoryTrackingAssignment*   append-only operational-policy history
+       ↓
+latest-effective TrackingPolicy
+       ↓
+capture / polling / process-history / reasoning eligibility
 ```
 
-For GitHub repositories, the stable identity key is GitHub's provider repository ID. Owner/name, canonical URL, default branch, archive state, and fork state are observations that may evolve without changing the canonical Source.
+Tracking policy is operational metadata. It does not alter evidence truth, validation state, repository relationship, or authorization.
 
-## Why M2 is a separate layer
+## Stable identity versus mutable provider state
 
-M1 records what a discovery channel surfaced. It deliberately permits unresolved hits:
+For GitHub repositories, the stable identity key is GitHub's provider repository ID.
 
-```text
-DiscoveryHit(
-    discovered_locator="owner/new-repo",
-    source_id=None,
-)
-```
+Owner/name, canonical URL, default branch, archive state, fork state, and optional fork-parent provider ID are mutable observations represented by `RepositoryLocator`.
 
-M1 cannot require a canonical Source before the hit exists, because that would make discovery circular with identity resolution.
-
-M2 therefore resolves a historical hit without rewriting it:
+A rename or transfer therefore produces a later locator for the same Source:
 
 ```text
-DiscoveryHit ──→ DiscoveryResolution ──→ Source
-                        │
-                        └──→ RepositoryLocator
-```
-
-A hit that was unresolved at discovery time remains unresolved **inside that historical M1 record**. The later resolution is represented by a new immutable edge.
-
-## Stable identity versus mutable locator state
-
-`RepositoryIdentity` remains the initial stable identity snapshot associated with a Source. M2 adds `RepositoryLocator` for mutable provider state.
-
-Example rename/transfer:
-
-```text
-hit A: old-owner/repo
+old-owner/repo      provider id 42
         ↓
 RepositoryLocator A
-  provider_id = 42
-  owner = old-owner
-  name = repo
         ↓
 Source github:42
-
-hit B: new-owner/renamed
-        ↓
+        ↑
 RepositoryLocator B
-  provider_id = 42
-  owner = new-owner
-  name = renamed
-        ↓
-same Source github:42
+        ↑
+new-owner/renamed   provider id 42
 ```
 
-The old hit, resolution, locator, Source, and seed `RepositoryIdentity` are not rewritten. Current provider state is obtained from the latest valid `RepositoryLocator` once locator history exists.
-
-This also applies to:
-
-- default-branch changes;
-- archive/unarchive state;
-- owner transfer;
-- repository rename;
-- repeated discovery through different channels or later runs.
+Historical `DiscoveryHit`, `DiscoveryResolution`, `RepositoryLocator`, `Source`, and seed `RepositoryIdentity` records are not rewritten.
 
 ## Fork boundary
 
-A fork is not a rename or alternate locator for its parent.
-
-GitHub gives the fork a distinct provider repository ID, therefore it receives a distinct Source:
+A fork is not an alternate locator for its parent.
 
 ```text
 parent provider id 42  → Source github:42
 fork   provider id 84  → Source github:84
 ```
 
-When GitHub exposes a parent repository ID, M2 records it as `RepositoryLocator.parent_provider_repository_id`. That relation does not collapse the two identities.
+When GitHub exposes the parent repository ID, M2 records it as `RepositoryLocator.parent_provider_repository_id`. The relation does not collapse the identities.
 
-## Durable contracts
+## Identity contracts
 
 ### `RepositoryLocator`
 
@@ -134,11 +102,7 @@ Current GitHub resolution method:
 github_provider_repository_id
 ```
 
-### Registry run provenance
-
-M2 adds `PipelineRun(run_type=registry)`.
-
-Every new locator/resolution generation is tied to a registry run with canonical input/output hashes, resolver policy version, code version, contract schema version, and timestamps.
+Each new identity-resolution generation is tied to `PipelineRun(run_type=registry)` provenance.
 
 ## Required M1 provenance
 
@@ -154,116 +118,232 @@ PipelineRun(run_type=discovery)
 DiscoveryHit
 ```
 
-A manually inserted `DiscoveryHit` without its channel/run/pipeline lineage cannot enter the registry.
+A manually inserted hit without its discovery lineage cannot enter the registry.
 
 ## Resolution semantics
 
 ### First unresolved hit
 
-For a hit with `source_id=null`, GitHub metadata supplies the stable provider ID.
+For a hit with `source_id=null`, provider metadata supplies the stable repository ID. If provider ID `42` has never been registered, M2 creates canonical Source `github:42`, a seed `RepositoryIdentity`, a `RepositoryLocator`, and a `DiscoveryResolution`.
 
-If provider ID `42` has never been registered, M2 creates:
-
-```text
-Source.source_id = github:42
-RepositoryIdentity.provider_repository_id = 42
-RepositoryLocator.provider_repository_id = 42
-DiscoveryResolution.source_id = github:42
-```
-
-The Source's `first_seen_at` comes from the M1 `DiscoveryRun.observed_at`, not from the later registry execution time.
-
-### Hit already linked to a Source
-
-If M1 already knew a Source, M2 validates that Source and binds its `RepositoryIdentity` to the provider ID when needed.
-
-If the same provider ID is already bound to another Source, resolution fails closed.
+The Source's `first_seen_at` is inherited from the M1 `DiscoveryRun.observed_at`, not from the later registry execution time.
 
 ### Exact replay
 
-Resolving the same historical hit again with the identical provider ID and mutable state is idempotent. M2 returns the existing resolution, locator, and registry run rather than creating a duplicate generation.
+Resolving the same historical hit again with identical provider identity and mutable state is idempotent.
 
 ### Changed state on the same hit
 
-The same historical hit may not be re-resolved with changed owner/name/default-branch/archive/fork state.
-
-That attempt is rejected. A new provider observation requires a new discovery hit so chronology remains explicit.
+A historical hit may not be re-resolved with changed mutable repository state. The attempt is rejected.
 
 ### Changed state on a later hit
 
-A later hit with the same provider ID creates a new locator/resolution generation that points to the same Source.
+A later hit with the same provider ID creates a later locator/resolution generation for the same Source. This is the supported rename/transfer/default-branch/archive evolution path.
 
-This is the supported rename/transfer/evolution path.
+## Registry-aware repository capture
 
-## Registry-aware capture
+The original M0 `GitHubCaptureService` remains fail-closed on metadata drift.
 
-The original M0 `GitHubCaptureService` remains deliberately fail-closed on repository metadata drift.
+`RegistryAwareGitHubCaptureService` accepts mutable state only when the latest validated `RepositoryLocator` matches the incoming provider state and is backed by the expected registry provenance.
 
-M2 adds `RegistryAwareGitHubCaptureService` rather than weakening that original contract.
+Once a Source has M2 locator history, an older locator cannot regain authority merely because incoming metadata happens to match the original seed identity.
 
-Its rule is:
+## Tracking-level contract
 
-> Once a Source has M2 locator history, a registry-aware capture must match the latest validated RepositoryLocator.
+M2 adds `RepositoryTrackingAssignment` as an immutable operational-policy history record:
 
-A locator can authorize capture only when:
+- `tracking_assignment_id`
+- `source_id`
+- `level`
+- `effective_at`
+- `recorded_at`
+- `assigned_by`
+- `reason`
+- `policy_version`
+- `supersedes_tracking_assignment_id`
 
-1. it is the latest locator for that Source;
-2. its incoming provider/owner/name/default-branch/archive state matches the GitHub metadata being captured;
-3. its `pipeline_run_id` resolves to `PipelineRun(run_type=registry)`;
-4. exactly one `DiscoveryResolution` binds that locator, Source, and registry run.
+`assigned_by` records the governance identity supplied by the caller. The tracking service does **not** authenticate that identity and does not turn it into authorization. Authentication/authorization remains an external responsibility.
 
-An older locator cannot become authoritative again merely because incoming metadata happens to equal the original immutable `Source` or `RepositoryIdentity` snapshot.
+Tracking assignments are not evidence and must never be used to make a claim more or less true.
 
-This was caught by regression testing: the first registry-aware implementation incorrectly accepted stale seed state after a newer locator existed. The rule above closes that hole.
+## Tracking levels
 
-## Provider-ID invariants
+The deterministic V1 policy is:
 
-The registry fails closed when:
+| Level | Name | Capture depth | Polling mode | Process current/history | Reasoning eligible |
+| --- | --- | --- | --- | --- | --- |
+| `0` | Ignore | none | never | no / no | no |
+| `1` | Metadata only | metadata | metadata | no / no | no |
+| `2` | Shallow | shallow | revision | no / no | no |
+| `3` | Structural | structural | revision | no / no | yes |
+| `4` | Deep | deep | revision | yes / yes | yes |
+| `5` | Continuous | deep | continuous | yes / yes | yes |
 
-- one provider repository ID maps to multiple Sources;
-- a known Source is already bound to a different provider repository ID;
-- a historical hit has already been resolved to another provider ID;
-- an existing resolution is missing its locator, Source, identity, or registry run;
-- a resolution points to a non-registry `PipelineRun`;
-- GitHub metadata omits stable identity fields;
-- the discovery locator is not a single GitHub `owner/name` repository.
+Artifact-class eligibility progresses as follows:
 
-The provider repository ID itself is not treated as mutable identity state.
+```text
+0  none
+1  repository metadata
+2  + explicit files + commit metadata
+3  + Git tree + deterministic structure
+4  + current process + process history + workflow runs
+5  same deep artifact classes, continuous-monitoring eligibility
+```
+
+`continuous` is a polling **mode**, not a fixed time interval. M2 intentionally does not invent polling cadence before a scheduler/budget policy exists.
+
+## Unassigned Source behavior
+
+A Source with no tracking assignment fails closed operationally as level `0`.
+
+That default is **not persisted as a fabricated assignment**. Therefore these states remain distinguishable:
+
+```text
+no assignment          → effective level 0, assignment_id = null
+explicit level-0 record → effective level 0, assignment_id != null
+```
+
+The distinction matters for auditability.
+
+## Effective-time semantics
+
+`repository-tracking.v1` accepts only immediately effective **new** assignments.
+
+Future scheduling and backdating are rejected because they require explicit cancellation/correction semantics. Allowing them without those semantics would make an append-only timeline operationally ambiguous.
+
+Exact replay of an existing assignment remains idempotent even when replayed later.
+
+Historical policy queries remain supported through `latest_effective(source_id, as_of=...)`.
+
+## History invariants
+
+The tracking service fails closed when:
+
+- the Source does not exist;
+- a new assignment attempts future scheduling or backdating;
+- one effective timestamp is reused with different assignment content;
+- the tracking clock moves backward relative to existing history;
+- history contains multiple records at the same latest effective timestamp.
+
+Each accepted change links to the previously recorded assignment using `supersedes_tracking_assignment_id` while preserving that prior record unchanged.
+
+## Policy consumers
+
+M2 provides tracking-aware adapters rather than weakening existing services.
+
+### Repository metadata
+
+`TrackingAwareGitHubRepositoryMetadataCaptureService` requires level `1+` and the `repository_metadata` artifact class before the existing repository-metadata snapshot path reaches its provider reader.
+
+The existing metadata path is revision-anchored. Therefore level `1` policy is executable for a Source that already has a `SourceRevision`; this slice does not invent a pre-revision metadata scheduler. That bootstrap/scheduling concern belongs to the M3 and scheduler reconciliation.
+
+### Explicit repository files
+
+`TrackingAwareGitHubCaptureService` requires level `2+` and the `explicit_files` artifact class before the existing registry-aware repository-file capture path proceeds beyond repository identity lookup.
+
+### Git commit metadata
+
+`TrackingAwareGitHubCommitCaptureService` requires level `2+` and the `commit_metadata` artifact class before the provider commit read.
+
+### Git root tree
+
+`TrackingAwareGitHubRootTreeCaptureService` requires level `3+` and the `git_tree` artifact class before the provider tree read.
+
+### Current issue / pull-request snapshots
+
+`TrackingAwareGitHubProcessCaptureService` requires deep tracking (`4` or `5`) before provider reads occur.
+
+### Issue-event history
+
+`TrackingAwareGitHubProcessEventCaptureService` requires deep tracking (`4` or `5`) before historical provider reads occur.
+
+### Workflow-run evidence
+
+`TrackingAwareGitHubWorkflowCaptureService` requires deep tracking (`4` or `5`) and the `workflow_runs` artifact class before workflow provider reads occur.
+
+### Source-local Observation construction
+
+`TrackingAwareObservationConstructionService` resolves support provenance to its SourceRevision and requires structural-or-deeper tracking (`3`, `4`, or `5`) **before** persisting a candidate Observation.
+
+Tracking level makes a reasoning path eligible; it does not validate, promote, or authorize the resulting claim.
+
+### Deterministic structure extraction
+
+The policy exposes `deterministic_structure` eligibility from level `3`, but existing deterministic extractors remain replayable over already-captured artifacts. This slice gates capture and reasoning entry points rather than making historical evidence extraction depend on today's tracking level.
+
+### Polling
+
+`RepositoryTrackingService.policy_for()` exposes one deterministic `PollingMode`:
+
+```text
+never
+metadata
+revision
+continuous
+```
+
+No polling scheduler is implemented in this slice. A future scheduler must consume this policy rather than duplicating tracking semantics.
+
+## Persistence registration
+
+`RepositoryTrackingAssignment` is an additive M2 contract registered with the generic contract-type registry at package import. Typed SQLite persistence therefore supports both normal typed round trips and `get_untyped()` reconstruction without changing the frozen M0 schema version.
 
 ## Validation
 
-The branch-local full suite reached **131 passed** after the registry-aware capture freshness correction.
+The first tracking implementation passed the permanent PR suite at **147 tests**.
+
+Review then exposed a future-scheduling governance ambiguity: a scheduled promotion could become difficult to cancel safely while preserving monotonic effective history. V1 was narrowed to immediate-only assignments and the tests were revised accordingly. The corrected tracking/history and initial adapter set reached **148 passed**.
+
+A final capture-surface audit then added policy adapters and pre-provider-read tests for repository metadata, commit metadata, Git root-tree capture, and workflow-run capture. Permanent PR workflow run `32912533399` passed **152 tests in 1.58s** on head `3b29af8e4da4075416fdc6b0f19fe2dab5169722`.
 
 The test matrix covers:
 
-- unresolved hit → canonical Source creation;
-- complete M1 lineage requirement;
-- typed registry persistence and producing-run provenance;
+- unassigned fail-closed behavior without fake history;
+- all six policy levels;
+- immutable append-only history;
+- supersession lineage;
+- historical `as_of` lookup;
 - exact replay idempotence;
-- same-hit state rewrite rejection;
-- rename/transfer/default-branch/archive evolution via later hits;
-- known-Source reuse;
-- provider-ID collision rejection;
-- fork identity separation and parent-provider relation;
-- M0 capture remaining fail-closed without M2 history;
-- capture succeeding after matching M2 history exists;
-- stale older locator rejection once a newer locator exists.
+- same-effective-time rewrite rejection;
+- future scheduling rejection;
+- backdating rejection;
+- generic untyped persistence reconstruction;
+- repository metadata blocked below level 1 and admitted to the provider read at level 1;
+- explicit repository-file capture blocked below level 2 and allowed at level 2;
+- commit metadata blocked below level 2 and admitted to the provider read at level 2;
+- Git root-tree capture blocked below level 3 and admitted to the provider read at level 3;
+- workflow-run capture blocked below level 4 and admitted to the provider read at level 4;
+- current process snapshot/history gates before provider reads below level 4;
+- reasoning blocked below level 3 before candidate persistence;
+- reasoning allowed at level 3 while the resulting Observation remains `candidate`.
 
-Live validation is intentionally non-destructive. Through the authorized GitHub connection, `ElephantRock/LemmaMind` currently resolves to provider repository ID `1345295505`, owner/name `ElephantRock/LemmaMind`, default branch `main`, `archived=false`, and `fork=false`.
+Identity/evolution validation remains non-destructive. The prior live provider checkpoint for `ElephantRock/LemmaMind` established provider repository ID `1345295505`, owner/name `ElephantRock/LemmaMind`, default branch `main`, `archived=false`, and `fork=false`. No upstream repository was renamed, transferred, archived, or forked solely for validation.
 
-No repository was renamed, transferred, archived, or forked solely to demonstrate this feature. Those evolution semantics are covered by deterministic tests rather than by unnecessary source mutation.
+Tracking-level validation is local and deterministic; no production tracking assignment is fabricated merely to demonstrate the feature.
 
-See `eval/pilot/registry-reports/lemmamind-provider-identity-v1.md`.
+## M2 boundary after this slice
 
-## Deferred within M2
+The V1 M2 core now covers:
 
-This slice does not yet implement:
+- canonical provider identity;
+- repeated discovery resolution;
+- rename/transfer/default-branch/archive evolution;
+- fork identity separation;
+- current-locator enforcement for registry-aware capture;
+- immutable governed tracking-level history;
+- deterministic latest-effective tracking policy;
+- policy gating across the current repository metadata/file/commit/tree/process/history/workflow capture surface;
+- source-local reasoning eligibility gates;
+- polling-mode output for a future scheduler.
 
-- governed tracking-level history (`0` through `5`);
-- tracking-level policy effects on capture depth or polling;
+Still deferred beyond this core:
+
+- scheduler cadence and budget policy;
+- pre-revision metadata-only scheduling/bootstrap;
 - automatic resolution of every discovery channel in one scheduler;
-- webhook-driven rename/transfer observation;
-- mutable repository relationship reconciliation as part of the registry loop;
-- provider-independent identity adapters beyond GitHub.
+- webhook-driven provider-state observation;
+- mutable `RepositoryRelationship` reconciliation inside the registry loop;
+- provider-independent identity adapters beyond GitHub;
+- tracking-policy UI and authenticated policy writers.
 
-The next justified V1 slice is therefore the remaining M2 **tracking-level contract and history**, not M3 reimplementation and not additional M8/M9 synthesis.
+The next roadmap milestone is **M3 Revision Capture**. Existing M0 revision/capture capabilities should be reconciled to the M3 gate rather than reimplemented blindly.
