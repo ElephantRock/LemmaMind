@@ -1,0 +1,49 @@
+{
+  "all_policy_outputs_non_authorized": true,
+  "analysis_anchor_commit_sha": "65d739736070bbebe7941bebfbee785d33499c46",
+  "analysis_anchor_source_revision_id": "github:1330427174@65d739736070bbebe7941bebfbee785d33499c46",
+  "case_id": "resonance-world-confirmatory",
+  "evaluations": {
+    "preserve": {
+      "decision": "recommended",
+      "status": "recommended"
+    },
+    "promote": {
+      "authorization_required": true,
+      "decision": "requires_authorization",
+      "status": "recommended"
+    },
+    "provider_self_classify": {
+      "decision": "blocked",
+      "status": "rejected"
+    },
+    "rerun": {
+      "authorization_required": false,
+      "decision": "blocked",
+      "status": "rejected"
+    },
+    "separate_evaluator_classify": {
+      "decision": "recommended",
+      "status": "recommended"
+    }
+  },
+  "governance_evidence": {
+    "confirmatory_rerun_allowed": false,
+    "promotion_requires_independent_acceptance": true,
+    "separate_evaluator_only_classifier": true
+  },
+  "interpretation_boundary": "This probe validates operational policy against explicit captured governance rules. It does not execute an action, infer authorization from repository ownership, or grant independent Acceptance-plane authority.",
+  "live_validation_run_id": 32865837892,
+  "repository": "ElephantRock/Resonance-World",
+  "repository_relationship": {
+    "can_contribute": true,
+    "can_write": true,
+    "type": "OWNED"
+  },
+  "schema_version": "lemmamind.action-policy-probe.v1",
+  "workflow_run": {
+    "artifact_count": 0,
+    "conclusion": "cancelled",
+    "run_id": 31895957256
+  }
+}
