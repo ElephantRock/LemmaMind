@@ -132,7 +132,7 @@ class ArchitectureProfilingService:
 
         feature_keys = self._feature_keys(extractor_families, media_types)
         created_at = self._aware_now()
-        profiling_run_id = f"run:{self.id_factory()}"
+        profiling_run_id = f"run:profiling:{self.id_factory()}"
         profile_id = f"architecture-profile:{self.id_factory()}"
 
         inputs = {
@@ -352,7 +352,7 @@ class DeterministicTriageService:
         else:
             band = TriageBand.WATCH
 
-        triage_run_id = f"run:{self.id_factory()}"
+        triage_run_id = f"run:triage:{self.id_factory()}"
         assessment_id = f"triage:{self.id_factory()}"
         assessment = TriageAssessment(
             triage_assessment_id=assessment_id,
