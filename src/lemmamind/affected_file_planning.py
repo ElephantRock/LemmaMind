@@ -188,7 +188,7 @@ class AffectedFileCapturePlanner:
         )
         run = PipelineRun(
             run_id=run_id,
-            run_type=RunType.CAPTURE,
+            run_type=RunType.OTHER,
             code_version=self.code_version,
             contract_schema_version=CONTRACT_SCHEMA_VERSION,
             policy_version=self.policy_version,
