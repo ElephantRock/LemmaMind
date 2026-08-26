@@ -16,7 +16,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Iterable, Protocol
 
 from .change_contracts import (
     ArtifactDelta,
@@ -32,6 +32,7 @@ from .contracts import (
     RunType,
     SourceAssertion,
 )
+from .extraction import ArtifactExtractor
 from .objects import ContentAddressedFileStore
 from .revision_capture import (
     CaptureReconstructionService,
@@ -96,11 +97,24 @@ class DeterministicChangeService:
         *,
         previous_extraction_run_id: str | None = None,
         current_extraction_run_id: str | None = None,
+        artifact_extractors: Iterable[ArtifactExtractor] | None = None,
     ) -> DeterministicChangeResult:
         if (previous_extraction_run_id is None) != (current_extraction_run_id is None):
             raise ValueError(
                 "previous_extraction_run_id and current_extraction_run_id must be supplied together"
             )
+        if previous_extraction_run_id is not None and artifact_extractors is None:
+            raise ValueError(
+                "artifact_extractors is required for structural comparison so extraction "
+                "run inputs can be verified exactly"
+            )
+
+        extractor_profile = (
+            () if artifact_extractors is None else tuple(artifact_extractors)
+        )
+        if artifact_extractors is not None and not extractor_profile:
+            raise ValueError("artifact_extractors must not be empty for structural comparison")
+        extractor_descriptors = self._extractor_descriptors(extractor_profile)
 
         started_at = self._aware_now()
         previous = self.reconstruction.reconstruct(previous_capture_id)
@@ -118,6 +132,7 @@ class DeterministicChangeService:
                 artifact_deltas,
                 previous_extraction_run_id,
                 current_extraction_run_id,
+                extractor_descriptors,
                 run_id,
             )
 
@@ -129,6 +144,7 @@ class DeterministicChangeService:
                 "current_source_revision_id": current.revision.source_revision_id,
                 "previous_extraction_run_id": previous_extraction_run_id,
                 "current_extraction_run_id": current_extraction_run_id,
+                "artifact_extractors": extractor_descriptors,
                 "policy_version": self.policy_version,
                 "artifact_inputs": {
                     "previous": [self._artifact_state(item) for item in previous.artifacts],
@@ -270,13 +286,14 @@ class DeterministicChangeService:
         artifact_deltas: tuple[ArtifactDelta, ...],
         previous_extraction_run_id: str,
         current_extraction_run_id: str,
+        extractor_descriptors: tuple[dict[str, str], ...],
         run_id: str,
     ) -> tuple[StructuralDelta, ...]:
         previous_run, previous_facts = self._extraction_generation(
-            previous, previous_extraction_run_id
+            previous, previous_extraction_run_id, extractor_descriptors
         )
         current_run, current_facts = self._extraction_generation(
-            current, current_extraction_run_id
+            current, current_extraction_run_id, extractor_descriptors
         )
         self._require_compatible_extraction_runs(previous_run, current_run)
 
@@ -354,6 +371,7 @@ class DeterministicChangeService:
         self,
         capture: ReconstructedCapture,
         run_id: str,
+        extractor_descriptors: tuple[dict[str, str], ...],
     ) -> tuple[PipelineRun, tuple[EvidenceFact, ...]]:
         run = self.store.get(PipelineRun, run_id)
         if run is None:
@@ -367,15 +385,23 @@ class DeterministicChangeService:
                 f"structural comparison requires completed extraction runs: {run_id}"
             )
 
+        expected_inputs_hash = self._digest_json(
+            {
+                "capture_manifest": capture.manifest.model_dump(mode="json", by_alias=True),
+                "artifact_extractors": list(extractor_descriptors),
+                "policy_version": run.policy_version,
+            }
+        )
+        if run.inputs_hash != expected_inputs_hash:
+            raise ChangeIntelligenceError(
+                f"extraction run {run_id} does not match the supplied capture/extractor profile"
+            )
+
         facts = tuple(fact for fact in self.store.list(EvidenceFact) if fact.run_id == run_id)
         assertions = tuple(
             item for item in self.store.list(SourceAssertion) if item.run_id == run_id
         )
         evidence_records: tuple[Any, ...] = (*facts, *assertions)
-        if not evidence_records:
-            raise ChangeIntelligenceError(
-                f"cannot bind empty extraction run to capture: {run_id}"
-            )
 
         allowed_artifact_ids = {
             item.artifact_id for item in capture.artifacts if item.is_captured
@@ -449,6 +475,19 @@ class DeterministicChangeService:
                 )
             result[key] = fact
         return result
+
+    @staticmethod
+    def _extractor_descriptors(
+        extractors: tuple[ArtifactExtractor, ...],
+    ) -> tuple[dict[str, str], ...]:
+        descriptors: list[dict[str, str]] = []
+        for extractor in extractors:
+            name = getattr(extractor, "name", None)
+            version = getattr(extractor, "version", None)
+            if not isinstance(name, str) or not name or not isinstance(version, str) or not version:
+                raise ValueError("artifact_extractors must expose non-empty name/version strings")
+            descriptors.append({"name": name, "version": version})
+        return tuple(descriptors)
 
     def _aware_now(self) -> datetime:
         value = self.clock()
