@@ -67,6 +67,8 @@ def seed_capture(
     revision: SourceRevision,
     capture_id: str,
     entries: dict[str, bytes | None],
+    *,
+    captured_at: datetime | None = None,
 ) -> CaptureManifest:
     artifacts = []
     refs = []
@@ -103,7 +105,7 @@ def seed_capture(
         capture_id=capture_id,
         source_revision_id=revision.source_revision_id,
         capture_policy_version="test.capture.v1",
-        captured_at=revision.observed_at + timedelta(seconds=1),
+        captured_at=captured_at or (revision.observed_at + timedelta(seconds=1)),
         artifacts=tuple(refs),
     )
     store.put_many((*artifacts, manifest))
@@ -197,7 +199,7 @@ def test_artifact_delta_distinguishes_scope_availability_and_content(tmp_path) -
     assert len(store.list(ArtifactDelta)) == 5
 
 
-def test_real_extractor_generations_produce_modified_structural_deltas(tmp_path) -> None:
+def test_real_extractor_generations_produce_add_remove_and_modify_deltas(tmp_path) -> None:
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     objects = ContentAddressedFileStore(tmp_path / "objects")
     previous_revision = seed_revision(store, suffix="a", observed_at=T0)
@@ -209,6 +211,7 @@ def test_real_extractor_generations_produce_modified_structural_deltas(tmp_path)
             "name": "demo",
             "dependencies": {"alpha": "^1"},
             "scripts": {"test": "pytest"},
+            "engines": {"node": ">=20"},
         },
         separators=(",", ":"),
     ).encode()
@@ -217,6 +220,7 @@ def test_real_extractor_generations_produce_modified_structural_deltas(tmp_path)
             "name": "demo",
             "dependencies": {"alpha": "^2"},
             "scripts": {"build": "tsc", "test": "pytest"},
+            "packageManager": "pnpm@10",
         },
         separators=(",", ":"),
     ).encode()
@@ -260,18 +264,21 @@ def test_real_extractor_generations_produce_modified_structural_deltas(tmp_path)
     structural = {item.structural_key: item for item in result.structural_deltas}
     assert set(structural) == {
         "package-json@1:#dependencies",
+        "package-json@1:#engines",
+        "package-json@1:#packageManager",
         "package-json@1:#scripts",
     }
-    assert all(
-        item.change_type is StructuralDeltaType.MODIFIED for item in structural.values()
-    )
+    assert structural["package-json@1:#dependencies"].change_type is StructuralDeltaType.MODIFIED
+    assert structural["package-json@1:#scripts"].change_type is StructuralDeltaType.MODIFIED
+    assert structural["package-json@1:#engines"].change_type is StructuralDeltaType.REMOVED
+    assert structural["package-json@1:#packageManager"].change_type is StructuralDeltaType.ADDED
     assert structural["package-json@1:#dependencies"].previous_value == {"alpha": "^1"}
     assert structural["package-json@1:#dependencies"].current_value == {"alpha": "^2"}
     assert structural["package-json@1:#scripts"].previous_value == ["test"]
     assert structural["package-json@1:#scripts"].current_value == ["build", "test"]
-    assert all(item.previous_evidence_id for item in result.structural_deltas)
-    assert all(item.current_evidence_id for item in result.structural_deltas)
-    assert len(store.list(StructuralDelta)) == 2
+    assert structural["package-json@1:#engines"].current_evidence_id is None
+    assert structural["package-json@1:#packageManager"].previous_evidence_id is None
+    assert len(store.list(StructuralDelta)) == 4
 
 
 def test_normalized_structure_suppresses_formatting_only_artifact_churn(tmp_path) -> None:
@@ -464,7 +471,9 @@ def test_structural_comparison_rejects_extractor_generation_drift(tmp_path) -> N
         )
 
 
-def test_change_comparison_rejects_cross_source_and_reverse_time(tmp_path) -> None:
+def test_change_comparison_rejects_cross_source_revision_and_capture_time_reversal(
+    tmp_path,
+) -> None:
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     objects = ContentAddressedFileStore(tmp_path / "objects")
     early = seed_revision(store, suffix="a", observed_at=T0)
@@ -487,8 +496,30 @@ def test_change_comparison_rejects_cross_source_and_reverse_time(tmp_path) -> No
 
     with pytest.raises(ChangeIntelligenceError, match="same Source"):
         service.compare_captures("capture:early", "capture:other")
-    with pytest.raises(ChangeIntelligenceError, match="must not be newer"):
+    with pytest.raises(ChangeIntelligenceError, match="SourceRevision"):
         service.compare_captures("capture:late", "capture:early")
+
+    same_revision = seed_revision(
+        store, suffix="d", observed_at=T0 + timedelta(minutes=4)
+    )
+    seed_capture(
+        store,
+        objects,
+        same_revision,
+        "capture:newer",
+        {"README.md": b"newer\n"},
+        captured_at=T0 + timedelta(minutes=6),
+    )
+    seed_capture(
+        store,
+        objects,
+        same_revision,
+        "capture:older",
+        {"README.md": b"older\n"},
+        captured_at=T0 + timedelta(minutes=5),
+    )
+    with pytest.raises(ChangeIntelligenceError, match="CaptureManifest"):
+        service.compare_captures("capture:newer", "capture:older")
 
 
 def test_change_contracts_are_available_through_generic_store_registry(tmp_path) -> None:
