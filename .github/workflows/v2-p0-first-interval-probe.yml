@@ -34,15 +34,17 @@ jobs:
           from lemmamind.change_intelligence import DeterministicChangeService
           from lemmamind.contracts import SourceRole
           from lemmamind.extraction import DeterministicExtractionService
-          from lemmamind.github import GitHubCaptureService, GitHubRESTReader
+          from lemmamind.git_tree import GitHubTreeRESTReader, GitTreeEvidenceService
+          from lemmamind.github import GitHubCaptureService
           from lemmamind.objects import ContentAddressedFileStore
           from lemmamind.profiling import ArchitectureProfilingService, DeterministicTriageService
           from lemmamind.storage import SQLiteContractStore
           from lemmamind.tracking import RepositoryTrackingService
+          from lemmamind.tracking_adapters import TrackingAwareGitHubRootTreeCaptureService
           from lemmamind.tracking_contracts import TrackingLevel
           from lemmamind.typescript_ast import typescript_aware_extractors
 
-          class CountingGitHubRESTReader(GitHubRESTReader):
+          class CountingGitHubTreeRESTReader(GitHubTreeRESTReader):
               def __init__(self, *args, **kwargs):
                   super().__init__(*args, **kwargs)
                   self.api_requests = 0
@@ -50,6 +52,33 @@ jobs:
               def _get_json(self, path, query=None):
                   self.api_requests += 1
                   return super()._get_json(path, query)
+
+          def root_entry_changes(objects, previous_artifact, current_artifact):
+              previous_doc = json.loads(objects.get(previous_artifact.content_hash).decode("utf-8"))
+              current_doc = json.loads(objects.get(current_artifact.content_hash).decode("utf-8"))
+              previous_entries = {item["path"]: item for item in previous_doc["entries"]}
+              current_entries = {item["path"]: item for item in current_doc["entries"]}
+              changes = []
+              for path in sorted(set(previous_entries) | set(current_entries)):
+                  old = previous_entries.get(path)
+                  new = current_entries.get(path)
+                  if old == new:
+                      continue
+                  if old is None:
+                      change_type = "added"
+                  elif new is None:
+                      change_type = "removed"
+                  else:
+                      change_type = "modified"
+                  changes.append({
+                      "path": path,
+                      "change_type": change_type,
+                      "previous_type": None if old is None else old["type"],
+                      "current_type": None if new is None else new["type"],
+                      "previous_sha": None if old is None else old["sha"],
+                      "current_sha": None if new is None else new["sha"],
+                  })
+              return changes
 
           intervals = [
               {
@@ -82,7 +111,7 @@ jobs:
                   root = Path(directory)
                   store = SQLiteContractStore(root / "lemmamind.db")
                   objects = ContentAddressedFileStore(root / "objects")
-                  reader = CountingGitHubRESTReader(token=os.environ.get("GITHUB_TOKEN"))
+                  reader = CountingGitHubTreeRESTReader(token=os.environ.get("GITHUB_TOKEN"))
                   capture = GitHubCaptureService(reader, store, objects)
 
                   previous = capture.capture_repository(
@@ -99,6 +128,43 @@ jobs:
                   )
                   assert previous.revision.commit_sha == spec["baseline"]
                   assert current.revision.commit_sha == spec["current"]
+
+                  tracking = RepositoryTrackingService(store)
+                  assignment = tracking.assign_level(
+                      current.source.source_id,
+                      TrackingLevel.DEEP,
+                      assigned_by="v2-p0-first-interval-probe",
+                      reason="ephemeral local-only V2-P0 evaluation assignment",
+                  )
+
+                  tree_capture = TrackingAwareGitHubRootTreeCaptureService(
+                      reader,
+                      store,
+                      objects,
+                      tracking=tracking,
+                  )
+                  previous_tree_capture = tree_capture.capture_root_tree(
+                      previous.revision.source_revision_id
+                  )
+                  current_tree_capture = tree_capture.capture_root_tree(
+                      current.revision.source_revision_id
+                  )
+                  tree_change = DeterministicChangeService(store, objects).compare_captures(
+                      previous_tree_capture.manifest.capture_id,
+                      current_tree_capture.manifest.capture_id,
+                  )
+                  top_level_changes = root_entry_changes(
+                      objects,
+                      previous_tree_capture.artifact,
+                      current_tree_capture.artifact,
+                  )
+                  tree_evidence = GitTreeEvidenceService(store, objects)
+                  previous_tree_extract = tree_evidence.extract_root_tree(
+                      previous_tree_capture.manifest.capture_id
+                  )
+                  current_tree_extract = tree_evidence.extract_root_tree(
+                      current_tree_capture.manifest.capture_id
+                  )
 
                   extraction = DeterministicExtractionService(
                       store,
@@ -118,16 +184,9 @@ jobs:
 
                   profile = ArchitectureProfilingService(store).build_profile(
                       current.revision.source_revision_id,
-                      evidence_run_ids=(current_extract.run.run_id,),
+                      evidence_run_ids=(current_extract.run.run_id, current_tree_extract.run.run_id),
                   ).profile
 
-                  tracking = RepositoryTrackingService(store)
-                  assignment = tracking.assign_level(
-                      current.source.source_id,
-                      TrackingLevel.DEEP,
-                      assigned_by="v2-p0-first-interval-probe",
-                      reason="ephemeral local-only V2-P0 evaluation assignment",
-                  )
                   triage = DeterministicTriageService(store, tracking).assess(
                       profile.architecture_profile_id,
                       domain_match=True,
@@ -140,7 +199,12 @@ jobs:
 
                   unique_hashes = {
                       artifact.content_hash
-                      for artifact in (*previous.artifacts, *current.artifacts)
+                      for artifact in (
+                          *previous.artifacts,
+                          *current.artifacts,
+                          previous_tree_capture.artifact,
+                          current_tree_capture.artifact,
+                      )
                   }
                   retained_bytes = sum(len(objects.get(content_hash)) for content_hash in unique_hashes)
 
@@ -152,6 +216,15 @@ jobs:
                       "previous_tree": previous.revision.tree_sha,
                       "current_tree": current.revision.tree_sha,
                       "tree_changed": previous.revision.tree_sha != current.revision.tree_sha,
+                      "root_tree_artifact_deltas": [
+                          {
+                              "source_locator": item.source_locator,
+                              "change_type": item.change_type.value,
+                          }
+                          for item in tree_change.artifact_deltas
+                      ],
+                      "root_tree_top_level_changes": top_level_changes,
+                      "root_tree_fact_count": len(current_tree_extract.facts),
                       "requested_paths": list(spec["paths"]),
                       "previous_status": {
                           item.source_locator: item.retrieval_status.value
@@ -195,7 +268,7 @@ jobs:
                   })
 
           payload = {
-              "probe": "V2-P0 first prospective deterministic intervals",
+              "probe": "V2-P0 first prospective deterministic intervals with root-tree evidence",
               "interval_count": len(reports),
               "reports": reports,
           }
