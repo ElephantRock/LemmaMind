@@ -7,6 +7,7 @@ from .change_contracts import (
     StructuralDeltaType,
 )
 from .contracts import CONTRACT_SCHEMA_VERSION
+from .path_change_contracts import ChangeSurface, GitPathDelta, GitPathDeltaType
 from .profile_contracts import (
     ArchitectureProfile,
     TriageAssessment,
@@ -21,7 +22,10 @@ __all__ = [
     "ArchitectureProfile",
     "ArtifactDelta",
     "ArtifactDeltaType",
+    "ChangeSurface",
     "CONTRACT_SCHEMA_VERSION",
+    "GitPathDelta",
+    "GitPathDeltaType",
     "RepositoryTrackingAssignment",
     "ReviewFeedback",
     "StructuralDelta",
