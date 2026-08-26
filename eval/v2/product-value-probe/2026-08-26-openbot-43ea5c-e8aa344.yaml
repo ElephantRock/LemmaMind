@@ -1,0 +1,119 @@
+schema_version: v2-p0-1
+record_id: v2-p0-openbot-43ea5c-e8aa344
+supersedes: null
+
+source:
+  repository: CopilotKit/OpenBot
+  source_id: null
+  tracking_level: "4"
+
+interval:
+  previous_revision: 43ea5c11210c485551c25b41a4270c56a58591f1
+  fresh_revision: e8aa34451f73ef2719c22cc557be369d9ea70afb
+  previous_observed_at: 2026-08-26T15:28:21Z
+  fresh_observed_at: 2026-08-26T21:39:00Z
+  selected_prospectively: true
+  selection_notes: >-
+    The interval begins at the frozen V2-P0 baseline. The fresh revision was
+    observed after the baseline without selecting it for a known outcome.
+
+runs:
+  capture_run_id: null
+  extraction_run_id: null
+  change_run_id: null
+  profile_run_id: null
+  triage_run_id: null
+  review_run_id: null
+
+probe_provenance:
+  workflow_run_id: 33017750243
+  workflow_job_id: 98340261443
+  probe_commit: 8acbf021672dcbc1f4d3d2e3bd2d7bb6ec6f71b0
+  pytest_result: "202 passed"
+  note: >-
+    Individual pipeline IDs were created in an ephemeral workflow-local SQLite
+    store and were not retained. The workflow run and probe commit are the
+    durable execution provenance for this evaluation record.
+
+triage:
+  route: review
+  reasons: [deep_tracking, domain_match, evidence_rich, tracking_active]
+  human_judgment: RIGHT_PRIORITY
+
+surfaced_candidates:
+  - candidate_id: root-tree-change
+    summary: >-
+      Exact root-tree evidence changed. Top-level changes were localized to
+      .github, CHANGELOG.md, app, charts, and server. The prospectively selected
+      README.md and server/src/tenant-package.ts inputs were unchanged and
+      produced zero StructuralDelta records.
+    value_judgment: LOW_SIGNAL
+    evidence_usefulness: HELPFUL
+    decision_effects: [NO_DECISION_EFFECT]
+    notes: >-
+      The evidence correctly proved that the repository changed and narrowed the
+      broad affected surface, but it did not identify a mechanism worth review.
+
+important_misses:
+  - summary: >-
+      The interval added an attention inbox derived from existing append-only
+      refusal/stall audit events, with separate attributed resolution state and
+      a user-facing attention surface.
+    source_locator: git:commit:e8aa34451f73ef2719c22cc557be369d9ea70afb
+    desired_priority: high
+    notes: >-
+      This is directly relevant to LemmaMind's future attention-budgeted review
+      queue and should have been surfaced as a meaningful mechanism rather than
+      only as a broad server/app tree change.
+  - summary: >-
+      A policy dry-run path tested a boundary rule against historical judged
+      actions before saving it, without writing audit decisions during the dry run.
+    source_locator: git:commit:3c1a067ef2371298135ed4a879c670368022ec5f
+    desired_priority: high
+    notes: >-
+      This is relevant to evidence-bound governance and policy evaluation.
+  - summary: >-
+      Routing decisions gained named undecided causes such as unreachable,
+      unparsed, off-roster, unconfident, and one-candidate without changing the
+      routing decision itself.
+    source_locator: git:commit:50949d6eda31b34f2cbf56f81d127750c47c7291
+    desired_priority: medium
+    notes: >-
+      This is relevant to failure taxonomy, observability, and low-signal review.
+
+timing_minutes:
+  lemmamind_assisted: null
+  manual_baseline: null
+  comparison_method: not_measured
+
+attention:
+  review_minutes: null
+  backlog_created: false
+  within_weekly_budget: null
+
+operational_cost:
+  provider_requests: 10
+  captured_artifact_bytes: 60241
+  persistent_bytes_added: not_measured
+  pipeline_runtime_seconds: 3.175
+  llm_tokens: 0
+  embedding_operations: 0
+
+outcome:
+  useful_findings: 0
+  decision_relevant_findings: 0
+  evidence_material_cases: 0
+  product_value_judgment: MIXED
+  notes: >-
+    V1 evidence and triage correctly recognized a material repository change and
+    routed it to review, but the surfaced result was too coarse to expose the
+    decision-relevant mechanisms found by bounded manual review.
+
+review:
+  reviewer_id: project-review
+  reviewed_at: null
+  review_decision_ids: []
+  limitations:
+    - Human review time was not measured prospectively, so no productivity ratio is claimed.
+    - Captured artifact bytes are the probe's measured retained unique bytes, not total upstream interval bytes.
+    - The probe used exact non-recursive root-tree evidence plus prospectively selected explicit files; it did not recursively enumerate every changed path.
