@@ -1,0 +1,76 @@
+schema_version: v2-p0-1
+record_id: replace-me
+supersedes: null
+
+source:
+  repository: owner/name
+  source_id: null
+  tracking_level: null
+
+interval:
+  previous_revision: full_commit_sha
+  fresh_revision: full_commit_sha
+  previous_observed_at: null
+  fresh_observed_at: null
+  selected_prospectively: true
+  selection_notes: null
+
+runs:
+  capture_run_id: null
+  extraction_run_id: null
+  change_run_id: null
+  profile_run_id: null
+  triage_run_id: null
+  review_run_id: null
+
+triage:
+  route: null
+  reasons: []
+  human_judgment: null # RIGHT_PRIORITY | TOO_HIGH | TOO_LOW | NOT_ENOUGH_CONTEXT
+
+surfaced_candidates: []
+# Example item:
+# - candidate_id: structural-delta-or-group-id
+#   summary: factual description only
+#   value_judgment: USEFUL # HIGH_VALUE | USEFUL | LOW_SIGNAL | NOISE | UNRESOLVED
+#   evidence_usefulness: HELPFUL # MATERIAL | HELPFUL | NEUTRAL | BURDENSOME
+#   decision_effects: [] # INVESTIGATE | DESIGN | IMPLEMENT | ADOPT | AVOID | MONITOR | REVALIDATE_BELIEF | NO_DECISION_EFFECT
+#   notes: null
+
+important_misses: []
+# Example item:
+# - summary: bounded manual review found an important item not surfaced appropriately
+#   source_locator: null
+#   desired_priority: null
+#   notes: null
+
+timing_minutes:
+  lemmamind_assisted: null
+  manual_baseline: null
+  comparison_method: not_measured # paired | estimated | not_measured
+
+attention:
+  review_minutes: null
+  backlog_created: null
+  within_weekly_budget: null
+
+operational_cost:
+  provider_requests: not_measured
+  captured_artifact_bytes: not_measured
+  persistent_bytes_added: not_measured
+  pipeline_runtime_seconds: not_measured
+  llm_tokens: 0
+  embedding_operations: 0
+
+outcome:
+  useful_findings: 0
+  decision_relevant_findings: 0
+  evidence_material_cases: 0
+  product_value_judgment: null # POSITIVE | MIXED | NEGATIVE | INCONCLUSIVE
+  notes: null
+
+review:
+  reviewer_id: null
+  reviewed_at: null
+  review_decision_ids: []
+  limitations: []
