@@ -24,6 +24,8 @@ Temporary read-only workflow run `33018898144` executed the permanent test suite
 
 The repository's permanent pull-request CI (`.github/workflows/test.yml`) remains the merge gate for PR #30; the live replay is additional execution provenance rather than a substitute for final-head CI.
 
+Review regressions additionally require exact preservation of Git path whitespace and rejection of reverse-chronology capture pairs using both `SourceRevision.observed_at` and `CaptureManifest.captured_at`.
+
 The test suite reached:
 
 ```text
