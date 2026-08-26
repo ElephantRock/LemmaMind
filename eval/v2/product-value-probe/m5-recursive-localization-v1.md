@@ -22,6 +22,8 @@ No repository code is executed. No model output, embeddings, learned ranking, se
 
 Temporary read-only workflow run `33018898144` executed the permanent test suite plus a live replay against the three frozen V2-P0 failure intervals.
 
+The repository's permanent pull-request CI (`.github/workflows/test.yml`) remains the merge gate for PR #30; the live replay is additional execution provenance rather than a substitute for final-head CI.
+
 The test suite reached:
 
 ```text
