@@ -16,7 +16,13 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-**V1 foundation — M1 Curated Discovery, the V1 M2 Repository Registry core, M3 Revision Capture, M4 Deterministic Evidence, M5-lite Deterministic Change Intelligence, and M6-lite Profiling & Triage are implemented.**
+**V1 — Evidence Engine: PASS.**
+
+PR #27 closed the V1 release gate after the deterministic M0–M6-lite evidence spine and basic append-only review/feedback capture passed the final executable audit. V1 proves factual artifact/structural change, exact retained evidence inspection, revision-bound profiling/triage, and review provenance while preserving the distinction between evidence, inference, promotion, and action authority.
+
+**Current priority: V2-P0 — Prospective Product-Value Probe.**
+
+Before committing to M6.5 representation, embeddings, or more reasoning volume, LemmaMind must test fresh repository activity prospectively and determine whether the V1 evidence engine actually reduces investigation effort, routes attention usefully, and surfaces decision-relevant change without preselecting interesting outcomes.
 
 The executable foundation includes strict versioned contracts, append-only SQLite persistence, formal `DiscoveryChannel → DiscoveryRun → DiscoveryHit` lineage, stable GitHub provider-ID repository resolution, immutable repository-locator history, immutable governed repository tracking assignments, latest-effective tracking policy, tracking-aware capture/reasoning gates, registry-aware capture, exact `SourceRevision` commit/tree anchors, `CaptureManifest` input sets, a SHA-256 content-addressed artifact store, local-only historical capture reconstruction, deterministic tree-based revision materiality, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, executable local source-location inspection for deterministic evidence, deterministic `ArtifactDelta → StructuralDelta` generation over exactly bound compatible evidence generations, immutable revision-bound `ArchitectureProfile` records, deterministic rule-based `TriageAssessment` routing, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, repository-metadata visibility evidence, evidence-bound action-policy evaluation, temporal frontier reconciliation, and a narrow M8-lite cross-repository Pattern layer.
 
@@ -88,11 +94,14 @@ M6-lite first produced **189 passed / 5 failed** on workflow run `32949026813` b
 
 The implementation remains deliberately below scheduler cadence/budget policy, pre-revision metadata scheduling, authenticated tracking-policy writers, provider-independent registry adapters, full M5 `ChangeInterpretation`/semantic churn/project-state reconciliation, full M6 semantic profiling/learned ranking, M6.5 embeddings/representation, autonomous model-generated reasoning, the real M7.5 attention-budgeted review queue, full M8 automatic pattern discovery/cohorts/tensions, M9 Insight/Knowledge promotion, action execution, authorization issuance, and UI.
 
-The next roadmap move is **V1 Evidence Engine release-gate reconciliation**, not M6.5. The roadmap defines V1 as M0–M4 + M5-lite + M6-lite + basic review/feedback capture; the remaining review/feedback requirement and the V1 success criterion must be audited explicitly before advancing into V2 representation/reasoning work.
+The V1 release gate is now closed. The next roadmap move is **V2-P0 — Prospective Product-Value Probe**, which tests fresh repository activity without hindsight selection and measures signal quality, verification usefulness, triage quality, investigation effort, decision effect, review burden, and operating cost before choosing between full M5, full M6, M6.5a structured representation, or the minimum representation needed for M7.
 
 ## Start here
 
 - [`docs/PRODUCT.md`](docs/PRODUCT.md) — authoritative product definition, user, outputs, UX, and action boundary
+- [`docs/V1-RELEASE-GATE.md`](docs/V1-RELEASE-GATE.md) — authoritative V1 Evidence Engine closeout and V1→V2 boundary
+- [`docs/V2-P0-PRODUCT-VALUE-PROBE.md`](docs/V2-P0-PRODUCT-VALUE-PROBE.md) — prospective product-value gate before substantive V2 implementation
+- [`eval/v2/product-value-probe/`](eval/v2/product-value-probe/) — immutable prospective evaluation records and record template
 - [`eval/pilot/M-1-CLOSEOUT.md`](eval/pilot/M-1-CLOSEOUT.md) — M−1 result, evidence, design changes, and exit decision
 - [`docs/M0-CONTRACTS.md`](docs/M0-CONTRACTS.md) — minimum contracts selected from actual pilot cases
 - [`docs/M0-IMPLEMENTATION.md`](docs/M0-IMPLEMENTATION.md) — rationale for executable M0 contracts and persistence
@@ -247,7 +256,7 @@ Action-policy evaluation
 (reject / recommend / require authorization; never authorize)
 ```
 
-The next implementation priority is **V1 Evidence Engine release-gate reconciliation**. Full M5 `ChangeInterpretation`, full M6 semantic profiling/learned ranking, M6.5 representation, model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred.
+The next implementation priority is **V2-P0 — Prospective Product-Value Probe**. The probe uses the V1 deterministic path against prospectively observed fresh revision intervals and records signal quality, important misses, evidence usefulness, triage quality, investigation time, decision effects, review burden, and measured operating cost. Full M5 `ChangeInterpretation`, full M6 semantic profiling/learned ranking, M6.5 representation/embeddings, model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred until the probe identifies the actual bottleneck.
 
 ## Canonical home
 
