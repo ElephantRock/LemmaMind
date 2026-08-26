@@ -1,0 +1,129 @@
+name: m5-live-probe
+
+on:
+  push:
+    branches:
+      - m5/deterministic-change-intelligence
+
+permissions:
+  contents: read
+
+jobs:
+  live-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: pytest
+      - name: M3 to M4 exact-revision change probe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import tempfile
+          from pathlib import Path
+
+          from lemmamind.change_contracts import ArtifactDeltaType, StructuralDeltaType
+          from lemmamind.change_intelligence import DeterministicChangeService
+          from lemmamind.contracts import SourceRole
+          from lemmamind.extraction import DeterministicExtractionService
+          from lemmamind.github import GitHubCaptureService, GitHubRESTReader
+          from lemmamind.objects import ContentAddressedFileStore
+          from lemmamind.storage import SQLiteContractStore
+          from lemmamind.typescript_ast import typescript_aware_extractors
+
+          previous_ref = "055d67f1ae0ebd5174114d8982bcef92609e5733"
+          current_ref = "c83c95488c85c2130b198b08161b9fa6fcd5209f"
+          paths = ("README.md", "src/lemmamind/evidence_inspection.py")
+
+          with tempfile.TemporaryDirectory() as directory:
+              root = Path(directory)
+              store = SQLiteContractStore(root / "lemmamind.db")
+              objects = ContentAddressedFileStore(root / "objects")
+              reader = GitHubRESTReader(token=os.environ.get("GITHUB_TOKEN"))
+              capture = GitHubCaptureService(reader, store, objects)
+
+              previous = capture.capture_repository(
+                  "ElephantRock/LemmaMind",
+                  paths,
+                  source_role=SourceRole.IMPLEMENTATION,
+                  ref=previous_ref,
+              )
+              current = capture.capture_repository(
+                  "ElephantRock/LemmaMind",
+                  paths,
+                  source_role=SourceRole.IMPLEMENTATION,
+                  ref=current_ref,
+              )
+              extraction = DeterministicExtractionService(
+                  store,
+                  objects,
+                  artifact_extractors=typescript_aware_extractors(),
+              )
+              previous_extract = extraction.extract_capture(previous.manifest.capture_id)
+              current_extract = extraction.extract_capture(current.manifest.capture_id)
+              result = DeterministicChangeService(store, objects).compare_captures(
+                  previous.manifest.capture_id,
+                  current.manifest.capture_id,
+                  previous_extraction_run_id=previous_extract.run.run_id,
+                  current_extraction_run_id=current_extract.run.run_id,
+                  artifact_extractors=extraction.artifact_extractors,
+              )
+
+              artifact_changes = {
+                  item.source_locator: item.change_type
+                  for item in result.artifact_deltas
+              }
+              assert artifact_changes == {
+                  "README.md": ArtifactDeltaType.CONTENT_CHANGED,
+                  "src/lemmamind/evidence_inspection.py": ArtifactDeltaType.BECAME_CAPTURED,
+              }
+              assert result.structural_deltas
+              assert all(
+                  item.source_locator == "src/lemmamind/evidence_inspection.py"
+                  and item.change_type is StructuralDeltaType.ADDED
+                  and item.previous_evidence_id is None
+                  and item.current_evidence_id is not None
+                  for item in result.structural_deltas
+              )
+
+              report = {
+                  "repository": "ElephantRock/LemmaMind",
+                  "previous_commit": previous.revision.commit_sha,
+                  "current_commit": current.revision.commit_sha,
+                  "requested_paths": list(paths),
+                  "extractor_profile": [
+                      {"name": item.name, "version": item.version}
+                      for item in extraction.artifact_extractors
+                  ],
+                  "previous_status": {
+                      item.source_locator: item.retrieval_status.value
+                      for item in previous.manifest.artifacts
+                  },
+                  "current_status": {
+                      item.source_locator: item.retrieval_status.value
+                      for item in current.manifest.artifacts
+                  },
+                  "artifact_deltas": {
+                      path: change.value for path, change in artifact_changes.items()
+                  },
+                  "previous_fact_count": len(previous_extract.facts),
+                  "current_fact_count": len(current_extract.facts),
+                  "structural_delta_count": len(result.structural_deltas),
+                  "structural_delta_types": sorted(
+                      {item.change_type.value for item in result.structural_deltas}
+                  ),
+                  "structural_delta_locators": sorted(
+                      {item.source_locator for item in result.structural_deltas}
+                  ),
+                  "diff_run_type": result.run.run_type.value,
+              }
+              print(json.dumps(report, sort_keys=True, indent=2))
+          PY
