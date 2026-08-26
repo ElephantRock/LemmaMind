@@ -28,7 +28,12 @@ from .contracts import (
     RunType,
     SourceRevision,
 )
-from .path_change_contracts import ChangeSurface, GitPathDelta, GitPathDeltaType
+from .path_change_contracts import (
+    ChangeSurface,
+    GitPathDelta,
+    GitPathDeltaType,
+    GitPathDiffSummary,
+)
 from .tracking import ArtifactClass, CaptureDepth, RepositoryTrackingService
 
 MAX_CAPTURE_BLOB_BYTES_V1 = 1_000_000
@@ -126,6 +131,16 @@ class AffectedFileCapturePlanner:
                 "affected-file planning requires one completed DIFF PipelineRun"
             )
 
+        summaries = tuple(
+            item
+            for item in self.store.list(GitPathDiffSummary)
+            if item.diff_run_id == diff_run_id
+        )
+        if len(summaries) != 1:
+            raise AffectedFilePlanningError(
+                "affected-file planning requires exactly one GitPathDiffSummary"
+            )
+        summary = summaries[0]
         deltas = tuple(
             sorted(
                 (
@@ -136,29 +151,33 @@ class AffectedFileCapturePlanner:
                 key=lambda item: item.path,
             )
         )
-        if not deltas:
-            raise AffectedFilePlanningError("diff run contains no GitPathDelta records")
-        self._validate_delta_generation(deltas)
+        if len(deltas) != summary.delta_count:
+            raise AffectedFilePlanningError(
+                "GitPathDiffSummary.delta_count disagrees with persisted GitPathDelta records"
+            )
+        self._validate_delta_generation(deltas, summary)
 
-        first = deltas[0]
-        previous_revision = self._revision(first.previous_source_revision_id)
-        current_revision = self._revision(first.current_source_revision_id)
-        if previous_revision.source_id != first.source_id or current_revision.source_id != first.source_id:
-            raise AffectedFilePlanningError("GitPathDelta revision/source provenance disagrees")
+        previous_revision = self._revision(summary.previous_source_revision_id)
+        current_revision = self._revision(summary.current_source_revision_id)
+        if (
+            previous_revision.source_id != summary.source_id
+            or current_revision.source_id != summary.source_id
+        ):
+            raise AffectedFilePlanningError("path-diff revision/source provenance disagrees")
         if previous_revision.observed_at > current_revision.observed_at:
             raise AffectedFilePlanningError(
                 "previous SourceRevision must not be newer than current SourceRevision"
             )
 
-        previous_manifest = self._manifest(first.previous_capture_id)
-        current_manifest = self._manifest(first.current_capture_id)
+        previous_manifest = self._manifest(summary.previous_capture_id)
+        current_manifest = self._manifest(summary.current_capture_id)
         if previous_manifest.source_revision_id != previous_revision.source_revision_id:
             raise AffectedFilePlanningError(
-                "previous GitPathDelta capture does not bind to previous SourceRevision"
+                "previous path-diff capture does not bind to previous SourceRevision"
             )
         if current_manifest.source_revision_id != current_revision.source_revision_id:
             raise AffectedFilePlanningError(
-                "current GitPathDelta capture does not bind to current SourceRevision"
+                "current path-diff capture does not bind to current SourceRevision"
             )
         if previous_manifest.captured_at > current_manifest.captured_at:
             raise AffectedFilePlanningError(
@@ -166,7 +185,7 @@ class AffectedFileCapturePlanner:
             )
 
         tracking_policy = self.tracking.require_capture_depth(
-            first.source_id,
+            summary.source_id,
             CaptureDepth.SHALLOW,
         )
         if ArtifactClass.EXPLICIT_FILES not in tracking_policy.artifact_classes:
@@ -192,6 +211,7 @@ class AffectedFileCapturePlanner:
         inputs_hash = self._digest_json(
             {
                 "diff_run_id": diff_run_id,
+                "diff_summary": summary.model_dump(mode="json", by_alias=True),
                 "path_deltas": [
                     item.model_dump(mode="json", by_alias=True) for item in deltas
                 ],
@@ -222,21 +242,30 @@ class AffectedFileCapturePlanner:
         self.store.put_many(result.records())
         return result
 
-    def _validate_delta_generation(self, deltas: tuple[GitPathDelta, ...]) -> None:
-        generations = {
-            (
+    @staticmethod
+    def _validate_delta_generation(
+        deltas: tuple[GitPathDelta, ...],
+        summary: GitPathDiffSummary,
+    ) -> None:
+        expected = (
+            summary.source_id,
+            summary.previous_source_revision_id,
+            summary.current_source_revision_id,
+            summary.previous_capture_id,
+            summary.current_capture_id,
+        )
+        for item in deltas:
+            actual = (
                 item.source_id,
                 item.previous_source_revision_id,
                 item.current_source_revision_id,
                 item.previous_capture_id,
                 item.current_capture_id,
             )
-            for item in deltas
-        }
-        if len(generations) != 1:
-            raise AffectedFilePlanningError(
-                "one diff run must contain one SourceRevision/capture pair"
-            )
+            if actual != expected:
+                raise AffectedFilePlanningError(
+                    "GitPathDelta generation disagrees with GitPathDiffSummary"
+                )
         paths = [item.path for item in deltas]
         if len(paths) != len(set(paths)):
             raise AffectedFilePlanningError("diff run contains duplicate Git paths")
@@ -245,7 +274,7 @@ class AffectedFileCapturePlanner:
         revision = self.store.get(SourceRevision, revision_id)
         if revision is None:
             raise AffectedFilePlanningError(
-                f"GitPathDelta references missing SourceRevision: {revision_id}"
+                f"path diff references missing SourceRevision: {revision_id}"
             )
         return revision
 
@@ -253,7 +282,7 @@ class AffectedFileCapturePlanner:
         manifest = self.store.get(CaptureManifest, capture_id)
         if manifest is None:
             raise AffectedFilePlanningError(
-                f"GitPathDelta references missing CaptureManifest: {capture_id}"
+                f"path diff references missing CaptureManifest: {capture_id}"
             )
         return manifest
 
