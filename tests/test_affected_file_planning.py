@@ -5,6 +5,7 @@ import pytest
 from lemmamind.affected_file_planning import (
     MAX_CAPTURE_BLOB_BYTES_V1,
     AffectedFileCapturePlanner,
+    AffectedFilePlanningError,
 )
 from lemmamind.capture_planning_contracts import (
     AffectedFileCapturePlan,
@@ -13,6 +14,7 @@ from lemmamind.capture_planning_contracts import (
 )
 from lemmamind.contracts import (
     CONTRACT_SCHEMA_VERSION,
+    CaptureManifest,
     PipelineRun,
     RunType,
     Source,
@@ -33,6 +35,8 @@ NOW = datetime(2026, 8, 27, tzinfo=timezone.utc)
 SOURCE_ID = "github:affected-plan"
 PREVIOUS_REVISION_ID = f"{SOURCE_ID}@{'a' * 40}"
 CURRENT_REVISION_ID = f"{SOURCE_ID}@{'b' * 40}"
+PREVIOUS_CAPTURE_ID = "capture-recursive-tree:previous"
+CURRENT_CAPTURE_ID = "capture-recursive-tree:current"
 DIFF_RUN_ID = "run:recursive-path-diff:test"
 DIGEST = "sha256:" + "0" * 64
 
@@ -71,8 +75,8 @@ def delta(
         source_id=SOURCE_ID,
         previous_source_revision_id=PREVIOUS_REVISION_ID,
         current_source_revision_id=CURRENT_REVISION_ID,
-        previous_capture_id="capture-recursive-tree:previous",
-        current_capture_id="capture-recursive-tree:current",
+        previous_capture_id=PREVIOUS_CAPTURE_ID,
+        current_capture_id=CURRENT_CAPTURE_ID,
         path=path,
         change_type=change_type,
         surface=surface,
@@ -88,7 +92,14 @@ def delta(
     )
 
 
-def prepare(tmp_path, deltas, *, level=TrackingLevel.STRUCTURAL):
+def prepare(
+    tmp_path,
+    deltas,
+    *,
+    level=TrackingLevel.STRUCTURAL,
+    previous_captured_at=NOW,
+    current_captured_at=NOW + timedelta(seconds=1),
+):
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     source = Source(
         source_id=SOURCE_ID,
@@ -112,6 +123,20 @@ def prepare(tmp_path, deltas, *, level=TrackingLevel.STRUCTURAL):
         tree_sha="2" * 40,
         observed_at=NOW + timedelta(seconds=1),
     )
+    previous_manifest = CaptureManifest(
+        capture_id=PREVIOUS_CAPTURE_ID,
+        source_revision_id=PREVIOUS_REVISION_ID,
+        capture_policy_version="github.recursive-tree.v1",
+        captured_at=previous_captured_at,
+        artifacts=(),
+    )
+    current_manifest = CaptureManifest(
+        capture_id=CURRENT_CAPTURE_ID,
+        source_revision_id=CURRENT_REVISION_ID,
+        capture_policy_version="github.recursive-tree.v1",
+        captured_at=current_captured_at,
+        artifacts=(),
+    )
     diff_run = PipelineRun(
         run_id=DIFF_RUN_ID,
         run_type=RunType.DIFF,
@@ -123,10 +148,20 @@ def prepare(tmp_path, deltas, *, level=TrackingLevel.STRUCTURAL):
         inputs_hash=DIGEST,
         outputs_hash=DIGEST,
     )
-    store.put_many((source, previous, current, diff_run, *deltas))
+    store.put_many(
+        (
+            source,
+            previous,
+            current,
+            previous_manifest,
+            current_manifest,
+            diff_run,
+            *deltas,
+        )
+    )
     tracking = RepositoryTrackingService(
         store,
-        clock=FixedClock(NOW + timedelta(seconds=2)),
+        clock=FixedClock(NOW + timedelta(seconds=4)),
     )
     assignment = tracking.assign_level(
         SOURCE_ID,
@@ -137,7 +172,7 @@ def prepare(tmp_path, deltas, *, level=TrackingLevel.STRUCTURAL):
     planner = AffectedFileCapturePlanner(
         store,
         tracking,
-        clock=FixedClock(NOW + timedelta(seconds=3)),
+        clock=FixedClock(NOW + timedelta(seconds=5)),
         id_factory=Ids(),
     )
     return store, assignment, planner
@@ -215,6 +250,25 @@ def test_v1_suppresses_only_explicit_generated_vendored_and_large_blob_cases(tmp
     assert result.current_capture_paths == ("odd/unknown.format",)
 
 
+def test_modified_blob_crossing_size_ceiling_suppresses_both_revision_sides(tmp_path) -> None:
+    changed = delta(
+        "src/large.py",
+        previous_size=MAX_CAPTURE_BLOB_BYTES_V1 - 1,
+        current_size=MAX_CAPTURE_BLOB_BYTES_V1 + 1,
+    )
+    _, _, planner = prepare(tmp_path, [changed])
+
+    result = planner.plan_diff(DIFF_RUN_ID)
+    plan = result.plans[0]
+
+    assert plan.previous.disposition is CapturePlanDisposition.SUPPRESSED
+    assert plan.current.disposition is CapturePlanDisposition.SUPPRESSED
+    assert plan.previous.reason is CapturePlanReason.LARGE_BLOB
+    assert plan.current.reason is CapturePlanReason.LARGE_BLOB
+    assert result.previous_capture_paths == ()
+    assert result.current_capture_paths == ()
+
+
 def test_blob_to_directory_type_change_requests_only_blob_revision(tmp_path) -> None:
     changed = delta(
         "src/component",
@@ -245,6 +299,20 @@ def test_exact_git_path_whitespace_survives_planning(tmp_path) -> None:
 
     assert result.plans[0].path == " src/core.py "
     assert result.current_capture_paths == (" src/core.py ",)
+
+
+def test_reverse_capture_chronology_is_rejected_before_plan_persistence(tmp_path) -> None:
+    store, _, planner = prepare(
+        tmp_path,
+        [delta("src/core.py")],
+        previous_captured_at=NOW + timedelta(seconds=2),
+        current_captured_at=NOW + timedelta(seconds=1),
+    )
+
+    with pytest.raises(AffectedFilePlanningError, match="previous CaptureManifest"):
+        planner.plan_diff(DIFF_RUN_ID)
+
+    assert store.list(AffectedFileCapturePlan) == []
 
 
 def test_tracking_below_shallow_cannot_plan_explicit_file_capture(tmp_path) -> None:
