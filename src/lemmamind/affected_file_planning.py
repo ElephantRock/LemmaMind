@@ -21,8 +21,14 @@ from .capture_planning_contracts import (
     CapturePlanReason,
     CapturePlanSide,
 )
-from .contracts import CONTRACT_SCHEMA_VERSION, PipelineRun, RunType, SourceRevision
-from .path_change_contracts import ChangeSurface, GitPathDelta
+from .contracts import (
+    CONTRACT_SCHEMA_VERSION,
+    CaptureManifest,
+    PipelineRun,
+    RunType,
+    SourceRevision,
+)
+from .path_change_contracts import ChangeSurface, GitPathDelta, GitPathDeltaType
 from .tracking import ArtifactClass, CaptureDepth, RepositoryTrackingService
 
 MAX_CAPTURE_BLOB_BYTES_V1 = 1_000_000
@@ -144,6 +150,21 @@ class AffectedFileCapturePlanner:
                 "previous SourceRevision must not be newer than current SourceRevision"
             )
 
+        previous_manifest = self._manifest(first.previous_capture_id)
+        current_manifest = self._manifest(first.current_capture_id)
+        if previous_manifest.source_revision_id != previous_revision.source_revision_id:
+            raise AffectedFilePlanningError(
+                "previous GitPathDelta capture does not bind to previous SourceRevision"
+            )
+        if current_manifest.source_revision_id != current_revision.source_revision_id:
+            raise AffectedFilePlanningError(
+                "current GitPathDelta capture does not bind to current SourceRevision"
+            )
+        if previous_manifest.captured_at > current_manifest.captured_at:
+            raise AffectedFilePlanningError(
+                "previous CaptureManifest must not be newer than current CaptureManifest"
+            )
+
         tracking_policy = self.tracking.require_capture_depth(
             first.source_id,
             CaptureDepth.SHALLOW,
@@ -207,12 +228,14 @@ class AffectedFileCapturePlanner:
                 item.source_id,
                 item.previous_source_revision_id,
                 item.current_source_revision_id,
+                item.previous_capture_id,
+                item.current_capture_id,
             )
             for item in deltas
         }
         if len(generations) != 1:
             raise AffectedFilePlanningError(
-                "one diff run must contain one SourceRevision pair"
+                "one diff run must contain one SourceRevision/capture pair"
             )
         paths = [item.path for item in deltas]
         if len(paths) != len(set(paths)):
@@ -226,6 +249,14 @@ class AffectedFileCapturePlanner:
             )
         return revision
 
+    def _manifest(self, capture_id: str) -> CaptureManifest:
+        manifest = self.store.get(CaptureManifest, capture_id)
+        if manifest is None:
+            raise AffectedFilePlanningError(
+                f"GitPathDelta references missing CaptureManifest: {capture_id}"
+            )
+        return manifest
+
     def _plan_delta(
         self,
         delta: GitPathDelta,
@@ -234,6 +265,29 @@ class AffectedFileCapturePlanner:
         tracking_assignment_id: str,
         tracking_level: str,
     ) -> AffectedFileCapturePlan:
+        suppress_large_modified_pair = (
+            delta.change_type is GitPathDeltaType.MODIFIED
+            and any(
+                size is not None and size > MAX_CAPTURE_BLOB_BYTES_V1
+                for size in (delta.previous_size, delta.current_size)
+            )
+        )
+        previous = self._plan_side(
+            delta.previous_source_revision_id,
+            delta.surface,
+            entry_type=delta.previous_entry_type,
+            object_sha=delta.previous_object_sha,
+            size=delta.previous_size,
+            force_large_suppression=suppress_large_modified_pair,
+        )
+        current = self._plan_side(
+            delta.current_source_revision_id,
+            delta.surface,
+            entry_type=delta.current_entry_type,
+            object_sha=delta.current_object_sha,
+            size=delta.current_size,
+            force_large_suppression=suppress_large_modified_pair,
+        )
         return AffectedFileCapturePlan(
             affected_file_plan_id=self._plan_id(run_id, delta.git_path_delta_id),
             git_path_delta_id=delta.git_path_delta_id,
@@ -242,20 +296,8 @@ class AffectedFileCapturePlanner:
             current_source_revision_id=delta.current_source_revision_id,
             path=delta.path,
             surface=delta.surface,
-            previous=self._plan_side(
-                delta.previous_source_revision_id,
-                delta.surface,
-                entry_type=delta.previous_entry_type,
-                object_sha=delta.previous_object_sha,
-                size=delta.previous_size,
-            ),
-            current=self._plan_side(
-                delta.current_source_revision_id,
-                delta.surface,
-                entry_type=delta.current_entry_type,
-                object_sha=delta.current_object_sha,
-                size=delta.current_size,
-            ),
+            previous=previous,
+            current=current,
             tracking_assignment_id=tracking_assignment_id,
             tracking_level=tracking_level,
             diff_run_id=delta.diff_run_id,
@@ -270,6 +312,7 @@ class AffectedFileCapturePlanner:
         entry_type: str | None,
         object_sha: str | None,
         size: int | None,
+        force_large_suppression: bool = False,
     ) -> CapturePlanSide:
         if entry_type is None and object_sha is None:
             if size is not None:
@@ -314,7 +357,9 @@ class AffectedFileCapturePlanner:
                 object_sha=object_sha,
                 size=size,
             )
-        if size is not None and size > MAX_CAPTURE_BLOB_BYTES_V1:
+        if force_large_suppression or (
+            size is not None and size > MAX_CAPTURE_BLOB_BYTES_V1
+        ):
             return CapturePlanSide(
                 source_revision_id=source_revision_id,
                 disposition=CapturePlanDisposition.SUPPRESSED,
