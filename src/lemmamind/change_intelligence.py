@@ -180,6 +180,10 @@ class DeterministicChangeService:
             raise ChangeIntelligenceError(
                 "previous SourceRevision must not be newer than current SourceRevision"
             )
+        if previous.manifest.captured_at > current.manifest.captured_at:
+            raise ChangeIntelligenceError(
+                "previous CaptureManifest must not be newer than current CaptureManifest"
+            )
 
     def _artifact_deltas(
         self,
