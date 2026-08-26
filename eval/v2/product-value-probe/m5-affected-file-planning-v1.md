@@ -15,6 +15,8 @@ The planner:
 
 - requires Shallow-or-deeper tracking and `EXPLICIT_FILES` authorization;
 - binds every plan to the effective tracking assignment and level;
+- verifies that the persisted recursive capture IDs bind to the same exact
+  previous/current `SourceRevision` pair and rejects reverse capture chronology;
 - preserves both sides for modified blobs;
 - requests the absent side of add/remove transitions so later capture can retain
   an explicit `MISSING` retrieval state rather than silently changing scope;
@@ -24,19 +26,21 @@ The planner:
   - paths already classified `GENERATED`;
   - paths already classified `VENDORED`;
   - blobs larger than 1,000,000 bytes;
+- when either side of a modified blob exceeds the size ceiling, suppresses both
+  revision sides so before/after capture remains symmetric;
 - leaves `UNKNOWN` surfaces capture eligible rather than guessing them away;
-- retains old/new object SHA, type, size, revision, diff-run, planner-run, and
-  tracking provenance.
+- retains old/new object SHA, type, size, revision, capture, diff-run,
+  planner-run, and tracking provenance.
 
 Planning runs use `RunType.OTHER` because no bytes are captured in this stage.
 
 ## Test and live replay provenance
 
-Temporary read-only workflow run `33022098111` executed the full repository test
-suite and replayed all three frozen V2-P0 failure intervals.
+Temporary read-only workflow run `33022290955` executed the hardened planner's
+full repository test suite and replayed all three frozen V2-P0 failure intervals.
 
 ```text
-229 passed
+231 passed
 ```
 
 The replay also asserted that the known high-value miss location from each
@@ -49,9 +53,9 @@ not planner exceptions.
 | openclaw/openclaw | 1,291 | 1,269 | 1,269 | 22 | yes |
 | NousResearch/hermes-agent | 147 | 146 | 146 | 1 | yes |
 
-The suppressed OpenClaw and Hermes paths were large blobs. In the replay, each
-suppressed modified path produced a large-blob decision on both revision sides,
-so the side-level reason counts were 44 and 2 respectively.
+The suppressed OpenClaw and Hermes paths were large blobs. Each suppressed
+modified path produced a large-blob decision on both revision sides, so the
+side-level reason counts were 44 and 2 respectively.
 
 ## Interpretation boundary
 
@@ -96,4 +100,4 @@ M6.5/embeddings remain deferred.
 ## Governance
 
 The temporary replay workflow is removed before merge. Workflow run
-`33022098111` remains immutable execution provenance.
+`33022290955` remains immutable execution provenance.
