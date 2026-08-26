@@ -98,6 +98,8 @@ class AffectedFileCapturePlan(ContractModel):
     surface: ChangeSurface
     previous: CapturePlanSide
     current: CapturePlanSide
+    tracking_assignment_id: Identifier
+    tracking_level: Identifier
     diff_run_id: Identifier
     planner_run_id: Identifier
 
