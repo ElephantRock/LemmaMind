@@ -30,7 +30,12 @@ from .contracts import (
 )
 from .git_tree import GitHubTreeRESTReader
 from .objects import ContentAddressedFileStore
-from .path_change_contracts import ChangeSurface, GitPathDelta, GitPathDeltaType
+from .path_change_contracts import (
+    ChangeSurface,
+    GitPathDelta,
+    GitPathDeltaType,
+    GitPathDiffSummary,
+)
 from .tracking import ArtifactClass, CaptureDepth, RepositoryTrackingService
 
 GIT_RECURSIVE_TREE_MEDIA_TYPE = "application/vnd.lemmamind.git-recursive-tree+json"
@@ -76,11 +81,12 @@ class RecursiveGitTreeCaptureResult:
 class RecursiveGitTreeDiffResult:
     previous_capture_id: str
     current_capture_id: str
+    summary: GitPathDiffSummary
     deltas: tuple[GitPathDelta, ...]
     run: PipelineRun
 
     def records(self) -> tuple:
-        return (*self.deltas, self.run)
+        return (self.summary, *self.deltas, self.run)
 
 
 class GitHubRecursiveTreeCaptureService:
@@ -361,6 +367,16 @@ class RecursiveGitTreeDiffService:
                 )
             )
 
+        summary = GitPathDiffSummary(
+            git_path_diff_summary_id=self._summary_id(run_id),
+            source_id=current_revision.source_id,
+            previous_source_revision_id=previous_revision.source_revision_id,
+            current_source_revision_id=current_revision.source_revision_id,
+            previous_capture_id=previous_manifest.capture_id,
+            current_capture_id=current_manifest.capture_id,
+            delta_count=len(deltas),
+            diff_run_id=run_id,
+        )
         inputs_hash = self._digest_json(
             {
                 "previous_capture_id": previous_manifest.capture_id,
@@ -371,22 +387,25 @@ class RecursiveGitTreeDiffService:
             }
         )
         outputs_hash = self._digest_json(
-            [
-                {
-                    "path": delta.path,
-                    "change_type": delta.change_type.value,
-                    "surface": delta.surface.value,
-                    "previous_entry_type": delta.previous_entry_type,
-                    "current_entry_type": delta.current_entry_type,
-                    "previous_mode": delta.previous_mode,
-                    "current_mode": delta.current_mode,
-                    "previous_object_sha": delta.previous_object_sha,
-                    "current_object_sha": delta.current_object_sha,
-                    "previous_size": delta.previous_size,
-                    "current_size": delta.current_size,
-                }
-                for delta in deltas
-            ]
+            {
+                "summary": summary.model_dump(mode="json", by_alias=True),
+                "deltas": [
+                    {
+                        "path": delta.path,
+                        "change_type": delta.change_type.value,
+                        "surface": delta.surface.value,
+                        "previous_entry_type": delta.previous_entry_type,
+                        "current_entry_type": delta.current_entry_type,
+                        "previous_mode": delta.previous_mode,
+                        "current_mode": delta.current_mode,
+                        "previous_object_sha": delta.previous_object_sha,
+                        "current_object_sha": delta.current_object_sha,
+                        "previous_size": delta.previous_size,
+                        "current_size": delta.current_size,
+                    }
+                    for delta in deltas
+                ],
+            }
         )
         run = PipelineRun(
             run_id=run_id,
@@ -402,6 +421,7 @@ class RecursiveGitTreeDiffService:
         result = RecursiveGitTreeDiffResult(
             previous_manifest.capture_id,
             current_manifest.capture_id,
+            summary,
             tuple(deltas),
             run,
         )
@@ -493,6 +513,11 @@ class RecursiveGitTreeDiffService:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("recursive path diff clock must return timezone-aware datetimes")
         return value
+
+    @staticmethod
+    def _summary_id(run_id: str) -> str:
+        material = f"git-path-diff-summary\0{run_id}".encode("utf-8")
+        return f"git-path-diff-summary:{hashlib.sha256(material).hexdigest()}"
 
     @staticmethod
     def _delta_id(
