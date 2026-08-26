@@ -132,7 +132,7 @@ Measure elapsed focused review time for:
 Where feasible, distinguish:
 
 ```text
-LemmalMind-assisted investigation time
+LemmaMind-assisted investigation time
 manual-baseline estimate or paired manual time
 ```
 
