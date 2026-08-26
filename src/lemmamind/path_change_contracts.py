@@ -60,9 +60,6 @@ class GitPathDelta(ContractModel):
 
     @model_validator(mode="after")
     def validate_transition(self) -> "GitPathDelta":
-        previous_present = self.previous_object_sha is not None
-        current_present = self.current_object_sha is not None
-
         previous_fields = (
             self.previous_entry_type,
             self.previous_mode,
@@ -73,10 +70,17 @@ class GitPathDelta(ContractModel):
             self.current_mode,
             self.current_object_sha,
         )
-        if previous_present != all(value is not None for value in previous_fields):
+        previous_any = any(value is not None for value in previous_fields)
+        previous_all = all(value is not None for value in previous_fields)
+        current_any = any(value is not None for value in current_fields)
+        current_all = all(value is not None for value in current_fields)
+        if previous_any != previous_all:
             raise ValueError("previous Git entry fields must be present together")
-        if current_present != all(value is not None for value in current_fields):
+        if current_any != current_all:
             raise ValueError("current Git entry fields must be present together")
+        previous_present = previous_all
+        current_present = current_all
+
         if not previous_present and self.previous_size is not None:
             raise ValueError("previous_size requires a previous Git entry")
         if not current_present and self.current_size is not None:
