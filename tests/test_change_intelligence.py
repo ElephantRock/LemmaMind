@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 
 import pytest
@@ -31,6 +32,11 @@ from lemmamind.storage import SQLiteContractStore
 
 T0 = datetime(2026, 8, 26, 1, 0, tzinfo=timezone.utc)
 SOURCE_ID = "github:42"
+
+
+class ManualExtractorProfile:
+    name = "manual-test"
+    version = "1"
 
 
 def seed_revision(
@@ -112,9 +118,32 @@ def seed_capture(
     return manifest
 
 
+def extraction_inputs_hash(
+    manifest: CaptureManifest,
+    *,
+    policy_version: str,
+    extractor_name: str = "manual-test",
+    extractor_version: str = "1",
+) -> str:
+    encoded = json.dumps(
+        {
+            "capture_manifest": manifest.model_dump(mode="json", by_alias=True),
+            "artifact_extractors": [
+                {"name": extractor_name, "version": extractor_version}
+            ],
+            "policy_version": policy_version,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def seed_manual_extraction(
     store: SQLiteContractStore,
     *,
+    manifest: CaptureManifest,
     run_id: str,
     artifact_id: str,
     locator: str,
@@ -130,7 +159,7 @@ def seed_manual_extraction(
         policy_version=policy_version,
         started_at=T0,
         finished_at=T0 + timedelta(seconds=1),
-        inputs_hash="sha256:" + "1" * 64,
+        inputs_hash=extraction_inputs_hash(manifest, policy_version=policy_version),
         outputs_hash="sha256:" + "2" * 64,
     )
     fact = EvidenceFact(
@@ -256,6 +285,7 @@ def test_real_extractor_generations_produce_add_remove_and_modify_deltas(tmp_pat
         "capture:current",
         previous_extraction_run_id=previous_extract.run.run_id,
         current_extraction_run_id=current_extract.run.run_id,
+        artifact_extractors=extraction.artifact_extractors,
     )
 
     assert [item.change_type for item in result.artifact_deltas] == [
@@ -279,6 +309,91 @@ def test_real_extractor_generations_produce_add_remove_and_modify_deltas(tmp_pat
     assert structural["package-json@1:#engines"].current_evidence_id is None
     assert structural["package-json@1:#packageManager"].previous_evidence_id is None
     assert len(store.list(StructuralDelta)) == 4
+
+
+def test_all_missing_generation_can_be_bound_exactly_before_file_appears(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+    objects = ContentAddressedFileStore(tmp_path / "objects")
+    previous_revision = seed_revision(store, suffix="a", observed_at=T0)
+    current_revision = seed_revision(
+        store, suffix="b", observed_at=T0 + timedelta(minutes=1)
+    )
+    seed_capture(
+        store,
+        objects,
+        previous_revision,
+        "capture:previous",
+        {"package.json": None},
+    )
+    seed_capture(
+        store,
+        objects,
+        current_revision,
+        "capture:current",
+        {"package.json": b'{"name":"demo"}\n'},
+    )
+    extraction = DeterministicExtractionService(store, objects, clock=lambda: T0)
+    previous_extract = extraction.extract_capture("capture:previous")
+    current_extract = extraction.extract_capture("capture:current")
+    assert previous_extract.facts == ()
+    assert previous_extract.assertions == ()
+
+    result = DeterministicChangeService(
+        store,
+        objects,
+        id_factory=lambda: "empty-generation-diff",
+        clock=lambda: T0 + timedelta(minutes=3),
+    ).compare_captures(
+        "capture:previous",
+        "capture:current",
+        previous_extraction_run_id=previous_extract.run.run_id,
+        current_extraction_run_id=current_extract.run.run_id,
+        artifact_extractors=extraction.artifact_extractors,
+    )
+
+    assert len(result.artifact_deltas) == 1
+    assert result.artifact_deltas[0].change_type is ArtifactDeltaType.BECAME_CAPTURED
+    assert result.structural_deltas
+    assert all(
+        item.change_type is StructuralDeltaType.ADDED
+        and item.previous_evidence_id is None
+        for item in result.structural_deltas
+    )
+
+
+def test_structural_comparison_rejects_wrong_extractor_profile(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+    objects = ContentAddressedFileStore(tmp_path / "objects")
+    previous_revision = seed_revision(store, suffix="a", observed_at=T0)
+    current_revision = seed_revision(
+        store, suffix="b", observed_at=T0 + timedelta(minutes=1)
+    )
+    seed_capture(
+        store,
+        objects,
+        previous_revision,
+        "capture:previous",
+        {"package.json": b'{"name":"old"}\n'},
+    )
+    seed_capture(
+        store,
+        objects,
+        current_revision,
+        "capture:current",
+        {"package.json": b'{"name":"new"}\n'},
+    )
+    extraction = DeterministicExtractionService(store, objects, clock=lambda: T0)
+    previous_extract = extraction.extract_capture("capture:previous")
+    current_extract = extraction.extract_capture("capture:current")
+
+    with pytest.raises(ChangeIntelligenceError, match="capture/extractor profile"):
+        DeterministicChangeService(store, objects).compare_captures(
+            "capture:previous",
+            "capture:current",
+            previous_extraction_run_id=previous_extract.run.run_id,
+            current_extraction_run_id=current_extract.run.run_id,
+            artifact_extractors=(ManualExtractorProfile(),),
+        )
 
 
 def test_normalized_structure_suppresses_formatting_only_artifact_churn(tmp_path) -> None:
@@ -317,6 +432,7 @@ def test_normalized_structure_suppresses_formatting_only_artifact_churn(tmp_path
         "capture:current",
         previous_extraction_run_id=previous_extract.run.run_id,
         current_extraction_run_id=current_extract.run.run_id,
+        artifact_extractors=extraction.artifact_extractors,
     )
 
     assert len(result.artifact_deltas) == 1
@@ -360,6 +476,7 @@ def test_capture_scope_only_evidence_is_not_promoted_to_source_structure_change(
         "capture:current",
         previous_extraction_run_id=previous_extract.run.run_id,
         current_extraction_run_id=current_extract.run.run_id,
+        artifact_extractors=extraction.artifact_extractors,
     )
 
     assert len(result.artifact_deltas) == 1
@@ -392,6 +509,7 @@ def test_identical_capture_state_with_different_facts_is_determinism_violation(t
     )
     seed_manual_extraction(
         store,
+        manifest=previous_manifest,
         run_id="run:previous-extract",
         artifact_id=previous_manifest.artifacts[0].artifact_id,
         locator="package.json#/name",
@@ -399,6 +517,7 @@ def test_identical_capture_state_with_different_facts_is_determinism_violation(t
     )
     seed_manual_extraction(
         store,
+        manifest=current_manifest,
         run_id="run:current-extract",
         artifact_id=current_manifest.artifacts[0].artifact_id,
         locator="package.json#/name",
@@ -416,6 +535,7 @@ def test_identical_capture_state_with_different_facts_is_determinism_violation(t
             "capture:current",
             previous_extraction_run_id="run:previous-extract",
             current_extraction_run_id="run:current-extract",
+            artifact_extractors=(ManualExtractorProfile(),),
         )
 
 
@@ -442,6 +562,7 @@ def test_structural_comparison_rejects_extractor_generation_drift(tmp_path) -> N
     )
     seed_manual_extraction(
         store,
+        manifest=previous_manifest,
         run_id="run:previous-extract",
         artifact_id=previous_manifest.artifacts[0].artifact_id,
         locator="package.json#/name",
@@ -450,6 +571,7 @@ def test_structural_comparison_rejects_extractor_generation_drift(tmp_path) -> N
     )
     seed_manual_extraction(
         store,
+        manifest=current_manifest,
         run_id="run:current-extract",
         artifact_id=current_manifest.artifacts[0].artifact_id,
         locator="package.json#/name",
@@ -468,6 +590,7 @@ def test_structural_comparison_rejects_extractor_generation_drift(tmp_path) -> N
             "capture:current",
             previous_extraction_run_id="run:previous-extract",
             current_extraction_run_id="run:current-extract",
+            artifact_extractors=(ManualExtractorProfile(),),
         )
 
 
