@@ -1,0 +1,122 @@
+schema_version: v2-p0-1
+record_id: v2-p0-hermes-b2bd1ac-a6d6060
+supersedes: null
+
+source:
+  repository: NousResearch/hermes-agent
+  source_id: null
+  tracking_level: "4"
+
+interval:
+  previous_revision: b2bd1ac63ff137a6287ce989d65dccee6b9155e2
+  fresh_revision: a6d6060d6128260d8536d0b92ae0324fff028ffd
+  previous_observed_at: 2026-08-26T15:28:21Z
+  fresh_observed_at: 2026-08-26T21:39:00Z
+  selected_prospectively: true
+  selection_notes: >-
+    The interval begins at the frozen V2-P0 baseline. The fresh revision was
+    observed after the baseline without selecting it for a known outcome.
+
+runs:
+  capture_run_id: null
+  extraction_run_id: null
+  change_run_id: null
+  profile_run_id: null
+  triage_run_id: null
+  review_run_id: null
+
+probe_provenance:
+  workflow_run_id: 33017750243
+  workflow_job_id: 98340261443
+  probe_commit: 8acbf021672dcbc1f4d3d2e3bd2d7bb6ec6f71b0
+  pytest_result: "202 passed"
+  note: >-
+    Individual pipeline IDs were created in an ephemeral workflow-local SQLite
+    store and were not retained. The workflow run and probe commit are the
+    durable execution provenance for this evaluation record.
+
+triage:
+  route: review
+  reasons: [deep_tracking, domain_match, evidence_rich, tracking_active]
+  human_judgment: RIGHT_PRIORITY
+
+surfaced_candidates:
+  - candidate_id: root-tree-change
+    summary: >-
+      Exact root-tree evidence changed across twelve top-level entries,
+      including Dockerfile, agent, apps, gateway, hermes_cli, plugins, tests,
+      tools, tui_gateway, and website. The prospectively selected local-process
+      files were unchanged and emitted zero StructuralDelta records.
+    value_judgment: LOW_SIGNAL
+    evidence_usefulness: HELPFUL
+    decision_effects: [NO_DECISION_EFFECT]
+    notes: >-
+      The evidence correctly proved and broadly localized repository movement,
+      but it did not identify the mechanism-level changes worth review.
+
+important_misses:
+  - summary: >-
+      Image/package-managed installations were routed through one shared update
+      admission gate that refuses in-place mutation, honors an authoritative
+      image-provenance marker, fails closed on a corrupted marker, and records a
+      refusal distinct from execution errors.
+    source_locator: git:commit:4860978115a018913fe51efd61b2319e9273d0a4
+    desired_priority: high
+    notes: >-
+      This is directly relevant to LemmaMind's capability-versus-authority and
+      evidence-bound action-policy boundaries.
+  - summary: >-
+      Agent-as-provider completed tool work was projected back into the durable
+      turn transcript without returning already completed calls as pending tool
+      calls, preserving tool activity while avoiding duplicate execution.
+    source_locator: git:commit:07200e9cd67f777de79497cc807a644861b2c87b
+    desired_priority: high
+    notes: >-
+      This is relevant to tool provenance, durable reasoning state, and the
+      distinction between completed provider work and pending actions.
+  - summary: >-
+      Headless onboarding was changed to fail closed when a model guard requires
+      confirmation rather than hanging on an interactive confirmation surface
+      that no user can answer.
+    source_locator: git:commit:19f9d1badbb5748611807e84538527b8826567da
+    desired_priority: high
+    notes: >-
+      This is a strong fail-closed governance/UX pattern that the V1 change
+      surface did not identify.
+
+timing_minutes:
+  lemmamind_assisted: null
+  manual_baseline: null
+  comparison_method: not_measured
+
+attention:
+  review_minutes: null
+  backlog_created: false
+  within_weekly_budget: null
+
+operational_cost:
+  provider_requests: 10
+  captured_artifact_bytes: 113341
+  persistent_bytes_added: not_measured
+  pipeline_runtime_seconds: 2.993
+  llm_tokens: 0
+  embedding_operations: 0
+
+outcome:
+  useful_findings: 0
+  decision_relevant_findings: 0
+  evidence_material_cases: 0
+  product_value_judgment: NEGATIVE
+  notes: >-
+    V1 correctly recognized material repository change and routed it to review,
+    but bounded manual review found several directly relevant architecture and
+    governance mechanisms that the surfaced result did not isolate.
+
+review:
+  reviewer_id: project-review
+  reviewed_at: null
+  review_decision_ids: []
+  limitations:
+    - Human review time was not measured prospectively, so no productivity ratio is claimed.
+    - Captured artifact bytes are the probe's measured retained unique bytes, not total upstream interval bytes.
+    - The probe used exact non-recursive root-tree evidence plus prospectively selected explicit files; it did not recursively enumerate every changed path.
