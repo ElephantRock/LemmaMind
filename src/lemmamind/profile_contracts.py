@@ -61,6 +61,7 @@ class ArchitectureProfile(ContractModel):
     source_assertion_count: int = Field(ge=0)
     artifact_count: int = Field(ge=0)
     extractor_families: tuple[Identifier, ...]
+    extractor_profiles: tuple[Identifier, ...]
     artifact_media_types: tuple[Identifier, ...]
     feature_keys: tuple[Identifier, ...]
 
@@ -78,6 +79,7 @@ class ArchitectureProfile(ContractModel):
             "evidence_fact_ids",
             "source_assertion_ids",
             "extractor_families",
+            "extractor_profiles",
             "artifact_media_types",
             "feature_keys",
         ):
