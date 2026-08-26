@@ -1,0 +1,70 @@
+schema_version: v2-p0-baseline-1
+probe_id: v2-p0-product-value
+status: baseline_recorded
+recorded_at_utc: 2026-08-26T15:28:21Z
+
+selection_policy:
+  target_repository_count: 5
+  source: pilot/watchlist.yaml
+  prospective_rule: >-
+    These revisions are the starting frontier. Only later revisions observed
+    after this baseline may become V2-P0 evaluation intervals. No interval is
+    selected because a later interesting outcome is already known.
+  rationale: >-
+    Use the three external agent/runtime sources from the frozen watchlist plus
+    two internal sources that exercise evidence/governance behavior. This keeps
+    the first probe small while spanning READ_ONLY and OWNED relationships and
+    multiple technical/change surfaces.
+
+repositories:
+  - repository: CopilotKit/OpenBot
+    relationship: READ_ONLY
+    watchlist_roles: [agent-runtime, capability-authority]
+    default_branch: main
+    baseline_revision: 43ea5c11210c485551c25b41a4270c56a58591f1
+    baseline_commit_at_utc: 2026-08-26T15:24:39Z
+    observed_at_utc: 2026-08-26T15:28:21Z
+    evaluation_state: awaiting_later_revision
+
+  - repository: openclaw/openclaw
+    relationship: READ_ONLY
+    watchlist_roles: [agent-runtime, sandbox-posture]
+    default_branch: main
+    baseline_revision: 20eef858aafbf6a3c45b0f20366a08192996f91b
+    baseline_commit_at_utc: 2026-08-26T15:24:10Z
+    observed_at_utc: 2026-08-26T15:28:21Z
+    evaluation_state: awaiting_later_revision
+
+  - repository: NousResearch/hermes-agent
+    relationship: READ_ONLY
+    watchlist_roles: [agent-runtime, process-containment, change-intelligence]
+    default_branch: main
+    baseline_revision: b2bd1ac63ff137a6287ce989d65dccee6b9155e2
+    baseline_commit_at_utc: 2026-08-26T15:24:21Z
+    observed_at_utc: 2026-08-26T15:28:21Z
+    evaluation_state: awaiting_later_revision
+
+  - repository: ElephantRock/ERLab
+    relationship: OWNED
+    watchlist_roles: [public-actions-negative-control, mature-evidence-system]
+    default_branch: main
+    baseline_revision: 6f13f809010fcf6a373bf063c224420aa4231b42
+    baseline_commit_at_utc: 2026-08-19T10:49:00Z
+    observed_at_utc: 2026-08-26T15:28:21Z
+    evaluation_state: awaiting_later_revision
+
+  - repository: ElephantRock/Resonance-World
+    relationship: OWNED
+    watchlist_roles: [confirmatory-governance, no-action-correctness]
+    default_branch: main
+    baseline_revision: 0f38ba4346d74605b0c6bc7f99758e7907aeba40
+    baseline_commit_at_utc: 2026-08-15T17:25:11Z
+    observed_at_utc: 2026-08-26T15:28:21Z
+    evaluation_state: awaiting_later_revision
+
+constraints:
+  - Do not score the historical watchlist_revision-to-baseline interval as V2-P0.
+  - Do not discard a later interval because it contains no interesting change.
+  - Record LemmaMind output before unrestricted manual review of each later interval.
+  - Keep LLM tokens and embedding operations at zero for the deterministic probe path.
+  - Do not treat repository write permission as review, promotion, or action authority.
