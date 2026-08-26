@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Iterable, Protocol
 
-from .change_contracts import StructuralDelta
+from .change_contracts import ArtifactDelta, StructuralDelta
 from .contracts import (
     CONTRACT_SCHEMA_VERSION,
     Artifact,
@@ -122,11 +122,13 @@ class ArchitectureProfilingService:
         artifact_ids: set[str] = set()
         media_types: set[str] = set()
         extractor_families: set[str] = set()
+        extractor_profiles: set[str] = set()
         for record in (*facts, *assertions):
             artifact = self._require_artifact_revision(record.artifact_id, revision.source_revision_id)
             artifact_ids.add(artifact.artifact_id)
             media_types.add(artifact.media_type)
             extractor_families.add(record.extractor_name)
+            extractor_profiles.add(f"{record.extractor_name}@{record.extractor_version}")
 
         feature_keys = self._feature_keys(extractor_families, media_types)
         created_at = self._aware_now()
@@ -139,6 +141,7 @@ class ArchitectureProfilingService:
             "evidence_run_ids": list(run_ids),
             "evidence_fact_ids": [item.evidence_id for item in facts],
             "source_assertion_ids": [item.assertion_id for item in assertions],
+            "extractor_profiles": sorted(extractor_profiles),
             "profile_schema_version": self.profile_schema_version,
             "policy_version": self.policy_version,
         }
@@ -156,6 +159,7 @@ class ArchitectureProfilingService:
             source_assertion_count=len(assertions),
             artifact_count=len(artifact_ids),
             extractor_families=tuple(sorted(extractor_families)),
+            extractor_profiles=tuple(sorted(extractor_profiles)),
             artifact_media_types=tuple(sorted(media_types)),
             feature_keys=feature_keys,
         )
@@ -287,6 +291,17 @@ class DeterministicTriageService:
                 raise ProfilingError(
                     "triage StructuralDelta must terminate at the ArchitectureProfile SourceRevision"
                 )
+            artifact_delta = self.store.get(ArtifactDelta, delta.artifact_delta_id)
+            if artifact_delta is None:
+                raise ProfilingError(
+                    f"StructuralDelta references missing ArtifactDelta: {delta.artifact_delta_id}"
+                )
+            if (
+                artifact_delta.source_id != delta.source_id
+                or artifact_delta.current_source_revision_id != delta.current_source_revision_id
+                or artifact_delta.diff_run_id != delta.diff_run_id
+            ):
+                raise ProfilingError("StructuralDelta and ArtifactDelta provenance disagree")
             self._require_complete_run(delta.diff_run_id, RunType.DIFF)
 
         now = self._aware_now()
