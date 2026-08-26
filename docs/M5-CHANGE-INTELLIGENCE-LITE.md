@@ -121,13 +121,25 @@ M5-lite does not label `content_changed` as important, semantic, functional, for
 
 `StructuralDelta` compares `EvidenceFact.normalized_value`, not authored prose and not model output.
 
-A structural comparison is allowed only when the previous and current extraction `PipelineRun` records have the same:
+A structural comparison requires the caller to provide the exact ordered extractor profile used for both extraction runs. M5 recomputes each persisted extraction run's existing `inputs_hash` from:
+
+```text
+that run's CaptureManifest
++ ordered [{extractor name, extractor version}, ...]
++ that run's policy_version
+```
+
+Both hashes must match their persisted `PipelineRun.inputs_hash`. This binds the run to the exact capture and extractor profile even when the generation emitted **zero** facts/assertions, such as an all-missing explicit-path capture.
+
+After that input binding succeeds, the previous and current extraction runs must also have the same:
 
 ```text
 code_version
 contract schema version
 policy_version
 ```
+
+Using one explicit profile for both sides prevents a default/custom extractor-set change from masquerading as source change even if the human policy string was accidentally reused.
 
 The structural identity key is:
 
@@ -145,11 +157,11 @@ For matching keys:
 
 A key present only in the current compatible generation is `added`; a key present only in the previous generation is `removed`.
 
-This preserves exact evidence lineage while preventing extractor-version drift from being silently reported as source change.
+This preserves exact evidence lineage while preventing extraction-profile/version drift from being silently reported as source change.
 
 ## Determinism invariant
 
-If two compared manifests have identical state for a source locator but compatible deterministic extraction generations yield different facts, M5-lite raises `DeterminismViolation`.
+If two compared manifests have identical state for a source locator but exactly bound compatible deterministic extraction generations yield different facts, M5-lite raises `DeterminismViolation`.
 
 It does **not** construct a change record.
 
@@ -196,18 +208,18 @@ M5-lite does not infer causal ordering between independent provider surfaces fro
 
 ## Live M3 → M4 probe
 
-A temporary branch-only, read-only workflow validated M5-lite against real immutable LemmaMind history.
+A temporary branch-only, read-only workflow validated the stricter M5-lite implementation against real immutable LemmaMind history.
 
 Workflow run:
 
 ```text
-32919230925
+32919752478
 ```
 
 Exact branch head:
 
 ```text
-409c7694e61a6d9463f27606ad2318a21dc13a83
+472d6c8b53a80b736c7dcf3a719367b184a0056a
 ```
 
 GitHub token permissions were read-only (`contents: read`, `metadata: read`). The temporary workflow was removed before PR closeout.
@@ -227,6 +239,18 @@ Requested paths:
 ```text
 README.md
 src/lemmamind/evidence_inspection.py
+```
+
+The exact extractor profile verified against both extraction-run input hashes was:
+
+```text
+artifact-path@1
+pyproject@1
+package-json@1
+markdown-prose@1
+markdown-list@1
+python-ast@1
+typescript-ast@1
 ```
 
 Observed retrieval state:
@@ -252,7 +276,7 @@ The extraction generations contained 4 previous facts and 241 current facts. The
 
 The README change did not produce a `StructuralDelta` in this probe because its changed material was authored prose rather than a changed current `EvidenceFact`. That is an epistemic boundary, not a claim that the README change was insignificant.
 
-The live workflow also ran the full offline suite and reached **182 passed** before executing the exact-revision probe.
+The live workflow also ran the full offline suite and reached **184 passed** before executing the exact-revision probe.
 
 ## Failure semantics
 
@@ -262,7 +286,9 @@ M5-lite fails closed when:
 - captures belong to different Sources;
 - revision or capture temporal ordering is reversed;
 - only one extraction run ID is supplied;
+- structural comparison omits the exact extractor profile;
 - an extraction run is missing, incomplete, or not `run_type=extraction`;
+- an extraction run input hash does not match its CaptureManifest + supplied extractor profile + policy version;
 - extraction evidence refers outside the expected capture;
 - extraction code/schema/policy generations differ;
 - a fact locator is not anchored to its Artifact;
@@ -277,9 +303,10 @@ For V1, this slice is complete when permanent CI proves:
 
 - durable `ArtifactDelta` and `StructuralDelta` persistence;
 - exact capture-scope versus retrieval-state distinctions;
+- exact extraction-run/capture/extractor-profile binding, including zero-evidence generations;
 - deterministic normalized add/remove/modify structural comparison;
 - formatting-byte churn can remain below StructuralDelta when normalized facts are unchanged;
-- extractor generation drift fails closed;
+- extractor profile/generation drift fails closed;
 - deterministic fact drift without artifact change fails closed;
 - same-Source and temporal comparison guards hold;
 - existing M0–M4 and golden regressions remain green.
