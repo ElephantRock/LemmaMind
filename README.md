@@ -16,9 +16,9 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-**V1 foundation — M1 Curated Discovery, the V1 M2 Repository Registry core, M3 Revision Capture, M4 Deterministic Evidence, and M5-lite Deterministic Change Intelligence are implemented.**
+**V1 foundation — M1 Curated Discovery, the V1 M2 Repository Registry core, M3 Revision Capture, M4 Deterministic Evidence, M5-lite Deterministic Change Intelligence, and M6-lite Profiling & Triage are implemented.**
 
-The executable foundation includes strict versioned contracts, append-only SQLite persistence, formal `DiscoveryChannel → DiscoveryRun → DiscoveryHit` lineage, stable GitHub provider-ID repository resolution, immutable repository-locator history, immutable governed repository tracking assignments, latest-effective tracking policy, tracking-aware capture/reasoning gates, registry-aware capture, exact `SourceRevision` commit/tree anchors, `CaptureManifest` input sets, a SHA-256 content-addressed artifact store, local-only historical capture reconstruction, deterministic tree-based revision materiality, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, executable local source-location inspection for deterministic evidence, deterministic `ArtifactDelta → StructuralDelta` generation over exactly bound compatible evidence generations, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, repository-metadata visibility evidence, evidence-bound action-policy evaluation, temporal frontier reconciliation, and a narrow M8-lite cross-repository Pattern layer.
+The executable foundation includes strict versioned contracts, append-only SQLite persistence, formal `DiscoveryChannel → DiscoveryRun → DiscoveryHit` lineage, stable GitHub provider-ID repository resolution, immutable repository-locator history, immutable governed repository tracking assignments, latest-effective tracking policy, tracking-aware capture/reasoning gates, registry-aware capture, exact `SourceRevision` commit/tree anchors, `CaptureManifest` input sets, a SHA-256 content-addressed artifact store, local-only historical capture reconstruction, deterministic tree-based revision materiality, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, executable local source-location inspection for deterministic evidence, deterministic `ArtifactDelta → StructuralDelta` generation over exactly bound compatible evidence generations, immutable revision-bound `ArchitectureProfile` records, deterministic rule-based `TriageAssessment` routing, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, repository-metadata visibility evidence, evidence-bound action-policy evaluation, temporal frontier reconciliation, and a narrow M8-lite cross-repository Pattern layer.
 
 M1 records raw discovery provenance without requiring identity to exist in advance. A `DiscoveryHit` may remain unresolved (`source_id=null`) until M2 resolves it; the historical hit is never rewritten merely because identity becomes known later. The frozen 13-repository manual watchlist is covered in unresolved, partially resolved, and fully resolved states.
 
@@ -31,6 +31,8 @@ The M3 reconciliation reuses the M0 capture spine instead of creating a second a
 The M4 reconciliation reuses the existing deterministic extractor surface and makes its source-addressability executable. `EvidenceInspectionService` traces each `EvidenceFact` or `SourceAssertion` through its extraction run, Artifact, CaptureManifest, SourceRevision, and M3-local reconstructed bytes. Line/range, TOML, JSON, Git-tree, process, workflow, and metadata-derived locator families resolve to exact retained source material or an explicitly identified deterministic derivation substrate. Stable semantic locators such as Git-tree entry paths and workflow provider IDs resolve to the concrete canonical array position without changing the durable evidence locator. Inspection performs no provider fallback and no interpretation.
 
 M5-lite composes M3 reconstruction and M4 deterministic evidence into durable factual change records. `ArtifactDelta` distinguishes capture-scope changes, `MISSING ↔ CAPTURED` transitions, byte-content changes, and media-type changes. Before `StructuralDelta` compares normalized `EvidenceFact` records, each persisted extraction run is rebound to its exact `CaptureManifest` and one common ordered extractor profile by recomputing the extraction `inputs_hash`; code/schema/policy generations must then also match. This works even for a valid all-missing extraction that emitted zero evidence. Capture-scope-only differences do not become repository add/remove claims, authored `SourceAssertion` changes are not silently promoted into structural facts, wrong extractor profiles fail closed, and deterministic fact drift without artifact-state change raises `DeterminismViolation`. `ChangeInterpretation`, significance, generic churn classification, negative-intelligence classification, and cross-surface project-state reconciliation remain full-M5 work.
+
+M6-lite builds immutable `ArchitectureProfile` records only from explicit completed extraction generations that resolve to one exact SourceRevision. Profiles retain exact evidence/artifact IDs, profile schema version, extractor family and `name@version` provenance, media types, and deterministic feature-presence keys; feature presence is not architectural interpretation. `DeterministicTriageService` consumes the M2 tracking policy, explicit caller-supplied domain/sensitivity inputs, profile evidence richness, and validated M5 StructuralDelta provenance using rule precedence rather than a numeric score. The strongest `deep_dive` band requires domain match, deep/continuous tracking, factual recent structural change, and governance/experiment sensitivity. M5 StructuralDelta presence is deliberately treated as a **recent factual structural-change signal**, not a meaningful-change classifier.
 
 The first M8-lite vertical slice adds `Pattern`, `PatternOccurrence`, and `PatternOccurrenceSupport` above source-local Observations. It supports explicit supporting cases, negative controls, and contradicting occurrences; prevents repeated revisions of one Source from becoming pseudo-replication; and always constructs a candidate `SYNTHESIS` result rather than self-validating a cross-source claim.
 
@@ -82,9 +84,11 @@ M4 reconciliation first reached **172 passed** with executable source-location r
 
 M5-lite first reached **182 passed** with durable artifact/structural deltas. After exact extractor-profile input binding and zero-evidence-generation coverage were added, the stricter branch reached **184 passed**. Read-only workflow run `32919752478` compared the same requested paths at M3 commit `055d67f1ae0ebd5174114d8982bcef92609e5733` and M4 commit `c83c95488c85c2130b198b08161b9fa6fcd5209f`: `README.md` was `content_changed`, while `src/lemmamind/evidence_inspection.py` was correctly `became_captured` rather than a capture-scope addition. The exactly bound seven-extractor generations produced **237 added StructuralDelta records**, all tied to that newly available implementation file. The temporary read-only workflow was removed before closeout.
 
-The implementation remains deliberately below scheduler cadence/budget policy, pre-revision metadata scheduling, authenticated tracking-policy writers, provider-independent registry adapters, full M5 `ChangeInterpretation`/semantic churn/project-state reconciliation, M6 ArchitectureProfile/triage, M6.5 embeddings/representation, autonomous model-generated reasoning, the real M7.5 attention-budgeted review queue, full M8 automatic pattern discovery/cohorts/tensions, M9 Insight/Knowledge promotion, action execution, authorization issuance, and UI.
+M6-lite first produced **189 passed / 5 failed** on workflow run `32949026813` because profiling and triage PipelineRuns could collide under deterministic test IDs. Namespaced `run:profiling:*` and `run:triage:*` identities corrected the append-only provenance issue; workflow run `32949167132` then passed **194 tests**. Read-only live run `32949263303` also passed **194 tests**, profiled immutable M5 revision `4fa67cfa6c3fafa235d0d2c74215cff2b2988b9c` into **209 facts / 122 assertions / 3 artifacts**, and used **193 M5 StructuralDelta records** plus an ephemeral local-only Deep tracking assignment, explicit domain match, and governance sensitivity to reproduce a deterministic `deep_dive` route. The temporary workflow is removed before closeout.
 
-The next roadmap move is **M6-lite Profiling & Triage reconciliation**: define a small immutable revision-bound `ArchitectureProfile` over demonstrated deterministic evidence and simple deterministic triage signals before embeddings, learned ranking, or model-generated architectural interpretation.
+The implementation remains deliberately below scheduler cadence/budget policy, pre-revision metadata scheduling, authenticated tracking-policy writers, provider-independent registry adapters, full M5 `ChangeInterpretation`/semantic churn/project-state reconciliation, full M6 semantic profiling/learned ranking, M6.5 embeddings/representation, autonomous model-generated reasoning, the real M7.5 attention-budgeted review queue, full M8 automatic pattern discovery/cohorts/tensions, M9 Insight/Knowledge promotion, action execution, authorization issuance, and UI.
+
+The next roadmap move is **V1 Evidence Engine release-gate reconciliation**, not M6.5. The roadmap defines V1 as M0–M4 + M5-lite + M6-lite + basic review/feedback capture; the remaining review/feedback requirement and the V1 success criterion must be audited explicitly before advancing into V2 representation/reasoning work.
 
 ## Start here
 
@@ -97,6 +101,7 @@ The next roadmap move is **M6-lite Profiling & Triage reconciliation**: define a
 - [`docs/M3-REVISION-CAPTURE.md`](docs/M3-REVISION-CAPTURE.md) — M3 local reconstruction gate, materiality boundary, and reconciliation result
 - [`docs/M4-DETERMINISTIC-EVIDENCE.md`](docs/M4-DETERMINISTIC-EVIDENCE.md) — executable deterministic evidence source-addressability and inspection contract
 - [`docs/M5-CHANGE-INTELLIGENCE-LITE.md`](docs/M5-CHANGE-INTELLIGENCE-LITE.md) — factual ArtifactDelta/StructuralDelta contract and full-M5 boundary
+- [`docs/M6-PROFILING-TRIAGE-LITE.md`](docs/M6-PROFILING-TRIAGE-LITE.md) — immutable revision-bound profiling and deterministic triage contract
 - [`docs/M0-CAPTURE.md`](docs/M0-CAPTURE.md) — deterministic GitHub capture semantics and trust boundary
 - [`docs/M0-EXTRACTION.md`](docs/M0-EXTRACTION.md) — deterministic facts/assertions, provenance, and epistemic boundary
 - [`docs/M0-TYPESCRIPT-EVIDENCE.md`](docs/M0-TYPESCRIPT-EVIDENCE.md) — pinned TypeScript parser trust surface and compatibility evidence
@@ -106,13 +111,14 @@ The next roadmap move is **M6-lite Profiling & Triage reconciliation**: define a
 - [`docs/M0-GITHUB-PROCESS-EVENTS.md`](docs/M0-GITHUB-PROCESS-EVENTS.md) — durable provider issue-event history and close/reopen boundary
 - [`docs/M0-GITHUB-WORKFLOW-EVIDENCE.md`](docs/M0-GITHUB-WORKFLOW-EVIDENCE.md) — durable workflow-run/job/step evidence and safe log-availability boundary
 - [`docs/M0-ACTION-POLICY.md`](docs/M0-ACTION-POLICY.md) — evidence-bound operational policy and authorization separation
-- [`docs/M0-TEMPORAL-RECONCILIATION.md`](docs/M0-TEMPORAL-RECONCILIATION.md) — source-local temporal frontier reconciliation and immutable belief revision
+- [`docs/M0-TEMPORAL-RECONCILIATION.md`](docs/M0-TEMPORAL-RECONCILIATION.md) — source-local temporal reconciliation and immutable belief revision
 - [`docs/M8-PATTERN-INTELLIGENCE-LITE.md`](docs/M8-PATTERN-INTELLIGENCE-LITE.md) — first cross-repository Pattern/negative-control boundary
 - [`eval/pilot/discovery-reports/manual-watchlist-v1.md`](eval/pilot/discovery-reports/manual-watchlist-v1.md) — frozen 13-entry M1 manual-watchlist checkpoint
 - [`eval/pilot/registry-reports/lemmamind-provider-identity-v1.md`](eval/pilot/registry-reports/lemmamind-provider-identity-v1.md) — M2 live provider-ID checkpoint and evolution boundary
 - [`eval/pilot/registry-reports/tracking-level-policy-v1.md`](eval/pilot/registry-reports/tracking-level-policy-v1.md) — M2 governed tracking-policy checkpoint and effective-time correction
 - [`eval/pilot/evidence-reports/m4-source-addressability-v1.md`](eval/pilot/evidence-reports/m4-source-addressability-v1.md) — M4 executable source-addressability checkpoint
 - [`eval/pilot/change-reports/m5-deterministic-delta-v1.md`](eval/pilot/change-reports/m5-deterministic-delta-v1.md) — M5-lite deterministic delta checkpoint and live M3→M4 probe
+- [`eval/pilot/profile-reports/m6-profiling-triage-v1.md`](eval/pilot/profile-reports/m6-profiling-triage-v1.md) — M6-lite deterministic profile/triage checkpoint
 - [`eval/pilot/coverage/external-v1.yaml`](eval/pilot/coverage/external-v1.yaml) — machine-readable external evidence-recovery checks
 - [`eval/pilot/coverage/reports/external-v1-typescript.md`](eval/pilot/coverage/reports/external-v1-typescript.md) — complete deterministic repository-evidence checkpoint (12/12)
 - [`eval/pilot/observation-reports/external-openbot-v1.md`](eval/pilot/observation-reports/external-openbot-v1.md) — first live evidence-supported Observation probe
@@ -126,6 +132,8 @@ The next roadmap move is **M6-lite Profiling & Triage reconciliation**: define a
 - [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned contracts
 - [`src/lemmamind/change_contracts.py`](src/lemmamind/change_contracts.py) — durable M5-lite ArtifactDelta/StructuralDelta contracts
 - [`src/lemmamind/change_intelligence.py`](src/lemmamind/change_intelligence.py) — local deterministic artifact and normalized structural comparison service
+- [`src/lemmamind/profile_contracts.py`](src/lemmamind/profile_contracts.py) — durable M6-lite ArchitectureProfile/TriageAssessment contracts
+- [`src/lemmamind/profiling.py`](src/lemmamind/profiling.py) — deterministic revision-bound profiling and rule-based triage
 - [`src/lemmamind/discovery.py`](src/lemmamind/discovery.py) — generic M1 discovery lineage service
 - [`src/lemmamind/manual_watchlist.py`](src/lemmamind/manual_watchlist.py) — manual-watchlist M1 adapter
 - [`src/lemmamind/repository_registry.py`](src/lemmamind/repository_registry.py) — M2 GitHub provider-ID resolution and locator history
@@ -154,7 +162,7 @@ The next roadmap move is **M6-lite Profiling & Triage reconciliation**: define a
 - [`src/lemmamind/observations_v2.py`](src/lemmamind/observations_v2.py) — revision-aware same-source supersession while preserving one-revision Observation support
 - [`src/lemmamind/pattern_intelligence.py`](src/lemmamind/pattern_intelligence.py) — candidate cross-source Pattern construction over source-local Observations
 - [`src/lemmamind/observation_readiness.py`](src/lemmamind/observation_readiness.py) — deterministic hard-case readiness evaluator
-- [`tests/`](tests/) — contract, persistence, discovery, registry/tracking, capture/reconstruction/materiality, extraction/inspection/change, observation, process/event/workflow/policy/temporal/pattern, coverage, object-integrity, and golden-corpus regression tests
+- [`tests/`](tests/) — contract, persistence, discovery, registry/tracking, capture/reconstruction/materiality, extraction/inspection/change/profile/triage, observation, process/event/workflow/policy/temporal/pattern, coverage, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
@@ -215,6 +223,10 @@ M4 exact local evidence inspection
       ↓
 ArtifactDelta → normalized StructuralDelta
       ↓
+revision-bound ArchitectureProfile
+      ↓
+deterministic TriageAssessment
+      ↓
 revision-bound Observation + ObservationSupport
       ↓
 same-Source revision-aware supersession
@@ -235,7 +247,7 @@ Action-policy evaluation
 (reject / recommend / require authorization; never authorize)
 ```
 
-The next implementation priority is **M6-lite Profiling & Triage reconciliation**. Full M5 `ChangeInterpretation`, model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred.
+The next implementation priority is **V1 Evidence Engine release-gate reconciliation**. Full M5 `ChangeInterpretation`, full M6 semantic profiling/learned ranking, M6.5 representation, model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred.
 
 ## Canonical home
 
