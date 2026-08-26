@@ -20,3 +20,110 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[test]"
       - run: pytest
+      - name: Replay frozen V2-P0 intervals
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import tempfile
+          from collections import Counter
+          from pathlib import Path
+
+          from lemmamind.contracts import SourceRole
+          from lemmamind.github import GitHubCaptureService
+          from lemmamind.objects import ContentAddressedFileStore
+          from lemmamind.recursive_tree import (
+              GitHubRecursiveTreeRESTReader,
+              RecursiveGitTreeDiffService,
+              TrackingAwareGitHubRecursiveTreeCaptureService,
+          )
+          from lemmamind.storage import SQLiteContractStore
+          from lemmamind.tracking import RepositoryTrackingService
+          from lemmamind.tracking_contracts import TrackingLevel
+
+          intervals = [
+              {
+                  "repository": "CopilotKit/OpenBot",
+                  "baseline": "43ea5c11210c485551c25b41a4270c56a58591f1",
+                  "current": "e8aa34451f73ef2719c22cc557be369d9ea70afb",
+                  "target": "app/src/lib/attention/queries.ts",
+              },
+              {
+                  "repository": "openclaw/openclaw",
+                  "baseline": "20eef858aafbf6a3c45b0f20366a08192996f91b",
+                  "current": "aec260b7002cf56232add300f3dd3454c81a10cf",
+                  "target": "src/agents/sticky-model-selection.ts",
+              },
+              {
+                  "repository": "NousResearch/hermes-agent",
+                  "baseline": "b2bd1ac63ff137a6287ce989d65dccee6b9155e2",
+                  "current": "a6d6060d6128260d8536d0b92ae0324fff028ffd",
+                  "target": "hermes_cli/update_contract.py",
+              },
+          ]
+
+          reports = []
+          for spec in intervals:
+              with tempfile.TemporaryDirectory() as directory:
+                  root = Path(directory)
+                  store = SQLiteContractStore(root / "lemmamind.db")
+                  objects = ContentAddressedFileStore(root / "objects")
+                  reader = GitHubRecursiveTreeRESTReader(token=os.environ["GITHUB_TOKEN"])
+                  capture = GitHubCaptureService(reader, store, objects)
+                  previous = capture.capture_repository(
+                      spec["repository"],
+                      ["README.md"],
+                      source_role=SourceRole.IMPLEMENTATION,
+                      ref=spec["baseline"],
+                  )
+                  current = capture.capture_repository(
+                      spec["repository"],
+                      ["README.md"],
+                      source_role=SourceRole.IMPLEMENTATION,
+                      ref=spec["current"],
+                  )
+                  tracking = RepositoryTrackingService(store)
+                  tracking.assign_level(
+                      current.source.source_id,
+                      TrackingLevel.DEEP,
+                      assigned_by="m5-recursive-replay",
+                      reason="ephemeral V2-P0 replay",
+                  )
+                  recursive = TrackingAwareGitHubRecursiveTreeCaptureService(
+                      reader,
+                      store,
+                      objects,
+                      tracking=tracking,
+                  )
+                  previous_tree = recursive.capture_recursive_tree(
+                      previous.revision.source_revision_id
+                  )
+                  current_tree = recursive.capture_recursive_tree(
+                      current.revision.source_revision_id
+                  )
+                  result = RecursiveGitTreeDiffService(store, objects).compare_captures(
+                      previous_tree.manifest.capture_id,
+                      current_tree.manifest.capture_id,
+                  )
+                  paths = {delta.path for delta in result.deltas}
+                  assert spec["target"] in paths, (
+                      f"expected V2-P0 miss location not localized: {spec['repository']} "
+                      f"{spec['target']}"
+                  )
+                  reports.append(
+                      {
+                          "repository": spec["repository"],
+                          "changed_leaf_paths": len(result.deltas),
+                          "target": spec["target"],
+                          "target_localized": True,
+                          "surface_counts": dict(
+                              sorted(Counter(delta.surface.value for delta in result.deltas).items())
+                          ),
+                      }
+                  )
+
+          print("M5_RECURSIVE_REPLAY=" + json.dumps(reports, sort_keys=True))
+          print(json.dumps(reports, indent=2, sort_keys=True))
+          PY
