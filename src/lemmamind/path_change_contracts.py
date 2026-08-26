@@ -44,7 +44,10 @@ class GitPathDelta(ContractModel):
     current_source_revision_id: Identifier
     previous_capture_id: Identifier
     current_capture_id: Identifier
-    path: Identifier
+    # Git permits leading/trailing whitespace in path components. Do not use
+    # Identifier here because Identifier strips whitespace and would corrupt
+    # exact source identity.
+    path: str = Field(min_length=1)
     change_type: GitPathDeltaType
     surface: ChangeSurface
 
