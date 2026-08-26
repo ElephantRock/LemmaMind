@@ -1,13 +1,13 @@
 """M4 executable inspection of deterministic evidence at its retained source location.
 
-The deterministic extractors already emit source locators.  M4 makes those
+The deterministic extractors already emit source locators. M4 makes those
 locators executable: an EvidenceFact or SourceAssertion can be traced through its
 Artifact/CaptureManifest/SourceRevision to locally retained bytes, and its locator
 is resolved to an exact text span, structured value, or explicitly identified
 derivation substrate.
 
 Inspection never refetches the provider and never upgrades evidence into an
-interpretation.  Stable semantic locators used by some canonical snapshots (for
+interpretation. Stable semantic locators used by some canonical snapshots (for
 example workflow job IDs or Git-tree entry paths) are resolved to the concrete
 array index in the retained JSON document before returning the inspection.
 """
@@ -21,13 +21,7 @@ from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import Any, Protocol
 
-from .contracts import (
-    Artifact,
-    EvidenceFact,
-    PipelineRun,
-    RunType,
-    SourceAssertion,
-)
+from .contracts import Artifact, EvidenceFact, PipelineRun, RunType, SourceAssertion
 from .objects import ContentAddressedFileStore
 from .revision_capture import CaptureReconstructionService
 
@@ -140,9 +134,7 @@ class EvidenceInspectionService:
                 f"evidence Artifact is not locally reconstructable: {artifact.artifact_id}"
             )
 
-        evidence_value = (
-            record.raw_value if isinstance(record, EvidenceFact) else record.statement
-        )
+        evidence_value = record.raw_value if isinstance(record, EvidenceFact) else record.statement
         location = self._resolve_locator(artifact, reconstructed.data, record.locator)
         return EvidenceInspection(
             record_type=type(record).__name__,
@@ -279,7 +271,7 @@ class EvidenceInspectionService:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise EvidenceInspectionError("retained JSON artifact cannot be parsed") from exc
 
-        pointer = fragment if fragment.startswith("/") else f"/{fragment}"
+        pointer = "" if fragment == "" else (fragment if fragment.startswith("/") else f"/{fragment}")
         tokens = self._decode_pointer(pointer)
         kind = InspectionLocationKind.STRUCTURED_VALUE
 
@@ -293,7 +285,6 @@ class EvidenceInspectionService:
         # A small set of counts/lists is a deterministic derivation over an exact
         # retained container rather than a literal JSON leaf. Resolve to that
         # substrate and label it honestly.
-        derived_key = tokens[-1] if tokens else ""
         if artifact.media_type == "application/vnd.lemmamind.git-tree+json":
             if tokens == ["entry_count"] or tokens == ["entry_paths"]:
                 tokens = ["entries"]
@@ -343,7 +334,6 @@ class EvidenceInspectionService:
         resolved_pointer = "/" + "/".join(self._escape_pointer(token) for token in resolved_tokens)
         if not resolved_tokens:
             resolved_pointer = ""
-        del derived_key  # retained for clarity of the derivation branch above
         return (
             f"{artifact.source_locator}#{resolved_pointer}",
             kind,
