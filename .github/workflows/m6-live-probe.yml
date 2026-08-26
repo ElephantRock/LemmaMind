@@ -1,0 +1,131 @@
+name: m6-live-probe
+
+on:
+  push:
+    branches:
+      - m6/profiling-triage-lite
+
+permissions:
+  contents: read
+
+jobs:
+  live-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[test]"
+      - run: pytest
+      - name: M4 to M6 deterministic profile and triage probe
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import tempfile
+          from pathlib import Path
+
+          from lemmamind.change_intelligence import DeterministicChangeService
+          from lemmamind.github import GitHubCaptureService, GitHubRESTReader
+          from lemmamind.objects import ContentAddressedFileStore
+          from lemmamind.profiling import ArchitectureProfilingService, DeterministicTriageService
+          from lemmamind.profile_contracts import TriageBand, TriageSensitivity
+          from lemmamind.storage import SQLiteContractStore
+          from lemmamind.tracking import RepositoryTrackingService
+          from lemmamind.tracking_contracts import TrackingLevel
+          from lemmamind.typescript_ast import typescript_aware_extractors
+          from lemmamind.extraction import DeterministicExtractionService
+          from lemmamind.contracts import SourceRole
+
+          previous_ref = "c83c95488c85c2130b198b08161b9fa6fcd5209f"
+          current_ref = "4fa67cfa6c3fafa235d0d2c74215cff2b2988b9c"
+          paths = (
+              "README.md",
+              "pyproject.toml",
+              "src/lemmamind/change_intelligence.py",
+          )
+
+          with tempfile.TemporaryDirectory() as directory:
+              root = Path(directory)
+              store = SQLiteContractStore(root / "lemmamind.db")
+              objects = ContentAddressedFileStore(root / "objects")
+              reader = GitHubRESTReader(token=os.environ.get("GITHUB_TOKEN"))
+              capture = GitHubCaptureService(reader, store, objects)
+
+              previous = capture.capture_repository(
+                  "ElephantRock/LemmaMind",
+                  paths,
+                  source_role=SourceRole.IMPLEMENTATION,
+                  ref=previous_ref,
+              )
+              current = capture.capture_repository(
+                  "ElephantRock/LemmaMind",
+                  paths,
+                  source_role=SourceRole.IMPLEMENTATION,
+                  ref=current_ref,
+              )
+
+              extraction = DeterministicExtractionService(
+                  store,
+                  objects,
+                  artifact_extractors=typescript_aware_extractors(),
+              )
+              previous_extract = extraction.extract_capture(previous.manifest.capture_id)
+              current_extract = extraction.extract_capture(current.manifest.capture_id)
+
+              change = DeterministicChangeService(store, objects).compare_captures(
+                  previous.manifest.capture_id,
+                  current.manifest.capture_id,
+                  previous_extraction_run_id=previous_extract.run.run_id,
+                  current_extraction_run_id=current_extract.run.run_id,
+                  artifact_extractors=extraction.artifact_extractors,
+              )
+              assert change.structural_deltas
+
+              profile_result = ArchitectureProfilingService(store).build_profile(
+                  current.revision.source_revision_id,
+                  evidence_run_ids=(current_extract.run.run_id,),
+              )
+              profile = profile_result.profile
+              assert "language:python" in profile.feature_keys
+              assert "manifest:python-project" in profile.feature_keys
+              assert any(item.startswith("python-ast@") for item in profile.extractor_profiles)
+
+              tracking = RepositoryTrackingService(store)
+              assignment = tracking.assign_level(
+                  current.source.source_id,
+                  TrackingLevel.DEEP,
+                  assigned_by="m6-live-probe",
+                  reason="ephemeral live triage validation",
+              )
+              triage = DeterministicTriageService(store, tracking).assess(
+                  profile.architecture_profile_id,
+                  domain_match=True,
+                  sensitivity_flags=(TriageSensitivity.GOVERNANCE,),
+                  structural_delta_ids=tuple(
+                      item.structural_delta_id for item in change.structural_deltas
+                  ),
+              ).assessment
+              assert triage.band is TriageBand.DEEP_DIVE
+              assert triage.tracking_assignment_id == assignment.tracking_assignment_id
+
+              print(json.dumps({
+                  "previous_commit": previous.revision.commit_sha,
+                  "current_commit": current.revision.commit_sha,
+                  "requested_paths": list(paths),
+                  "current_fact_count": profile.evidence_fact_count,
+                  "current_assertion_count": profile.source_assertion_count,
+                  "artifact_count": profile.artifact_count,
+                  "extractor_profiles": list(profile.extractor_profiles),
+                  "feature_keys": list(profile.feature_keys),
+                  "structural_delta_count": len(change.structural_deltas),
+                  "triage_band": triage.band.value,
+                  "triage_reasons": [item.value for item in triage.reasons],
+                  "tracking_level": triage.tracking_level.value,
+              }, sort_keys=True, indent=2))
+          PY
