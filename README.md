@@ -16,9 +16,9 @@ Repository repair is not a core requirement. LemmaMind's mandatory job is to und
 
 The completed pilot contains a controlled ElephantRock corpus plus four real external read-only repositories. It demonstrates useful single-source observations, cross-repository reasoning, negative intelligence, belief revision, correct no-action behavior, source-role classification, and decision-relevant intelligence without requiring source modification.
 
-**V1 foundation — M1 Curated Discovery, the V1 M2 Repository Registry core, M3 Revision Capture, and M4 Deterministic Evidence are implemented.**
+**V1 foundation — M1 Curated Discovery, the V1 M2 Repository Registry core, M3 Revision Capture, M4 Deterministic Evidence, and M5-lite Deterministic Change Intelligence are implemented.**
 
-The executable foundation includes strict versioned contracts, append-only SQLite persistence, formal `DiscoveryChannel → DiscoveryRun → DiscoveryHit` lineage, stable GitHub provider-ID repository resolution, immutable repository-locator history, immutable governed repository tracking assignments, latest-effective tracking policy, tracking-aware capture/reasoning gates, registry-aware capture, exact `SourceRevision` commit/tree anchors, `CaptureManifest` input sets, a SHA-256 content-addressed artifact store, local-only historical capture reconstruction, deterministic tree-based revision materiality, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, executable local source-location inspection for deterministic evidence, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, repository-metadata visibility evidence, evidence-bound action-policy evaluation, temporal frontier reconciliation, and a narrow M8-lite cross-repository Pattern layer.
+The executable foundation includes strict versioned contracts, append-only SQLite persistence, formal `DiscoveryChannel → DiscoveryRun → DiscoveryHit` lineage, stable GitHub provider-ID repository resolution, immutable repository-locator history, immutable governed repository tracking assignments, latest-effective tracking policy, tracking-aware capture/reasoning gates, registry-aware capture, exact `SourceRevision` commit/tree anchors, `CaptureManifest` input sets, a SHA-256 content-addressed artifact store, local-only historical capture reconstruction, deterministic tree-based revision materiality, deterministic read-only GitHub file capture, exact Git root-tree capture, durable Git commit metadata, deterministic artifact extraction, executable local source-location inspection for deterministic evidence, deterministic `ArtifactDelta → StructuralDelta` generation over compatible local evidence generations, Python AST structural evidence, TypeScript/TSX syntax and comment evidence, explicit candidate `Observation` construction with typed support edges, revision-aware same-source supersession, durable current GitHub issue/pull-request snapshots, durable issue-event history, workflow-run/job/step evidence, repository-metadata visibility evidence, evidence-bound action-policy evaluation, temporal frontier reconciliation, and a narrow M8-lite cross-repository Pattern layer.
 
 M1 records raw discovery provenance without requiring identity to exist in advance. A `DiscoveryHit` may remain unresolved (`source_id=null`) until M2 resolves it; the historical hit is never rewritten merely because identity becomes known later. The frozen 13-repository manual watchlist is covered in unresolved, partially resolved, and fully resolved states.
 
@@ -26,9 +26,11 @@ The first M2 registry slice uses GitHub's provider repository ID as the stable i
 
 The M2 tracking slice records immutable `RepositoryTrackingAssignment` history over the roadmap's levels `0 — Ignore` through `5 — Continuous`. An unassigned Source fails closed operationally as level `0` without fabricating a persisted assignment. V1 accepts only immediately effective new assignments; future scheduling and backdating are deferred until explicit cancellation/correction semantics exist. Tracking level controls operational eligibility, not truth or authorization: metadata requires level `1+`, explicit files and commit metadata `2+`, root-tree structure and source-local reasoning `3+`, and process/history/workflow evidence `4+`; level `5` adds continuous-monitoring eligibility without inventing a fixed scheduler cadence.
 
-The M3 reconciliation reuses the M0 capture spine instead of creating a second acquisition system. `CaptureReconstructionService` now proves that one historical `CaptureManifest` can be reconstructed entirely from local `SourceRevision`/`Artifact` records and content-addressed bytes, with no provider fallback. Contradictory or incomplete local state fails closed. `RevisionMaterialityGate` suppresses repository-content reanalysis for the same commit or a different commit with the same Git root tree; a changed root tree is only a **material candidate**, not a claim of meaningful change. Semantic change intelligence remains an M5 responsibility.
+The M3 reconciliation reuses the M0 capture spine instead of creating a second acquisition system. `CaptureReconstructionService` proves that one historical `CaptureManifest` can be reconstructed entirely from local `SourceRevision`/`Artifact` records and content-addressed bytes, with no provider fallback. Contradictory or incomplete local state fails closed. `RevisionMaterialityGate` suppresses repository-content reanalysis for the same commit or a different commit with the same Git root tree; a changed root tree is only a **material candidate**, not a claim of meaningful change.
 
 The M4 reconciliation reuses the existing deterministic extractor surface and makes its source-addressability executable. `EvidenceInspectionService` traces each `EvidenceFact` or `SourceAssertion` through its extraction run, Artifact, CaptureManifest, SourceRevision, and M3-local reconstructed bytes. Line/range, TOML, JSON, Git-tree, process, workflow, and metadata-derived locator families resolve to exact retained source material or an explicitly identified deterministic derivation substrate. Stable semantic locators such as Git-tree entry paths and workflow provider IDs resolve to the concrete canonical array position without changing the durable evidence locator. Inspection performs no provider fallback and no interpretation.
+
+M5-lite composes M3 reconstruction and M4 deterministic evidence into durable factual change records. `ArtifactDelta` distinguishes capture-scope changes, `MISSING ↔ CAPTURED` transitions, byte-content changes, and media-type changes. `StructuralDelta` compares normalized `EvidenceFact` records only across matching extraction code/schema/policy generations and preserves exact previous/current evidence IDs and locators. Capture-scope-only differences do not become repository add/remove claims, authored `SourceAssertion` changes are not silently promoted into structural facts, and deterministic fact drift without artifact-state change fails closed as a `DeterminismViolation`. `ChangeInterpretation`, significance, generic churn classification, negative-intelligence classification, and cross-surface project-state reconciliation remain full-M5 work.
 
 The first M8-lite vertical slice adds `Pattern`, `PatternOccurrence`, and `PatternOccurrenceSupport` above source-local Observations. It supports explicit supporting cases, negative controls, and contradicting occurrences; prevents repeated revisions of one Source from becoming pseudo-replication; and always constructs a candidate `SYNTHESIS` result rather than self-validating a cross-source claim.
 
@@ -78,9 +80,11 @@ M3 reconciliation first reached **162 passed** with local reconstruction and tre
 
 M4 reconciliation first reached **172 passed** with executable source-location resolution, then **174 passed** after adding the scalar JSON-root edge case and an integration regression that requires the actual Markdown/manifest/Python/TypeScript extractor stack to be fully resolvable through `audit_all()`.
 
-The implementation remains deliberately below scheduler cadence/budget policy, pre-revision metadata scheduling, authenticated tracking-policy writers, provider-independent registry adapters, general M5 delta machinery, M6 ArchitectureProfile/triage, M6.5 embeddings/representation, autonomous model-generated reasoning, the real M7.5 attention-budgeted review queue, full M8 automatic pattern discovery/cohorts/tensions, M9 Insight/Knowledge promotion, action execution, authorization issuance, and UI.
+M5-lite first reached **182 passed** with durable artifact/structural deltas. A read-only exact-revision probe in workflow run `32919230925` then compared the same requested paths at M3 commit `055d67f1ae0ebd5174114d8982bcef92609e5733` and M4 commit `c83c95488c85c2130b198b08161b9fa6fcd5209f`: `README.md` was `content_changed`, while `src/lemmamind/evidence_inspection.py` was correctly `became_captured` rather than a capture-scope addition. The compatible deterministic generations produced **237 added StructuralDelta records**, all tied to that newly available implementation file. The temporary read-only workflow was removed before closeout.
 
-The next roadmap move is **M5-lite Change Intelligence reconciliation**: add deterministic `ArtifactDelta → StructuralDelta` over reconstructable revision/capture evidence, preserving a hard boundary before inferred `ChangeInterpretation`, semantic significance, and sophisticated churn suppression.
+The implementation remains deliberately below scheduler cadence/budget policy, pre-revision metadata scheduling, authenticated tracking-policy writers, provider-independent registry adapters, full M5 `ChangeInterpretation`/semantic churn/project-state reconciliation, M6 ArchitectureProfile/triage, M6.5 embeddings/representation, autonomous model-generated reasoning, the real M7.5 attention-budgeted review queue, full M8 automatic pattern discovery/cohorts/tensions, M9 Insight/Knowledge promotion, action execution, authorization issuance, and UI.
+
+The next roadmap move is **M6-lite Profiling & Triage reconciliation**: define a small immutable revision-bound `ArchitectureProfile` over demonstrated deterministic evidence and simple deterministic triage signals before embeddings, learned ranking, or model-generated architectural interpretation.
 
 ## Start here
 
@@ -92,6 +96,7 @@ The next roadmap move is **M5-lite Change Intelligence reconciliation**: add det
 - [`docs/M2-REPOSITORY-REGISTRY.md`](docs/M2-REPOSITORY-REGISTRY.md) — stable provider identity, locator evolution, governed tracking history, and tracking-aware policy gates
 - [`docs/M3-REVISION-CAPTURE.md`](docs/M3-REVISION-CAPTURE.md) — M3 local reconstruction gate, materiality boundary, and reconciliation result
 - [`docs/M4-DETERMINISTIC-EVIDENCE.md`](docs/M4-DETERMINISTIC-EVIDENCE.md) — executable deterministic evidence source-addressability and inspection contract
+- [`docs/M5-CHANGE-INTELLIGENCE-LITE.md`](docs/M5-CHANGE-INTELLIGENCE-LITE.md) — factual ArtifactDelta/StructuralDelta contract and full-M5 boundary
 - [`docs/M0-CAPTURE.md`](docs/M0-CAPTURE.md) — deterministic GitHub capture semantics and trust boundary
 - [`docs/M0-EXTRACTION.md`](docs/M0-EXTRACTION.md) — deterministic facts/assertions, provenance, and epistemic boundary
 - [`docs/M0-TYPESCRIPT-EVIDENCE.md`](docs/M0-TYPESCRIPT-EVIDENCE.md) — pinned TypeScript parser trust surface and compatibility evidence
@@ -107,6 +112,7 @@ The next roadmap move is **M5-lite Change Intelligence reconciliation**: add det
 - [`eval/pilot/registry-reports/lemmamind-provider-identity-v1.md`](eval/pilot/registry-reports/lemmamind-provider-identity-v1.md) — M2 live provider-ID checkpoint and evolution boundary
 - [`eval/pilot/registry-reports/tracking-level-policy-v1.md`](eval/pilot/registry-reports/tracking-level-policy-v1.md) — M2 governed tracking-policy checkpoint and effective-time correction
 - [`eval/pilot/evidence-reports/m4-source-addressability-v1.md`](eval/pilot/evidence-reports/m4-source-addressability-v1.md) — M4 executable source-addressability checkpoint
+- [`eval/pilot/change-reports/m5-deterministic-delta-v1.md`](eval/pilot/change-reports/m5-deterministic-delta-v1.md) — M5-lite deterministic delta checkpoint and live M3→M4 probe
 - [`eval/pilot/coverage/external-v1.yaml`](eval/pilot/coverage/external-v1.yaml) — machine-readable external evidence-recovery checks
 - [`eval/pilot/coverage/reports/external-v1-typescript.md`](eval/pilot/coverage/reports/external-v1-typescript.md) — complete deterministic repository-evidence checkpoint (12/12)
 - [`eval/pilot/observation-reports/external-openbot-v1.md`](eval/pilot/observation-reports/external-openbot-v1.md) — first live evidence-supported Observation probe
@@ -118,6 +124,8 @@ The next roadmap move is **M5-lite Change Intelligence reconciliation**: add det
 - [`eval/pilot/temporal-reports/csd-frontier-reconciliation-v1.md`](eval/pilot/temporal-reports/csd-frontier-reconciliation-v1.md) — live temporal belief-revision checkpoint
 - [`eval/pilot/pattern-reports/private-actions-v1.md`](eval/pilot/pattern-reports/private-actions-v1.md) — first cross-repository Pattern checkpoint
 - [`src/lemmamind/contracts.py`](src/lemmamind/contracts.py) — executable versioned contracts
+- [`src/lemmamind/change_contracts.py`](src/lemmamind/change_contracts.py) — durable M5-lite ArtifactDelta/StructuralDelta contracts
+- [`src/lemmamind/change_intelligence.py`](src/lemmamind/change_intelligence.py) — local deterministic artifact and normalized structural comparison service
 - [`src/lemmamind/discovery.py`](src/lemmamind/discovery.py) — generic M1 discovery lineage service
 - [`src/lemmamind/manual_watchlist.py`](src/lemmamind/manual_watchlist.py) — manual-watchlist M1 adapter
 - [`src/lemmamind/repository_registry.py`](src/lemmamind/repository_registry.py) — M2 GitHub provider-ID resolution and locator history
@@ -146,7 +154,7 @@ The next roadmap move is **M5-lite Change Intelligence reconciliation**: add det
 - [`src/lemmamind/observations_v2.py`](src/lemmamind/observations_v2.py) — revision-aware same-source supersession while preserving one-revision Observation support
 - [`src/lemmamind/pattern_intelligence.py`](src/lemmamind/pattern_intelligence.py) — candidate cross-source Pattern construction over source-local Observations
 - [`src/lemmamind/observation_readiness.py`](src/lemmamind/observation_readiness.py) — deterministic hard-case readiness evaluator
-- [`tests/`](tests/) — contract, persistence, discovery, registry/tracking, capture/reconstruction/materiality, extraction/inspection, observation, process/event/workflow/policy/temporal/pattern, coverage, object-integrity, and golden-corpus regression tests
+- [`tests/`](tests/) — contract, persistence, discovery, registry/tracking, capture/reconstruction/materiality, extraction/inspection/change, observation, process/event/workflow/policy/temporal/pattern, coverage, object-integrity, and golden-corpus regression tests
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — comprehensive project roadmap
 - [`docs/PILOT.md`](docs/PILOT.md) — M−1 protocol and completed corpus
 - [`pilot/watchlist.yaml`](pilot/watchlist.yaml) — pinned internal + external validation corpus
@@ -205,6 +213,8 @@ deterministic EvidenceFact / SourceAssertion
       ↓
 M4 exact local evidence inspection
       ↓
+ArtifactDelta → normalized StructuralDelta
+      ↓
 revision-bound Observation + ObservationSupport
       ↓
 same-Source revision-aware supersession
@@ -225,7 +235,7 @@ Action-policy evaluation
 (reject / recommend / require authorization; never authorize)
 ```
 
-The next implementation priority is **M5-lite Change Intelligence reconciliation**. Model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred.
+The next implementation priority is **M6-lite Profiling & Triage reconciliation**. Full M5 `ChangeInterpretation`, model-proposed observations, broad automatic Pattern discovery, knowledge promotion, and action execution remain deferred.
 
 ## Canonical home
 
