@@ -249,7 +249,7 @@ The branch also directly tests:
 
 Permanent PR run `32916123573` reached **172 passed** on the first inspection implementation. After adding the JSON-root edge case and real extractor-surface audit, run `32916244385` reached **174 passed**.
 
-The final exact-head merge run is recorded in the M4 checkpoint report.
+The final exact-head merge run is preserved in PR #24 and GitHub Actions history so the tested head/run association remains immutable without making the tracked checkpoint self-referential.
 
 ## M4 closeout boundary
 
