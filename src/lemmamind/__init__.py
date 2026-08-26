@@ -7,9 +7,17 @@ from .change_contracts import (
     StructuralDeltaType,
 )
 from .contracts import CONTRACT_SCHEMA_VERSION
+from .profile_contracts import (
+    ArchitectureProfile,
+    TriageAssessment,
+    TriageBand,
+    TriageReason,
+    TriageSensitivity,
+)
 from .tracking_contracts import RepositoryTrackingAssignment, TrackingLevel
 
 __all__ = [
+    "ArchitectureProfile",
     "ArtifactDelta",
     "ArtifactDeltaType",
     "CONTRACT_SCHEMA_VERSION",
@@ -17,5 +25,9 @@ __all__ = [
     "StructuralDelta",
     "StructuralDeltaType",
     "TrackingLevel",
+    "TriageAssessment",
+    "TriageBand",
+    "TriageReason",
+    "TriageSensitivity",
 ]
 __version__ = "0.1.0"
