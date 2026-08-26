@@ -4,7 +4,7 @@ M3 separates exact upstream Git state (``SourceRevision``) from the exact local
 analysis inputs retained in ``CaptureManifest`` / ``Artifact`` records and the
 content-addressed object store.
 
-This module deliberately does not interpret change significance.  The materiality
+This module deliberately does not interpret change significance. The materiality
 gate answers only whether repository tree content changed; semantic/structural
 change intelligence belongs to M5.
 """
@@ -15,7 +15,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from .contracts import Artifact, CaptureManifest, RetrievalStatus, SourceRevision
-from .objects import ContentAddressedFileStore
+from .objects import ContentAddressedFileStore, ObjectCorruption
 
 
 class CaptureReconstructionError(RuntimeError):
@@ -80,7 +80,7 @@ class ContractStore(Protocol):
 class CaptureReconstructionService:
     """Reconstruct one historical capture entirely from local durable state.
 
-    The service performs no provider reads.  It verifies that the manifest,
+    The service performs no provider reads. It verifies that the manifest,
     Artifact rows, and content-addressed bytes form one exact closed set before
     returning any input bytes.
     """
@@ -130,7 +130,13 @@ class CaptureReconstructionService:
                     )
                 self._require_artifact_match(manifest, ref, artifact)
                 expected_persisted_artifact_ids.add(artifact.artifact_id)
-                data = self.object_store.get(artifact.content_hash)
+                try:
+                    data = self.object_store.get(artifact.content_hash)
+                except (FileNotFoundError, ObjectCorruption, ValueError) as exc:
+                    raise CaptureReconstructionError(
+                        "local object cannot satisfy captured manifest ref "
+                        f"{ref.artifact_id}: {artifact.content_hash}"
+                    ) from exc
                 reconstructed.append(
                     ReconstructedArtifact(
                         artifact_id=artifact.artifact_id,
@@ -210,7 +216,7 @@ class RevisionMaterialityGate:
     """Cheap M3 gate over immutable Git revision identity and root-tree content.
 
     ``material=True`` means only that repository tree content changed and later
-    analysis is eligible.  It is not a claim that the change is meaningful.
+    analysis is eligible. It is not a claim that the change is meaningful.
     """
 
     def __init__(self, store: ContractStore) -> None:
