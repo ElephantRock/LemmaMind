@@ -14,6 +14,7 @@ from .profile_contracts import (
     TriageReason,
     TriageSensitivity,
 )
+from .review_contracts import ReviewFeedback
 from .tracking_contracts import RepositoryTrackingAssignment, TrackingLevel
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "ArtifactDeltaType",
     "CONTRACT_SCHEMA_VERSION",
     "RepositoryTrackingAssignment",
+    "ReviewFeedback",
     "StructuralDelta",
     "StructuralDeltaType",
     "TrackingLevel",
