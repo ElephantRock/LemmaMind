@@ -11,7 +11,7 @@ CaptureManifest pair
       ↓
 ArtifactDelta
       ↓
-compatible EvidenceFact generations
+exactly bound compatible EvidenceFact generations
       ↓
 StructuralDelta
 ```
@@ -25,9 +25,10 @@ M5-lite must preserve these distinctions:
 1. a different requested capture scope is not automatically a repository add/remove;
 2. the same requested path changing `MISSING ↔ CAPTURED` is a factual availability transition;
 3. unequal retained bytes are an `ArtifactDelta` even if current normalized structure is unchanged;
-4. `StructuralDelta` compares only normalized `EvidenceFact` generations from matching code/schema/policy versions;
-5. authored `SourceAssertion` changes are not silently promoted to structural facts;
-6. deterministic evidence drift without artifact-state change is a failure, not a source delta.
+4. `StructuralDelta` compares only normalized `EvidenceFact` generations whose persisted run inputs match the exact CaptureManifest and ordered extractor profile and whose code/schema/policy generations match;
+5. a valid zero-evidence extraction generation remains bindable through its persisted input hash;
+6. authored `SourceAssertion` changes are not silently promoted to structural facts;
+7. deterministic evidence drift without artifact-state change is a failure, not a source delta.
 
 ## Deterministic regression coverage
 
@@ -38,9 +39,12 @@ The permanent test suite exercises:
 - `content_changed`;
 - normalized structural `added`, `removed`, and `modified` changes;
 - real `DeterministicExtractionService` generations over `package.json`;
+- exact extraction-run/CaptureManifest/extractor-profile input-hash verification;
+- valid all-missing zero-evidence generation followed by `became_captured` and structural additions;
+- wrong extractor-profile rejection;
 - byte-different formatting with unchanged normalized package facts;
 - capture-scope-only evidence suppression from StructuralDelta;
-- extraction generation mismatch rejection;
+- extraction code/schema/policy generation mismatch rejection;
 - deterministic fact drift with unchanged artifact state rejection;
 - cross-Source rejection;
 - SourceRevision temporal reversal rejection;
@@ -56,16 +60,16 @@ pytest: 182 passed in 2.45s
 conclusion: success
 ```
 
-Later branch heads tightened add/remove and capture-order coverage before the final PR gate.
+The stricter extractor-profile implementation was then exercised by the live probe below at **184 passed** before the exact-revision comparison.
 
 ## Live exact-revision probe
 
 Temporary read-only workflow:
 
 ```text
-run: 32919230925
+run: 32919752478
 workflow: m5-live-probe
-head: 409c7694e61a6d9463f27606ad2318a21dc13a83
+head: 472d6c8b53a80b736c7dcf3a719367b184a0056a
 conclusion: success
 permissions: contents=read, metadata=read
 ```
@@ -95,6 +99,18 @@ Both captures requested exactly:
 ```text
 README.md
 src/lemmamind/evidence_inspection.py
+```
+
+The exact ordered extractor profile verified against both persisted extraction-run input hashes was:
+
+```text
+artifact-path@1
+pyproject@1
+package-json@1
+markdown-prose@1
+markdown-list@1
+python-ast@1
+typescript-ast@1
 ```
 
 ### Retrieval states
@@ -142,7 +158,7 @@ That result must **not** be read as “README change is unimportant.” It demon
 The live workflow ran the repository suite first:
 
 ```text
-182 passed in 2.25s
+184 passed in 9.63s
 ```
 
 and then completed the exact-revision probe successfully.
