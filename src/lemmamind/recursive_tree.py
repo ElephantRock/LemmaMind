@@ -313,6 +313,14 @@ class RecursiveGitTreeDiffService:
         )
         if previous_revision.source_id != current_revision.source_id:
             raise RecursiveGitTreeError("recursive tree comparison requires one Source")
+        if previous_revision.observed_at > current_revision.observed_at:
+            raise RecursiveGitTreeError(
+                "previous SourceRevision must not be newer than current SourceRevision"
+            )
+        if previous_manifest.captured_at > current_manifest.captured_at:
+            raise RecursiveGitTreeError(
+                "previous CaptureManifest must not be newer than current CaptureManifest"
+            )
         if previous_revision.source_revision_id == current_revision.source_revision_id:
             raise RecursiveGitTreeError("recursive tree comparison requires two distinct revisions")
 
