@@ -4,7 +4,7 @@ The service turns one completed recursive Git path diff into smaller temporal/pa
 review units without semantic ranking. It enumerates the exact Git commit range,
 retains each commit's complete changed-path projection, assigns every net
 ``GitPathDelta`` to its latest touching commit, and groups those assignments by
-stable top-level path structure with a fixed attention bound.
+stable path structure with a fixed attention bound.
 """
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ class IntervalSegmentationResult:
 
 
 class IntervalCandidateSegmentationService:
-    """Segment net path changes by latest touching commit and top-level path group."""
+    """Segment net path changes by latest touching commit and typed path group."""
 
     def __init__(
         self,
@@ -168,6 +168,7 @@ class IntervalCandidateSegmentationService:
             raise IntervalSegmentationError(
                 "GitPathDiffSummary delta_count disagrees with persisted GitPathDelta records"
             )
+        self._validate_delta_generation(diff_summary, deltas)
         if len({item.path for item in deltas}) != len(deltas):
             raise IntervalSegmentationError("diff run contains duplicate Git paths")
 
@@ -232,6 +233,11 @@ class IntervalCandidateSegmentationService:
                 current_source_revision_id=current_revision.source_revision_id,
             )
             for ordinal, commit_sha in enumerate(commit_shas, start=1)
+        )
+        self._validate_linear_commit_chain(
+            previous_revision.commit_sha,
+            current_revision.commit_sha,
+            snapshots,
         )
         latest_touch = self._assign_latest_touch(deltas, snapshots)
         candidates = self._build_candidates(
@@ -299,6 +305,33 @@ class IntervalCandidateSegmentationService:
         self.store.put_many(result.records())
         return result
 
+    @staticmethod
+    def _validate_delta_generation(
+        summary: GitPathDiffSummary,
+        deltas: tuple[GitPathDelta, ...],
+    ) -> None:
+        expected = (
+            summary.source_id,
+            summary.previous_source_revision_id,
+            summary.current_source_revision_id,
+            summary.previous_capture_id,
+            summary.current_capture_id,
+            summary.diff_run_id,
+        )
+        for delta in deltas:
+            observed = (
+                delta.source_id,
+                delta.previous_source_revision_id,
+                delta.current_source_revision_id,
+                delta.previous_capture_id,
+                delta.current_capture_id,
+                delta.diff_run_id,
+            )
+            if observed != expected:
+                raise IntervalSegmentationError(
+                    "GitPathDelta generation provenance disagrees with GitPathDiffSummary"
+                )
+
     def _load_commit_range(
         self,
         owner: str,
@@ -326,10 +359,6 @@ class IntervalCandidateSegmentationService:
                 raise IntervalSegmentationError(
                     f"unsupported GitHub compare status: {status_raw!r}"
                 ) from exc
-            if status not in {CommitRangeStatus.AHEAD, CommitRangeStatus.IDENTICAL}:
-                raise IntervalSegmentationError(
-                    f"commit interval must be ahead/identical, received {status.value}"
-                )
             total = payload.get("total_commits")
             if not isinstance(total, int) or total < 0:
                 raise IntervalSegmentationError("GitHub compare omitted total_commits")
@@ -347,7 +376,7 @@ class IntervalCandidateSegmentationService:
                 if status is CommitRangeStatus.AHEAD:
                     if not isinstance(merge_base, Mapping) or merge_base.get("sha") != base_sha:
                         raise IntervalSegmentationError(
-                            "baseline is not the merge base; interval is not a linear ahead frontier"
+                            "baseline is not the merge base; interval is not an ahead frontier"
                         )
             elif total != expected_total or status is not expected_status:
                 raise IntervalSegmentationError(
@@ -385,11 +414,10 @@ class IntervalCandidateSegmentationService:
         if expected_status is CommitRangeStatus.IDENTICAL:
             if base_sha != head_sha or commits:
                 raise IntervalSegmentationError("identical compare frontier is inconsistent")
-        else:
-            if not commits or commits[-1] != head_sha:
-                raise IntervalSegmentationError(
-                    "GitHub compare frontier does not terminate at current revision"
-                )
+        elif not commits or commits[-1] != head_sha:
+            raise IntervalSegmentationError(
+                "GitHub compare frontier does not terminate at current revision"
+            )
         return expected_status, tuple(commits)
 
     def _commit_snapshot(
@@ -472,6 +500,31 @@ class IntervalCandidateSegmentationService:
         )
 
     @staticmethod
+    def _validate_linear_commit_chain(
+        base_sha: str,
+        head_sha: str,
+        snapshots: tuple[CommitPathSnapshot, ...],
+    ) -> None:
+        if not snapshots:
+            if base_sha != head_sha:
+                raise IntervalSegmentationError(
+                    "commit interval has no commits between distinct revisions"
+                )
+            return
+
+        expected_parent = base_sha
+        for snapshot in snapshots:
+            if snapshot.parent_shas != (expected_parent,):
+                raise IntervalSegmentationError(
+                    "commit interval is not a single-parent linear chain"
+                )
+            expected_parent = snapshot.commit_sha
+        if expected_parent != head_sha:
+            raise IntervalSegmentationError(
+                "linear commit chain does not terminate at current revision"
+            )
+
+    @staticmethod
     def _assign_latest_touch(
         deltas: tuple[GitPathDelta, ...],
         snapshots: tuple[CommitPathSnapshot, ...],
@@ -544,10 +597,14 @@ class IntervalCandidateSegmentationService:
     def _path_group(path: str) -> str:
         parts = path.split("/")
         if len(parts) == 1:
-            return "$root"
+            return "root"
         if len(parts) >= 2 and parts[0] == ".github" and parts[1] == "workflows":
-            return ".github/workflows"
-        return parts[0]
+            return "path-prefix:" + json.dumps(
+                ".github/workflows", ensure_ascii=False, separators=(",", ":")
+            )
+        return "top-level:" + json.dumps(
+            parts[0], ensure_ascii=False, separators=(",", ":")
+        )
 
     def _revision(self, revision_id: str) -> SourceRevision:
         revision = self.store.get(SourceRevision, revision_id)
