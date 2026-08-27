@@ -26,6 +26,7 @@ from lemmamind.path_change_contracts import (
     ChangeSurface,
     GitPathDelta,
     GitPathDeltaType,
+    GitPathDiffSummary,
 )
 from lemmamind.storage import SQLiteContractStore
 from lemmamind.tracking import RepositoryTrackingService, TrackingNotAllowed
@@ -99,6 +100,8 @@ def prepare(
     level=TrackingLevel.STRUCTURAL,
     previous_captured_at=NOW,
     current_captured_at=NOW + timedelta(seconds=1),
+    previous_tree_sha="1" * 40,
+    current_tree_sha="2" * 40,
 ):
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     source = Source(
@@ -113,14 +116,14 @@ def prepare(
         source_revision_id=PREVIOUS_REVISION_ID,
         source_id=SOURCE_ID,
         commit_sha="a" * 40,
-        tree_sha="1" * 40,
+        tree_sha=previous_tree_sha,
         observed_at=NOW,
     )
     current = SourceRevision(
         source_revision_id=CURRENT_REVISION_ID,
         source_id=SOURCE_ID,
         commit_sha="b" * 40,
-        tree_sha="2" * 40,
+        tree_sha=current_tree_sha,
         observed_at=NOW + timedelta(seconds=1),
     )
     previous_manifest = CaptureManifest(
@@ -136,6 +139,16 @@ def prepare(
         capture_policy_version="github.recursive-tree.v1",
         captured_at=current_captured_at,
         artifacts=(),
+    )
+    summary = GitPathDiffSummary(
+        git_path_diff_summary_id="git-path-diff-summary:test",
+        source_id=SOURCE_ID,
+        previous_source_revision_id=PREVIOUS_REVISION_ID,
+        current_source_revision_id=CURRENT_REVISION_ID,
+        previous_capture_id=PREVIOUS_CAPTURE_ID,
+        current_capture_id=CURRENT_CAPTURE_ID,
+        delta_count=len(deltas),
+        diff_run_id=DIFF_RUN_ID,
     )
     diff_run = PipelineRun(
         run_id=DIFF_RUN_ID,
@@ -155,6 +168,7 @@ def prepare(
             current,
             previous_manifest,
             current_manifest,
+            summary,
             diff_run,
             *deltas,
         )
@@ -194,6 +208,23 @@ def test_modified_blob_captures_both_revisions_with_tracking_provenance(tmp_path
     assert plan.tracking_level == TrackingLevel.STRUCTURAL.value
     assert store.list(AffectedFileCapturePlan) == [plan]
     assert result.run.run_type is RunType.OTHER
+
+
+def test_empty_recursive_diff_produces_valid_empty_plan(tmp_path) -> None:
+    store, _, planner = prepare(
+        tmp_path,
+        [],
+        previous_tree_sha="1" * 40,
+        current_tree_sha="1" * 40,
+    )
+
+    result = planner.plan_diff(DIFF_RUN_ID)
+
+    assert result.plans == ()
+    assert result.previous_capture_paths == ()
+    assert result.current_capture_paths == ()
+    assert result.run.run_type is RunType.OTHER
+    assert store.list(AffectedFileCapturePlan) == []
 
 
 def test_added_blob_requests_absent_side_to_preserve_missing_state(tmp_path) -> None:
