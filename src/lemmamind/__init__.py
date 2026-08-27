@@ -13,6 +13,12 @@ from .change_contracts import (
     StructuralDeltaType,
 )
 from .contracts import CONTRACT_SCHEMA_VERSION
+from .interval_segmentation_contracts import (
+    CommitPathSnapshot,
+    CommitRangeStatus,
+    CommitRangeSummary,
+    IntervalCandidateSegment,
+)
 from .path_change_contracts import ChangeSurface, GitPathDelta, GitPathDeltaType
 from .profile_contracts import (
     ArchitectureProfile,
@@ -33,9 +39,13 @@ __all__ = [
     "CapturePlanReason",
     "CapturePlanSide",
     "ChangeSurface",
+    "CommitPathSnapshot",
+    "CommitRangeStatus",
+    "CommitRangeSummary",
     "CONTRACT_SCHEMA_VERSION",
     "GitPathDelta",
     "GitPathDeltaType",
+    "IntervalCandidateSegment",
     "RepositoryTrackingAssignment",
     "ReviewFeedback",
     "StructuralDelta",
