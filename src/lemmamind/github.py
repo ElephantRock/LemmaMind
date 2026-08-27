@@ -416,8 +416,14 @@ class GitHubCaptureService:
     def _normalize_paths(paths: list[str] | tuple[str, ...]) -> tuple[str, ...]:
         normalized: set[str] = set()
         for raw in paths:
-            path = raw.strip().strip("/")
-            if not path or path in {".", ".."} or ".." in path.split("/"):
+            path = raw
+            if (
+                not path
+                or "\x00" in path
+                or path.startswith("/")
+                or path.endswith("/")
+                or any(part in {"", ".", ".."} for part in path.split("/"))
+            ):
                 raise ValueError(f"invalid repository path: {raw!r}")
             normalized.add(path)
         if not normalized:
