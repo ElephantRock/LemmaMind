@@ -33,6 +33,29 @@ class ChangeSurface(StrEnum):
     UNKNOWN = "UNKNOWN"
 
 
+class GitPathDiffSummary(ContractModel):
+    """One durable recursive-path diff generation, including a valid empty diff."""
+
+    record_id_field = "git_path_diff_summary_id"
+
+    git_path_diff_summary_id: Identifier
+    source_id: Identifier
+    previous_source_revision_id: Identifier
+    current_source_revision_id: Identifier
+    previous_capture_id: Identifier
+    current_capture_id: Identifier
+    delta_count: int = Field(ge=0)
+    diff_run_id: Identifier
+
+    @model_validator(mode="after")
+    def validate_generation(self) -> "GitPathDiffSummary":
+        if self.previous_source_revision_id == self.current_source_revision_id:
+            raise ValueError("recursive path diff summary requires distinct revisions")
+        if self.previous_capture_id == self.current_capture_id:
+            raise ValueError("recursive path diff summary requires distinct captures")
+        return self
+
+
 class GitPathDelta(ContractModel):
     """One exact non-directory Git path change between two pinned revisions."""
 
@@ -115,8 +138,10 @@ class GitPathDelta(ContractModel):
         return self
 
 
+CONTRACT_TYPES[GitPathDiffSummary.__name__] = GitPathDiffSummary
 CONTRACT_TYPES[GitPathDelta.__name__] = GitPathDelta
 
 PATH_CHANGE_CONTRACT_TYPES: dict[str, type[ContractModel]] = {
+    GitPathDiffSummary.__name__: GitPathDiffSummary,
     GitPathDelta.__name__: GitPathDelta,
 }

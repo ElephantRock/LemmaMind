@@ -14,6 +14,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, JsonValue, Str
 CONTRACT_SCHEMA_VERSION = "lemmamind.m0.v1"
 
 Identifier = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+SourceLocator = Annotated[str, StringConstraints(min_length=1)]
 GitSha = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 ContentDigest = Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
 
@@ -262,7 +263,7 @@ class CaptureArtifactRef(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     artifact_id: Identifier
-    source_locator: Identifier
+    source_locator: SourceLocator
     content_hash: ContentDigest | None = None
     media_type: Identifier | None = None
     retrieval_status: RetrievalStatus
@@ -290,7 +291,7 @@ class Artifact(ContractModel):
 
     artifact_id: Identifier
     capture_id: Identifier
-    source_locator: Identifier
+    source_locator: SourceLocator
     content_hash: ContentDigest
     media_type: Identifier
 

@@ -28,6 +28,7 @@ class FakeGitHubReader:
         self.files = {
             "README.md": b"# example\n",
             "pyproject.toml": b"[project]\n",
+            " src/core.py ": b"print('exact path')\n",
         }
         self.file_calls: list[tuple[str, str, str, str]] = []
         self.commit_refs: list[str] = []
@@ -106,6 +107,20 @@ def test_capture_pins_every_artifact_to_resolved_commit(tmp_path) -> None:
     assert object_store.get(result.artifacts[0].content_hash) == b"# example\n"
     assert result.run.inputs_hash.startswith("sha256:")
     assert result.run.outputs_hash is not None
+
+
+def test_exact_git_path_whitespace_survives_explicit_capture_end_to_end(tmp_path) -> None:
+    reader, _, object_store, service = make_service(tmp_path)
+    exact_path = " src/core.py "
+
+    result = service.capture_repository("Acme/Repo", [exact_path])
+
+    assert reader.file_calls == [("Acme", "Repo", exact_path, COMMIT_SHA)]
+    assert len(result.artifacts) == 1
+    assert result.artifacts[0].source_locator == exact_path
+    assert result.manifest.artifacts[0].source_locator == exact_path
+    assert result.manifest.artifacts[0].retrieval_status is RetrievalStatus.CAPTURED
+    assert object_store.get(result.artifacts[0].content_hash) == b"print('exact path')\n"
 
 
 def test_repeat_capture_reuses_stable_source_and_revision(tmp_path) -> None:
