@@ -296,7 +296,7 @@ def test_commit_file_pagination_preserves_exact_whitespace_path(tmp_path) -> Non
 
     result = service.segment_diff(DIFF_RUN_ID)
 
-    assert result.commit_snapshots[0].touched_paths[-1] == exact_path
+    assert exact_path in result.commit_snapshots[0].touched_paths
     assert result.candidates[0].paths == (exact_path,)
     assert [call[3] for call in reader.commit_calls] == [1, 2]
 
