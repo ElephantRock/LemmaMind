@@ -240,7 +240,7 @@ def test_assigns_each_net_delta_to_latest_touch_then_groups_by_path(tmp_path) ->
     assert by_path["docs/readme.md"].commit_sha == HEAD_SHA
     assert by_path["old/name.py"].commit_sha == HEAD_SHA
     assert by_path["new/name.py"].commit_sha == HEAD_SHA
-    assert by_path["src/a.py"].path_group == "src"
+    assert by_path["src/a.py"].path_group == 'top-level:"src"'
     assert len(store.list(CommitRangeSummary)) == 1
     assert len(store.list(CommitPathSnapshot)) == 3
     assert len(store.list(IntervalCandidateSegment)) == len(result.candidates)
@@ -325,3 +325,70 @@ def test_diverged_compare_frontier_fails_closed(tmp_path) -> None:
 
     with pytest.raises(IntervalSegmentationError, match="unsupported GitHub compare status"):
         service.segment_diff(DIFF_RUN_ID)
+
+
+def test_foreign_delta_generation_provenance_fails_closed(tmp_path) -> None:
+    contaminated = delta("src/a.py").model_copy(
+        update={"current_capture_id": "capture-recursive-tree:foreign"}
+    )
+    reader = FakeIntervalReader(
+        {1: compare_payload([HEAD_SHA])},
+        {(HEAD_SHA, 1): commit_payload(HEAD_SHA, [{"filename": "src/a.py"}])},
+    )
+    store, service = prepare(tmp_path, [contaminated], reader)
+
+    with pytest.raises(
+        IntervalSegmentationError,
+        match="generation provenance disagrees",
+    ):
+        service.segment_diff(DIFF_RUN_ID)
+
+    assert store.list(CommitRangeSummary) == []
+    assert store.list(CommitPathSnapshot) == []
+    assert store.list(IntervalCandidateSegment) == []
+
+
+def test_merge_commit_history_fails_closed_before_latest_touch_assignment(tmp_path) -> None:
+    sibling_parent = "e" * 40
+    reader = FakeIntervalReader(
+        {1: compare_payload([HEAD_SHA])},
+        {
+            (HEAD_SHA, 1): commit_payload(
+                HEAD_SHA,
+                [{"filename": "src/a.py"}],
+                parents=(BASE_SHA, sibling_parent),
+            )
+        },
+    )
+    store, service = prepare(tmp_path, [delta("src/a.py")], reader)
+
+    with pytest.raises(
+        IntervalSegmentationError,
+        match="not a single-parent linear chain",
+    ):
+        service.segment_diff(DIFF_RUN_ID)
+
+    assert store.list(CommitRangeSummary) == []
+    assert store.list(CommitPathSnapshot) == []
+    assert store.list(IntervalCandidateSegment) == []
+
+
+def test_root_group_marker_cannot_collide_with_literal_top_level_directory(tmp_path) -> None:
+    changes = [delta("README.md"), delta("$root/file.py")]
+    reader = FakeIntervalReader(
+        {1: compare_payload([HEAD_SHA])},
+        {
+            (HEAD_SHA, 1): commit_payload(
+                HEAD_SHA,
+                [{"filename": item.path} for item in changes],
+            )
+        },
+    )
+    _, service = prepare(tmp_path, changes, reader)
+
+    result = service.segment_diff(DIFF_RUN_ID)
+
+    groups = {candidate.paths[0]: candidate.path_group for candidate in result.candidates}
+    assert groups["README.md"] == "root"
+    assert groups["$root/file.py"] == 'top-level:"$root"'
+    assert groups["README.md"] != groups["$root/file.py"]
