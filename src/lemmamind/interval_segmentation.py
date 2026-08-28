@@ -2,9 +2,10 @@
 
 The service turns one completed recursive Git path diff into smaller temporal/path
 review units without semantic ranking. It enumerates the exact Git commit range,
-retains each commit's complete changed-path projection, assigns every net
-``GitPathDelta`` to its latest touching commit, and groups those assignments by
-stable path structure with a fixed attention bound.
+retains each commit's complete changed-path projection, derives a deterministic
+first-parent integration chain, assigns every net ``GitPathDelta`` to its latest
+touch on that chain, and groups those assignments by stable path structure with
+a fixed attention bound.
 """
 from __future__ import annotations
 
@@ -109,7 +110,7 @@ class IntervalSegmentationResult:
 
 
 class IntervalCandidateSegmentationService:
-    """Segment net path changes by latest touching commit and typed path group."""
+    """Segment net path changes by first-parent integration touch and typed path group."""
 
     def __init__(
         self,
@@ -234,12 +235,12 @@ class IntervalCandidateSegmentationService:
             )
             for ordinal, commit_sha in enumerate(commit_shas, start=1)
         )
-        self._validate_linear_commit_chain(
+        integration_snapshots = self._first_parent_integration_chain(
             previous_revision.commit_sha,
             current_revision.commit_sha,
             snapshots,
         )
-        latest_touch = self._assign_latest_touch(deltas, snapshots)
+        latest_touch = self._assign_latest_touch(deltas, integration_snapshots)
         candidates = self._build_candidates(
             deltas,
             latest_touch,
@@ -278,6 +279,9 @@ class IntervalCandidateSegmentationService:
                 "commit_range": commit_range.model_dump(mode="json", by_alias=True),
                 "commit_snapshots": [
                     item.model_dump(mode="json", by_alias=True) for item in snapshots
+                ],
+                "integration_commit_shas": [
+                    item.commit_sha for item in integration_snapshots
                 ],
                 "candidates": [
                     item.model_dump(mode="json", by_alias=True) for item in candidates
@@ -500,29 +504,46 @@ class IntervalCandidateSegmentationService:
         )
 
     @staticmethod
-    def _validate_linear_commit_chain(
+    def _first_parent_integration_chain(
         base_sha: str,
         head_sha: str,
         snapshots: tuple[CommitPathSnapshot, ...],
-    ) -> None:
+    ) -> tuple[CommitPathSnapshot, ...]:
         if not snapshots:
             if base_sha != head_sha:
                 raise IntervalSegmentationError(
                     "commit interval has no commits between distinct revisions"
                 )
-            return
+            return ()
 
-        expected_parent = base_sha
-        for snapshot in snapshots:
-            if snapshot.parent_shas != (expected_parent,):
+        by_sha = {snapshot.commit_sha: snapshot for snapshot in snapshots}
+        reverse_chain: list[CommitPathSnapshot] = []
+        seen: set[str] = set()
+        cursor = head_sha
+        while cursor != base_sha:
+            if cursor in seen:
                 raise IntervalSegmentationError(
-                    "commit interval is not a single-parent linear chain"
+                    "first-parent integration chain contains a cycle"
                 )
-            expected_parent = snapshot.commit_sha
-        if expected_parent != head_sha:
+            seen.add(cursor)
+            snapshot = by_sha.get(cursor)
+            if snapshot is None:
+                raise IntervalSegmentationError(
+                    "baseline is not reachable through the first-parent integration chain"
+                )
+            if not snapshot.parent_shas:
+                raise IntervalSegmentationError(
+                    "first-parent integration commit has no parent before baseline"
+                )
+            reverse_chain.append(snapshot)
+            cursor = snapshot.parent_shas[0]
+
+        chain = tuple(reversed(reverse_chain))
+        if not chain or chain[-1].commit_sha != head_sha:
             raise IntervalSegmentationError(
-                "linear commit chain does not terminate at current revision"
+                "first-parent integration chain does not terminate at current revision"
             )
+        return chain
 
     @staticmethod
     def _assign_latest_touch(
@@ -540,7 +561,8 @@ class IntervalCandidateSegmentationService:
             preview = ", ".join(repr(path) for path in missing[:5])
             suffix = "" if len(missing) <= 5 else f" (+{len(missing) - 5} more)"
             raise IntervalSegmentationError(
-                f"net GitPathDelta paths are absent from complete commit touch sets: {preview}{suffix}"
+                "net GitPathDelta paths are absent from complete first-parent integration "
+                f"touch sets: {preview}{suffix}"
             )
         return latest
 
