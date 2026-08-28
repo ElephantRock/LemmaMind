@@ -308,7 +308,7 @@ def test_unassigned_net_delta_fails_closed_before_persistence(tmp_path) -> None:
     )
     store, service = prepare(tmp_path, [delta("src/missing.py")], reader)
 
-    with pytest.raises(IntervalSegmentationError, match="absent from complete commit touch sets"):
+    with pytest.raises(IntervalSegmentationError, match="first-parent integration touch sets"):
         service.segment_diff(DIFF_RUN_ID)
 
     assert store.list(CommitRangeSummary) == []
@@ -348,23 +348,54 @@ def test_foreign_delta_generation_provenance_fails_closed(tmp_path) -> None:
     assert store.list(IntervalCandidateSegment) == []
 
 
-def test_merge_commit_history_fails_closed_before_latest_touch_assignment(tmp_path) -> None:
-    sibling_parent = "e" * 40
+def test_merge_history_routes_over_first_parent_integration_chain(tmp_path) -> None:
+    side_commit = "c" * 40
+    changes = [delta("src/a.py"), delta("docs/readme.md")]
     reader = FakeIntervalReader(
-        {1: compare_payload([HEAD_SHA])},
+        {1: compare_payload([side_commit, HEAD_SHA])},
         {
+            (side_commit, 1): commit_payload(
+                side_commit,
+                [{"filename": "src/a.py"}],
+            ),
+            (HEAD_SHA, 1): commit_payload(
+                HEAD_SHA,
+                [{"filename": "src/a.py"}, {"filename": "docs/readme.md"}],
+                parents=(BASE_SHA, side_commit),
+            ),
+        },
+    )
+    _, service = prepare(tmp_path, changes, reader)
+
+    result = service.segment_diff(DIFF_RUN_ID)
+
+    assert len(result.commit_snapshots) == 2
+    assert {candidate.commit_sha for candidate in result.candidates} == {HEAD_SHA}
+    assert set(result.candidate_paths) == {item.path for item in changes}
+
+
+def test_baseline_outside_first_parent_chain_fails_closed(tmp_path) -> None:
+    side_commit = "c" * 40
+    reader = FakeIntervalReader(
+        {1: compare_payload([side_commit, HEAD_SHA])},
+        {
+            (side_commit, 1): commit_payload(
+                side_commit,
+                [{"filename": "src/a.py"}],
+                parents=(BASE_SHA,),
+            ),
             (HEAD_SHA, 1): commit_payload(
                 HEAD_SHA,
                 [{"filename": "src/a.py"}],
-                parents=(BASE_SHA, sibling_parent),
-            )
+                parents=("e" * 40, side_commit),
+            ),
         },
     )
     store, service = prepare(tmp_path, [delta("src/a.py")], reader)
 
     with pytest.raises(
         IntervalSegmentationError,
-        match="not a single-parent linear chain",
+        match="baseline is not reachable through the first-parent integration chain",
     ):
         service.segment_diff(DIFF_RUN_ID)
 
