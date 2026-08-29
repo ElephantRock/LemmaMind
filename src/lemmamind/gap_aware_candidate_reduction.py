@@ -26,6 +26,27 @@ from .path_change_contracts import GitPathDelta
 class GapAwareCandidateFactualReductionService(CandidateFactualReductionService):
     """Reduce one segmentation while preserving explicit extraction uncertainty."""
 
+    def __init__(
+        self,
+        store,
+        object_store,
+        *,
+        policy_version: str = "candidate-factual-reduction.gap-aware.v1",
+        change_policy_version: str = "candidate-factual-change.gap-aware.v1",
+        code_version: str = "lemmamind-0.1.0",
+        clock=None,
+        id_factory=None,
+    ) -> None:
+        super().__init__(
+            store,
+            object_store,
+            policy_version=policy_version,
+            change_policy_version=change_policy_version,
+            code_version=code_version,
+            clock=clock,
+            id_factory=id_factory,
+        )
+
     def reduce_segmentation(
         self,
         *,
@@ -125,7 +146,7 @@ class GapAwareCandidateFactualReductionService(CandidateFactualReductionService)
         change = GapAwareDeterministicChangeService(
             self.store,
             self.object_store,
-            policy_version="candidate-factual-change.gap-aware.v1",
+            policy_version=self.change_policy_version,
             code_version=self.code_version,
             clock=self.clock,
             id_factory=self.id_factory,
