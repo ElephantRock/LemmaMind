@@ -18,6 +18,12 @@ from .change_contracts import (
     StructuralDelta,
     StructuralDeltaType,
 )
+from .change_interpretation_contracts import (
+    ChangeInterpretation,
+    ChangeInterpretationSupportRef,
+    ChangeInterpretationSupportType,
+    ChangeInterpretationType,
+)
 from .contracts import CONTRACT_SCHEMA_VERSION
 from .extraction_diagnostic_contracts import ExtractionDiagnostic
 from .interval_segmentation_contracts import (
@@ -49,6 +55,10 @@ __all__ = [
     "CapturePlanDisposition",
     "CapturePlanReason",
     "CapturePlanSide",
+    "ChangeInterpretation",
+    "ChangeInterpretationSupportRef",
+    "ChangeInterpretationSupportType",
+    "ChangeInterpretationType",
     "ChangeSurface",
     "CommitPathSnapshot",
     "CommitRangeStatus",
