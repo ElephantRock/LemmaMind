@@ -2,12 +2,19 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from .candidate_reduction_contracts import CandidateSignalKind
 from .change_contracts import StructuralDeltaType
-from .contracts import CONTRACT_TYPES, ContractModel, Identifier, SourceLocator
+from .contracts import CONTRACT_TYPES, ContractModel, Identifier
+
+PacketPath = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
+PacketPreviewText = Annotated[str, StringConstraints(max_length=512)]
+PacketPreviewLocator = Annotated[
+    str, StringConstraints(min_length=1, max_length=512)
+]
 
 
 class AssertionSnapshotSide(StrEnum):
@@ -21,13 +28,14 @@ class StructuralDeltaPreview(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     structural_delta_id: Identifier
-    source_locator: SourceLocator
-    structural_key: Identifier
+    source_locator: PacketPath
+    structural_key: PacketPreviewLocator
+    structural_key_truncated: bool = False
     change_type: StructuralDeltaType
     extractor_name: Identifier
     extractor_version: Identifier
-    previous_value_preview: str | None = None
-    current_value_preview: str | None = None
+    previous_value_preview: PacketPreviewText | None = None
+    current_value_preview: PacketPreviewText | None = None
     value_preview_truncated: bool = False
 
 
@@ -38,9 +46,10 @@ class SourceAssertionPreview(BaseModel):
 
     assertion_id: Identifier
     side: AssertionSnapshotSide
-    source_locator: SourceLocator
-    locator: SourceLocator
-    statement_preview: str
+    source_locator: PacketPath
+    locator: PacketPreviewLocator
+    locator_truncated: bool = False
+    statement_preview: PacketPreviewText
     statement_truncated: bool
     extractor_name: Identifier
     extractor_version: Identifier
@@ -58,11 +67,11 @@ class CandidateEvidencePacket(ContractModel):
     previous_source_revision_id: Identifier
     current_source_revision_id: Identifier
 
-    paths: tuple[SourceLocator, ...]
+    paths: tuple[PacketPath, ...]
     signal_kinds: tuple[CandidateSignalKind, ...]
-    policy_suppressed_paths: tuple[SourceLocator, ...] = ()
-    artifact_only_paths: tuple[SourceLocator, ...] = ()
-    git_only_paths: tuple[SourceLocator, ...] = ()
+    policy_suppressed_paths: tuple[PacketPath, ...] = ()
+    artifact_only_paths: tuple[PacketPath, ...] = ()
+    git_only_paths: tuple[PacketPath, ...] = ()
 
     artifact_delta_ids: tuple[Identifier, ...] = ()
 
@@ -75,7 +84,7 @@ class CandidateEvidencePacket(ContractModel):
     assertion_snapshot_omitted_count: int = Field(ge=0)
 
     extraction_gap_signal_ids: tuple[Identifier, ...] = ()
-    extraction_gap_paths: tuple[SourceLocator, ...] = ()
+    extraction_gap_paths: tuple[PacketPath, ...] = ()
 
     segmentation_run_id: Identifier
     reduction_run_id: Identifier
