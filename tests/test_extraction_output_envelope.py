@@ -68,7 +68,7 @@ def _diagnostic():
     )
 
 
-def test_strict_comparison_rejects_clean_gap_envelope_with_custom_policy_name() -> None:
+def test_strict_comparison_rejects_clean_gap_mode_with_custom_policy_name() -> None:
     store = Store()
     service = _service(store)
     gap_hash = service._digest_json(
@@ -77,10 +77,10 @@ def test_strict_comparison_rejects_clean_gap_envelope_with_custom_policy_name() 
     run = _run(gap_hash, policy_version="org.partial.v1")
     store.records.append(run)
 
-    assert service._authenticate_extraction_output_envelope(run, (), ()) == "gap_tolerant"
+    service._authenticate_gap_tolerant_extraction_run(run)
     with pytest.raises(
         ChangeIntelligenceError,
-        match="rejects gap-tolerant extraction output envelopes",
+        match="gap-tolerant extraction runs",
     ):
         service._require_strict_extraction_run(run)
 
@@ -98,10 +98,10 @@ def test_appended_diagnostic_invalidates_committed_gap_output_envelope() -> None
         ChangeIntelligenceError,
         match="output envelope does not authenticate",
     ):
-        service._authenticate_extraction_output_envelope(run, (), ())
+        service._authenticate_gap_tolerant_extraction_run(run)
 
 
-def test_authenticated_diagnostic_envelope_remains_gap_tolerant() -> None:
+def test_authenticated_diagnostic_envelope_is_accepted_by_gap_authenticator() -> None:
     diagnostic = _diagnostic()
     store = Store((diagnostic,))
     service = _service(store)
@@ -114,4 +114,4 @@ def test_authenticated_diagnostic_envelope_remains_gap_tolerant() -> None:
     )
     run = _run(committed_hash)
 
-    assert service._authenticate_extraction_output_envelope(run, (), ()) == "gap_tolerant"
+    service._authenticate_gap_tolerant_extraction_run(run)
