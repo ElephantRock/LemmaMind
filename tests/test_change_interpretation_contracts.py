@@ -56,7 +56,7 @@ def test_change_interpretation_requires_support_for_each_reduction() -> None:
         support(ChangeInterpretationSupportType.STRUCTURAL_DELTA, "structural:1"),
     )
 
-    with pytest.raises(ValidationError, match="factual reduction"):
+    with pytest.raises(ValidationError, match="explicit support edge"):
         ChangeInterpretation(**kwargs)
 
 
