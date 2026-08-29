@@ -32,7 +32,12 @@ from .contracts import (
     RunType,
     SourceAssertion,
 )
-from .extraction import ArtifactExtractor
+from .extraction import (
+    ArtifactExtractor,
+    AssertionSpec,
+    DeterministicExtractionService,
+    FactSpec,
+)
 from .extraction_diagnostic_contracts import ExtractionDiagnostic
 from .objects import ContentAddressedFileStore
 from .revision_capture import (
@@ -404,6 +409,7 @@ class DeterministicChangeService:
         assertions = tuple(
             item for item in self.store.list(SourceAssertion) if item.run_id == run_id
         )
+        self._authenticate_extraction_output_envelope(run, facts, assertions)
         evidence_records: tuple[Any, ...] = (*facts, *assertions)
 
         allowed_artifact_ids = {
@@ -423,19 +429,59 @@ class DeterministicChangeService:
             )
         return run, facts
 
-    def _require_strict_extraction_run(self, run: PipelineRun) -> None:
-        if "gap-tolerant" in run.policy_version:
-            raise ChangeIntelligenceError(
-                "strict deterministic change comparison rejects gap-tolerant extraction runs"
-            )
+    def _authenticate_extraction_output_envelope(
+        self,
+        run: PipelineRun,
+        facts: tuple[EvidenceFact, ...],
+        assertions: tuple[SourceAssertion, ...],
+    ) -> str:
         diagnostics = tuple(
-            item
-            for item in self.store.list(ExtractionDiagnostic)
-            if item.run_id == run.run_id
+            sorted(
+                (
+                    item
+                    for item in self.store.list(ExtractionDiagnostic)
+                    if item.run_id == run.run_id
+                ),
+                key=lambda item: (
+                    item.source_locator,
+                    item.extractor_name,
+                    item.extractor_version,
+                    item.error_type,
+                    item.error_message,
+                ),
+            )
         )
-        if diagnostics:
+        strict_payload = self._extraction_output_payload(facts, assertions)
+        strict_hash = self._digest_json(strict_payload)
+        gap_payload = dict(strict_payload)
+        gap_payload["diagnostics"] = [
+            self._diagnostic_payload(item) for item in diagnostics
+        ]
+        gap_hash = self._digest_json(gap_payload)
+
+        if run.outputs_hash == strict_hash:
+            if diagnostics:
+                raise ChangeIntelligenceError(
+                    "strict extraction output envelope has unauthenticated diagnostics"
+                )
+            return "strict"
+        if run.outputs_hash == gap_hash:
+            return "gap_tolerant"
+        raise ChangeIntelligenceError(
+            f"extraction run {run.run_id} output envelope does not authenticate against outputs_hash"
+        )
+
+    def _require_strict_extraction_run(self, run: PipelineRun) -> None:
+        facts = tuple(
+            item for item in self.store.list(EvidenceFact) if item.run_id == run.run_id
+        )
+        assertions = tuple(
+            item for item in self.store.list(SourceAssertion) if item.run_id == run.run_id
+        )
+        mode = self._authenticate_extraction_output_envelope(run, facts, assertions)
+        if mode != "strict":
             raise ChangeIntelligenceError(
-                "strict deterministic change comparison rejects extraction runs containing diagnostics"
+                "strict deterministic change comparison rejects gap-tolerant extraction output envelopes"
             )
 
     @staticmethod
@@ -493,6 +539,62 @@ class DeterministicChangeService:
                 )
             result[key] = fact
         return result
+
+    @classmethod
+    def _extraction_output_payload(
+        cls,
+        facts: tuple[EvidenceFact, ...],
+        assertions: tuple[SourceAssertion, ...],
+    ) -> dict[str, list[dict[str, object]]]:
+        fact_specs = [
+            FactSpec(
+                locator=item.locator,
+                raw_value=item.raw_value,
+                normalized_value=item.normalized_value,
+                extractor_name=item.extractor_name,
+                extractor_version=item.extractor_version,
+            )
+            for item in facts
+        ]
+        fact_specs.sort(
+            key=lambda spec: (
+                spec.extractor_name,
+                spec.locator,
+                DeterministicExtractionService._stable_value(spec.normalized_value),
+            )
+        )
+        assertion_specs = [
+            AssertionSpec(
+                locator=item.locator,
+                statement=item.statement,
+                extractor_name=item.extractor_name,
+                extractor_version=item.extractor_version,
+            )
+            for item in assertions
+        ]
+        assertion_specs.sort(key=DeterministicExtractionService._assertion_sort_key)
+        return {
+            "facts": [
+                DeterministicExtractionService._spec_payload(spec) for spec in fact_specs
+            ],
+            "assertions": [
+                DeterministicExtractionService._spec_payload(spec)
+                for spec in assertion_specs
+            ],
+        }
+
+    @staticmethod
+    def _diagnostic_payload(item: ExtractionDiagnostic) -> dict[str, str]:
+        return {
+            "capture_id": item.capture_id,
+            "source_revision_id": item.source_revision_id,
+            "artifact_id": item.artifact_id,
+            "source_locator": item.source_locator,
+            "extractor_name": item.extractor_name,
+            "extractor_version": item.extractor_version,
+            "error_type": item.error_type,
+            "error_message": item.error_message,
+        }
 
     @staticmethod
     def _extractor_descriptors(
