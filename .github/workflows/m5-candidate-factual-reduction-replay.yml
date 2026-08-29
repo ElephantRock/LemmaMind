@@ -33,10 +33,11 @@ jobs:
           from pathlib import Path
 
           from lemmamind.affected_file_planning import AffectedFileCapturePlanner
+          from lemmamind.candidate_extraction_gaps import CandidateExtractionGapService
           from lemmamind.candidate_reduction import CandidateFactualReductionService
           from lemmamind.candidate_reduction_contracts import CandidateReductionDisposition
           from lemmamind.contracts import SourceRole
-          from lemmamind.extraction import DeterministicExtractionService
+          from lemmamind.extraction_diagnostics import GapTolerantExtractionPairService
           from lemmamind.github import GitHubCaptureService
           from lemmamind.interval_segmentation import (
               GitHubIntervalRESTReader,
@@ -153,17 +154,16 @@ jobs:
                   )
 
                   extractors = typescript_aware_extractors()
-                  extraction = DeterministicExtractionService(
+                  extraction_pair = GapTolerantExtractionPairService(
                       store,
                       objects,
                       artifact_extractors=extractors,
+                  ).extract_pair(
+                      previous_files.manifest.capture_id,
+                      current_files.manifest.capture_id,
                   )
-                  previous_extraction = extraction.extract_capture(
-                      previous_files.manifest.capture_id
-                  )
-                  current_extraction = extraction.extract_capture(
-                      current_files.manifest.capture_id
-                  )
+                  previous_extraction = extraction_pair.previous.extraction
+                  current_extraction = extraction_pair.current.extraction
 
                   reduced = CandidateFactualReductionService(
                       store,
@@ -178,6 +178,12 @@ jobs:
                       current_extraction_run_id=current_extraction.run.run_id,
                       artifact_extractors=extractors,
                   )
+                  gap_signals = CandidateExtractionGapService(store).record_signals(
+                      segmentation_run_id=segmented.run.run_id,
+                      previous_extraction_run_id=previous_extraction.run.run_id,
+                      current_extraction_run_id=current_extraction.run.run_id,
+                      reduction_run_id=reduced.run.run_id,
+                  )
 
                   assert len(reduced.reductions) == len(segmented.candidates)
                   target_reductions = [
@@ -186,11 +192,19 @@ jobs:
                   assert len(target_reductions) == 1
                   target = target_reductions[0]
                   assert target.disposition is CandidateReductionDisposition.RETAIN
+                  target_gap_signals = [
+                      item
+                      for item in gap_signals.signals
+                      if item.interval_candidate_segment_id
+                      == target.interval_candidate_segment_id
+                  ]
 
                   signal_counts = Counter()
                   for item in reduced.reductions:
                       for signal in item.signal_kinds:
                           signal_counts[signal.value] += 1
+                  if gap_signals.candidate_count:
+                      signal_counts["extraction_gap"] = gap_signals.candidate_count
 
                   report = {
                       "repository": spec["repository"],
@@ -204,6 +218,14 @@ jobs:
                       "signal_counts": dict(sorted(signal_counts.items())),
                       "artifact_deltas": len(reduced.change.artifact_deltas),
                       "structural_deltas": len(reduced.change.structural_deltas),
+                      "extraction_gap_paths": len(extraction_pair.gap_paths),
+                      "extraction_gap_candidates": gap_signals.candidate_count,
+                      "previous_extraction_diagnostics": len(
+                          extraction_pair.previous.diagnostics
+                      ),
+                      "current_extraction_diagnostics": len(
+                          extraction_pair.current.diagnostics
+                      ),
                       "target": spec["target"],
                       "target_disposition": target.disposition.value,
                       "target_signal_kinds": [item.value for item in target.signal_kinds],
@@ -213,6 +235,13 @@ jobs:
                       "target_assertion_changed_paths": len(target.assertion_changed_paths),
                       "target_artifact_only_paths": len(target.artifact_only_paths),
                       "target_git_only_paths": len(target.git_only_paths),
+                      "target_extraction_gap_paths": sorted(
+                          {
+                              path
+                              for signal in target_gap_signals
+                              for path in signal.paths
+                          }
+                      ),
                   }
                   reports.append(report)
                   print(
