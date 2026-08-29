@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from .candidate_extraction_gap_contracts import CandidateExtractionGapSignal
 from .candidate_reduction_contracts import CandidateFactualReduction
-from .contracts import PipelineRun, RunType
+from .contracts import CaptureManifest, PipelineRun, RetrievalStatus, RunType
 from .extraction_diagnostic_contracts import ExtractionDiagnostic
 from .interval_segmentation_contracts import IntervalCandidateSegment
 
@@ -250,8 +250,8 @@ class CandidateExtractionGapService:
         self.store.put_many(result.signals)
         return result
 
-    @staticmethod
     def _validate_diagnostic_generation(
+        self,
         diagnostics: tuple[ExtractionDiagnostic, ...],
         path_to_candidate: dict[str, IntervalCandidateSegment],
         reduction_by_candidate: dict[str, CandidateFactualReduction],
@@ -276,6 +276,33 @@ class CandidateExtractionGapService:
             if item.capture_id != expected_capture_id:
                 raise CandidateExtractionGapError(
                     "extraction diagnostic capture disagrees with candidate reduction"
+                )
+
+            manifest = self.store.get(CaptureManifest, expected_capture_id)
+            if manifest is None:
+                raise CandidateExtractionGapError(
+                    f"missing candidate capture manifest: {expected_capture_id}"
+                )
+            if manifest.source_revision_id != expected_revision_id:
+                raise CandidateExtractionGapError(
+                    "candidate capture revision disagrees with candidate reduction"
+                )
+            references = tuple(
+                reference
+                for reference in manifest.artifacts
+                if reference.artifact_id == item.artifact_id
+            )
+            if len(references) != 1:
+                raise CandidateExtractionGapError(
+                    "extraction diagnostic artifact is not uniquely present in candidate capture"
+                )
+            reference = references[0]
+            if (
+                reference.source_locator != item.source_locator
+                or reference.retrieval_status is not RetrievalStatus.CAPTURED
+            ):
+                raise CandidateExtractionGapError(
+                    "extraction diagnostic artifact/path state disagrees with candidate capture"
                 )
 
     def _completed_run(self, run_id: str, run_type: RunType, label: str) -> PipelineRun:
