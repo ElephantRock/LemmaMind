@@ -6,7 +6,6 @@ from lemmamind.candidate_extraction_gaps import (
     CandidateExtractionGapService,
     CandidateExtractionGapSignal,
 )
-from lemmamind.change_intelligence import DeterministicChangeService
 from lemmamind.contracts import (
     CONTRACT_SCHEMA_VERSION,
     Artifact,
@@ -29,6 +28,7 @@ from lemmamind.extraction_diagnostics import (
     ExtractionDiagnostic,
     GapTolerantExtractionPairService,
 )
+from lemmamind.gap_aware_change import GapAwareDeterministicChangeService
 from lemmamind.interval_segmentation_contracts import IntervalCandidateSegment
 from lemmamind.objects import ContentAddressedFileStore
 from lemmamind.storage import SQLiteContractStore
@@ -199,7 +199,7 @@ def _prepare(tmp_path):
     return store, objects, previous, current
 
 
-def test_pair_isolates_recoverable_gap_without_false_structural_delta(tmp_path) -> None:
+def test_pair_records_source_local_gap_and_gap_aware_change_excludes_it(tmp_path) -> None:
     store, objects, previous, current = _prepare(tmp_path)
     extractors = (ContentFactExtractor(), RecoverableSyntaxExtractor())
     pair = GapTolerantExtractionPairService(
@@ -218,11 +218,17 @@ def test_pair_isolates_recoverable_gap_without_false_structural_delta(tmp_path) 
     assert diagnostic.extractor_name == "recoverable-syntax"
     assert store.list(ExtractionDiagnostic) == [diagnostic]
 
+    assert any(
+        fact.locator == f"{BAD_PATH}#syntax" for fact in pair.previous.extraction.facts
+    )
+    assert not any(
+        fact.locator == f"{BAD_PATH}#syntax" for fact in pair.current.extraction.facts
+    )
     for side in (pair.previous, pair.current):
-        assert all(not fact.locator.startswith(BAD_PATH) for fact in side.extraction.facts)
+        assert any(fact.locator.startswith(BAD_PATH) for fact in side.extraction.facts)
         assert any(fact.locator.startswith(GOOD_PATH) for fact in side.extraction.facts)
 
-    changed = DeterministicChangeService(
+    changed = GapAwareDeterministicChangeService(
         store,
         objects,
         clock=FixedClock(NOW + timedelta(seconds=20)),
