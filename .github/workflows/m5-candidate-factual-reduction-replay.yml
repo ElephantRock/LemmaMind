@@ -34,10 +34,12 @@ jobs:
 
           from lemmamind.affected_file_planning import AffectedFileCapturePlanner
           from lemmamind.candidate_extraction_gaps import CandidateExtractionGapService
-          from lemmamind.candidate_reduction import CandidateFactualReductionService
           from lemmamind.candidate_reduction_contracts import CandidateReductionDisposition
           from lemmamind.contracts import SourceRole
           from lemmamind.extraction_diagnostics import GapTolerantExtractionPairService
+          from lemmamind.gap_aware_candidate_reduction import (
+              GapAwareCandidateFactualReductionService,
+          )
           from lemmamind.github import GitHubCaptureService
           from lemmamind.interval_segmentation import (
               GitHubIntervalRESTReader,
@@ -165,7 +167,7 @@ jobs:
                   previous_extraction = extraction_pair.previous.extraction
                   current_extraction = extraction_pair.current.extraction
 
-                  reduced = CandidateFactualReductionService(
+                  reduced = GapAwareCandidateFactualReductionService(
                       store,
                       objects,
                   ).reduce_segmentation(
