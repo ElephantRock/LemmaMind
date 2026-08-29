@@ -19,6 +19,10 @@ PacketPreviewLocator = Annotated[
     str, StringConstraints(min_length=1, max_length=512)
 ]
 
+MAX_PACKET_PATHS = 50
+MAX_STRUCTURAL_PREVIEWS = 256
+MAX_ASSERTION_PREVIEWS = 128
+
 
 class AssertionSnapshotSide(StrEnum):
     PREVIOUS = "previous"
@@ -70,24 +74,40 @@ class CandidateEvidencePacket(ContractModel):
     previous_source_revision_id: PacketIdentifier
     current_source_revision_id: PacketIdentifier
 
-    paths: tuple[PacketPath, ...]
-    signal_kinds: tuple[CandidateSignalKind, ...]
-    policy_suppressed_paths: tuple[PacketPath, ...] = ()
-    artifact_only_paths: tuple[PacketPath, ...] = ()
-    git_only_paths: tuple[PacketPath, ...] = ()
+    paths: tuple[PacketPath, ...] = Field(min_length=1, max_length=MAX_PACKET_PATHS)
+    signal_kinds: tuple[CandidateSignalKind, ...] = Field(min_length=1, max_length=8)
+    policy_suppressed_paths: tuple[PacketPath, ...] = Field(
+        default=(), max_length=MAX_PACKET_PATHS
+    )
+    artifact_only_paths: tuple[PacketPath, ...] = Field(
+        default=(), max_length=MAX_PACKET_PATHS
+    )
+    git_only_paths: tuple[PacketPath, ...] = Field(
+        default=(), max_length=MAX_PACKET_PATHS
+    )
 
-    artifact_delta_ids: tuple[PacketIdentifier, ...] = ()
+    artifact_delta_ids: tuple[PacketIdentifier, ...] = Field(
+        default=(), max_length=MAX_PACKET_PATHS
+    )
 
     structural_delta_total: int = Field(ge=0)
-    structural_delta_previews: tuple[StructuralDeltaPreview, ...] = ()
+    structural_delta_previews: tuple[StructuralDeltaPreview, ...] = Field(
+        default=(), max_length=MAX_STRUCTURAL_PREVIEWS
+    )
     structural_delta_omitted_count: int = Field(ge=0)
 
     assertion_snapshot_total: int = Field(ge=0)
-    assertion_previews: tuple[SourceAssertionPreview, ...] = ()
+    assertion_previews: tuple[SourceAssertionPreview, ...] = Field(
+        default=(), max_length=MAX_ASSERTION_PREVIEWS
+    )
     assertion_snapshot_omitted_count: int = Field(ge=0)
 
-    extraction_gap_signal_ids: tuple[PacketIdentifier, ...] = ()
-    extraction_gap_paths: tuple[PacketPath, ...] = ()
+    extraction_gap_signal_ids: tuple[PacketIdentifier, ...] = Field(
+        default=(), max_length=MAX_PACKET_PATHS
+    )
+    extraction_gap_paths: tuple[PacketPath, ...] = Field(
+        default=(), max_length=MAX_PACKET_PATHS
+    )
 
     segmentation_run_id: PacketIdentifier
     reduction_run_id: PacketIdentifier
@@ -98,9 +118,6 @@ class CandidateEvidencePacket(ContractModel):
 
     @model_validator(mode="after")
     def validate_packet(self) -> "CandidateEvidencePacket":
-        if not self.paths:
-            raise ValueError("CandidateEvidencePacket requires candidate paths")
-
         for field_name in (
             "paths",
             "policy_suppressed_paths",
@@ -118,8 +135,6 @@ class CandidateEvidencePacket(ContractModel):
             sorted(set(self.signal_kinds), key=lambda item: item.value)
         ):
             raise ValueError("signal_kinds must be sorted and unique")
-        if not self.signal_kinds:
-            raise ValueError("CandidateEvidencePacket requires factual signal kinds")
 
         path_set = set(self.paths)
         for field_name in (
