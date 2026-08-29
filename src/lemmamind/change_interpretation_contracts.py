@@ -19,7 +19,18 @@ from .contracts import (
     ValidationState,
 )
 
-InterpretationText = Annotated[str, StringConstraints(min_length=1)]
+MechanismText = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=240, strip_whitespace=True),
+]
+InterpretationSummaryText = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=1600, strip_whitespace=True),
+]
+UncertaintyText = Annotated[
+    str,
+    StringConstraints(min_length=1, max_length=800, strip_whitespace=True),
+]
 
 
 class ChangeInterpretationType(StrEnum):
@@ -68,11 +79,13 @@ class ChangeInterpretation(ContractModel):
     candidate_evidence_packet_ids: tuple[Identifier, ...]
 
     interpretation_types: tuple[ChangeInterpretationType, ...]
-    mechanism: InterpretationText
-    summary: InterpretationText
-    uncertainty_notes: tuple[InterpretationText, ...] = ()
+    mechanism: MechanismText
+    summary: InterpretationSummaryText
+    uncertainty_notes: tuple[UncertaintyText, ...] = ()
 
     supports: tuple[ChangeInterpretationSupportRef, ...]
+    interpreter_name: Identifier
+    interpreter_version: Identifier
     validation_state: Literal[ValidationState.CANDIDATE] = ValidationState.CANDIDATE
 
     interpretation_run_id: Identifier
@@ -106,6 +119,11 @@ class ChangeInterpretation(ContractModel):
             sorted(set(self.interpretation_types), key=lambda item: item.value)
         ):
             raise ValueError("interpretation_types must be sorted and unique")
+        if (
+            ChangeInterpretationType.UNKNOWN in self.interpretation_types
+            and len(self.interpretation_types) != 1
+        ):
+            raise ValueError("unknown cannot be combined with specific interpretation types")
 
         if not self.supports:
             raise ValueError("ChangeInterpretation requires explicit support")

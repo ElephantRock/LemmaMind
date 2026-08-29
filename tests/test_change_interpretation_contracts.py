@@ -39,6 +39,8 @@ def base_kwargs():
                 "structural:1",
             ),
         ),
+        "interpreter_name": "fixture-interpreter",
+        "interpreter_version": "1",
         "interpretation_run_id": "run:change-interpretation:test",
     }
 
@@ -85,6 +87,33 @@ def test_change_interpretation_requires_uncertainty_for_gap_support() -> None:
     assert item.uncertainty_notes
 
 
+def test_change_interpretation_rejects_blank_semantic_text() -> None:
+    kwargs = base_kwargs()
+    kwargs["mechanism"] = "   "
+    with pytest.raises(ValidationError):
+        ChangeInterpretation(**kwargs)
+
+    kwargs = base_kwargs()
+    kwargs["summary"] = "\t\n"
+    with pytest.raises(ValidationError):
+        ChangeInterpretation(**kwargs)
+
+    kwargs = base_kwargs()
+    kwargs["supports"] = (
+        support(
+            ChangeInterpretationSupportType.CANDIDATE_EXTRACTION_GAP_SIGNAL,
+            "gap:1",
+        ),
+        support(
+            ChangeInterpretationSupportType.CANDIDATE_FACTUAL_REDUCTION,
+            "reduction:1",
+        ),
+    )
+    kwargs["uncertainty_notes"] = ("   ",)
+    with pytest.raises(ValidationError):
+        ChangeInterpretation(**kwargs)
+
+
 def test_change_interpretation_cannot_claim_reviewed_state() -> None:
     kwargs = base_kwargs()
     kwargs["validation_state"] = ValidationState.REVIEWED
@@ -108,4 +137,14 @@ def test_change_interpretation_requires_one_packet_per_candidate() -> None:
     kwargs["candidate_evidence_packet_ids"] = ("packet:1", "packet:2")
 
     with pytest.raises(ValidationError, match="one deterministic evidence packet"):
+        ChangeInterpretation(**kwargs)
+
+
+def test_change_interpretation_rejects_unknown_mixed_with_specific_types() -> None:
+    kwargs = base_kwargs()
+    kwargs["interpretation_types"] = (
+        ChangeInterpretationType.MODIFICATION,
+        ChangeInterpretationType.UNKNOWN,
+    )
+    with pytest.raises(ValidationError, match="unknown cannot be combined"):
         ChangeInterpretation(**kwargs)
