@@ -78,6 +78,8 @@ class DeterministicChangeResult:
 class DeterministicChangeService:
     """Compare two exact local capture generations without semantic interpretation."""
 
+    STRICT_EXTRACTION_POLICY_VERSION = "deterministic-evidence.v1"
+
     def __init__(
         self,
         store: ContractStore,
@@ -409,7 +411,6 @@ class DeterministicChangeService:
         assertions = tuple(
             item for item in self.store.list(SourceAssertion) if item.run_id == run_id
         )
-        self._authenticate_extraction_output_envelope(run, facts, assertions)
         evidence_records: tuple[Any, ...] = (*facts, *assertions)
 
         allowed_artifact_ids = {
@@ -429,12 +430,28 @@ class DeterministicChangeService:
             )
         return run, facts
 
-    def _authenticate_extraction_output_envelope(
-        self,
-        run: PipelineRun,
-        facts: tuple[EvidenceFact, ...],
-        assertions: tuple[SourceAssertion, ...],
-    ) -> str:
+    def _require_strict_extraction_run(self, run: PipelineRun) -> None:
+        diagnostics = tuple(
+            item
+            for item in self.store.list(ExtractionDiagnostic)
+            if item.run_id == run.run_id
+        )
+        if diagnostics:
+            raise ChangeIntelligenceError(
+                "strict deterministic change comparison rejects extraction runs containing diagnostics"
+            )
+        if run.policy_version != self.STRICT_EXTRACTION_POLICY_VERSION:
+            raise ChangeIntelligenceError(
+                "strict deterministic change comparison rejects gap-tolerant extraction runs or unrecognized extraction policies"
+            )
+
+    def _authenticate_gap_tolerant_extraction_run(self, run: PipelineRun) -> None:
+        facts = tuple(
+            item for item in self.store.list(EvidenceFact) if item.run_id == run.run_id
+        )
+        assertions = tuple(
+            item for item in self.store.list(SourceAssertion) if item.run_id == run.run_id
+        )
         diagnostics = tuple(
             sorted(
                 (
@@ -451,37 +468,13 @@ class DeterministicChangeService:
                 ),
             )
         )
-        strict_payload = self._extraction_output_payload(facts, assertions)
-        strict_hash = self._digest_json(strict_payload)
-        gap_payload = dict(strict_payload)
-        gap_payload["diagnostics"] = [
+        payload = self._extraction_output_payload(facts, assertions)
+        payload["diagnostics"] = [
             self._diagnostic_payload(item) for item in diagnostics
         ]
-        gap_hash = self._digest_json(gap_payload)
-
-        if run.outputs_hash == strict_hash:
-            if diagnostics:
-                raise ChangeIntelligenceError(
-                    "strict extraction output envelope has unauthenticated diagnostics"
-                )
-            return "strict"
-        if run.outputs_hash == gap_hash:
-            return "gap_tolerant"
-        raise ChangeIntelligenceError(
-            f"extraction run {run.run_id} output envelope does not authenticate against outputs_hash"
-        )
-
-    def _require_strict_extraction_run(self, run: PipelineRun) -> None:
-        facts = tuple(
-            item for item in self.store.list(EvidenceFact) if item.run_id == run.run_id
-        )
-        assertions = tuple(
-            item for item in self.store.list(SourceAssertion) if item.run_id == run.run_id
-        )
-        mode = self._authenticate_extraction_output_envelope(run, facts, assertions)
-        if mode != "strict":
+        if run.outputs_hash != self._digest_json(payload):
             raise ChangeIntelligenceError(
-                "strict deterministic change comparison rejects gap-tolerant extraction output envelopes"
+                f"gap-tolerant extraction run {run.run_id} output envelope does not authenticate against outputs_hash"
             )
 
     @staticmethod
