@@ -6,6 +6,11 @@ from lemmamind.candidate_extraction_gaps import (
     CandidateExtractionGapService,
     CandidateExtractionGapSignal,
 )
+from lemmamind.candidate_reduction_contracts import (
+    CandidateFactualReduction,
+    CandidateReductionDisposition,
+    CandidateSignalKind,
+)
 from lemmamind.contracts import (
     CONTRACT_SCHEMA_VERSION,
     Artifact,
@@ -214,6 +219,8 @@ def test_pair_records_source_local_gap_and_gap_aware_change_excludes_it(tmp_path
     assert pair.previous.diagnostics == ()
     assert len(pair.current.diagnostics) == 1
     diagnostic = pair.current.diagnostics[0]
+    assert diagnostic.capture_id == current.capture_id
+    assert diagnostic.source_revision_id == CURRENT_REVISION_ID
     assert diagnostic.source_locator == BAD_PATH
     assert diagnostic.extractor_name == "recoverable-syntax"
     assert store.list(ExtractionDiagnostic) == [diagnostic]
@@ -260,7 +267,7 @@ def test_strict_v1_extraction_still_fails_on_same_recoverable_error(tmp_path) ->
         ).extract_capture(current.capture_id)
 
 
-def test_candidate_gap_signal_projects_diagnostics_without_semantic_claim(tmp_path) -> None:
+def test_candidate_gap_signal_closes_capture_and_reduction_lineage(tmp_path) -> None:
     store, objects, previous, current = _prepare(tmp_path)
     extractors = (ContentFactExtractor(), RecoverableSyntaxExtractor())
     pair = GapTolerantExtractionPairService(
@@ -287,11 +294,34 @@ def test_candidate_gap_signal_projects_diagnostics_without_semantic_claim(tmp_pa
         paths=(BAD_PATH, GOOD_PATH),
         segmentation_run_id=segmentation_run_id,
     )
+    reduction = CandidateFactualReduction(
+        candidate_factual_reduction_id="candidate-reduction:test",
+        interval_candidate_segment_id=candidate.interval_candidate_segment_id,
+        source_id=SOURCE_ID,
+        previous_source_revision_id=PREVIOUS_REVISION_ID,
+        current_source_revision_id=CURRENT_REVISION_ID,
+        paths=(BAD_PATH, GOOD_PATH),
+        affected_file_plan_ids=("plan:bad", "plan:good"),
+        capture_scoped_paths=(BAD_PATH, GOOD_PATH),
+        git_only_paths=(BAD_PATH, GOOD_PATH),
+        signal_kinds=(CandidateSignalKind.GIT_ONLY_CHANGE,),
+        disposition=CandidateReductionDisposition.RETAIN,
+        diff_run_id="run:diff:test",
+        segmentation_run_id=segmentation_run_id,
+        planner_run_id="run:planner:test",
+        previous_capture_id=previous.capture_id,
+        current_capture_id=current.capture_id,
+        previous_extraction_run_id=pair.previous.extraction.run.run_id,
+        current_extraction_run_id=pair.current.extraction.run.run_id,
+        change_run_id="run:change:test",
+        reduction_run_id=reduction_run_id,
+    )
     store.put_many(
         (
             _pipeline_run(segmentation_run_id, RunType.DIFF, 30),
             _pipeline_run(reduction_run_id, RunType.OTHER, 32),
             candidate,
+            reduction,
         )
     )
 
@@ -306,6 +336,8 @@ def test_candidate_gap_signal_projects_diagnostics_without_semantic_claim(tmp_pa
     assert result.paths == (BAD_PATH,)
     signal = result.signals[0]
     assert signal.interval_candidate_segment_id == candidate.interval_candidate_segment_id
+    assert signal.previous_capture_id == previous.capture_id
+    assert signal.current_capture_id == current.capture_id
     assert signal.paths == (BAD_PATH,)
     assert signal.previous_diagnostic_ids == ()
     assert signal.current_diagnostic_ids == (
