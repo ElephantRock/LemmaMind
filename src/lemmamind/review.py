@@ -42,6 +42,7 @@ DEFAULT_REVIEWABLE_SUBJECT_TYPES = frozenset(
         "Pattern",
         "ActionRecommendation",
         "ChangeInterpretation",
+        "MechanismReviewItem",
     }
 )
 

@@ -33,6 +33,7 @@ from .interval_segmentation_contracts import (
     CommitRangeSummary,
     IntervalCandidateSegment,
 )
+from .mechanism_review_contracts import MechanismReviewItem
 from .path_change_contracts import ChangeSurface, GitPathDelta, GitPathDeltaType
 from .profile_contracts import (
     ArchitectureProfile,
@@ -70,6 +71,7 @@ __all__ = [
     "GitPathDelta",
     "GitPathDeltaType",
     "IntervalCandidateSegment",
+    "MechanismReviewItem",
     "RepositoryTrackingAssignment",
     "ReviewFeedback",
     "StructuralDelta",
