@@ -300,8 +300,7 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
                     self._spec_payload(spec) for _, spec in assertion_specs
                 ],
                 "diagnostics": [
-                    item.model_dump(mode="json", by_alias=True)
-                    for item in diagnostics
+                    self._diagnostic_payload(item) for item in collected.diagnostics
                 ],
             }
         )
@@ -324,6 +323,19 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
         )
         self.store.put_many((*extraction.records(), *diagnostics))
         return GapTolerantExtractionSideResult(extraction, diagnostics)
+
+    @staticmethod
+    def _diagnostic_payload(item: _DiagnosticSpec) -> dict[str, str]:
+        return {
+            "capture_id": item.capture_id,
+            "source_revision_id": item.source_revision_id,
+            "artifact_id": item.artifact_id,
+            "source_locator": item.source_locator,
+            "extractor_name": item.extractor_name,
+            "extractor_version": item.extractor_version,
+            "error_type": item.error_type,
+            "error_message": item.error_message,
+        }
 
     @staticmethod
     def _diagnostic_id(run_id: str, index: int, item: _DiagnosticSpec) -> str:
