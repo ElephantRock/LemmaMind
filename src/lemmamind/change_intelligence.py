@@ -303,8 +303,7 @@ class DeterministicChangeService:
         current_run, current_facts = self._extraction_generation(
             current, current_extraction_run_id, extractor_descriptors
         )
-        self._require_strict_extraction_run(previous_run)
-        self._require_strict_extraction_run(current_run)
+        self._require_strict_extraction_pair(previous_run, current_run)
         self._require_compatible_extraction_runs(previous_run, current_run)
 
         previous_map = self._fact_map(previous, previous_facts)
@@ -430,13 +429,27 @@ class DeterministicChangeService:
             )
         return run, facts
 
-    def _require_strict_extraction_run(self, run: PipelineRun) -> None:
-        diagnostics = tuple(
+    def _diagnostics_for_run(self, run: PipelineRun) -> tuple[ExtractionDiagnostic, ...]:
+        return tuple(
             item
             for item in self.store.list(ExtractionDiagnostic)
             if item.run_id == run.run_id
         )
-        if diagnostics:
+
+    def _require_strict_extraction_pair(
+        self,
+        previous: PipelineRun,
+        current: PipelineRun,
+    ) -> None:
+        if self._diagnostics_for_run(previous) or self._diagnostics_for_run(current):
+            raise ChangeIntelligenceError(
+                "strict deterministic change comparison rejects extraction runs containing diagnostics"
+            )
+        self._require_strict_extraction_run(previous)
+        self._require_strict_extraction_run(current)
+
+    def _require_strict_extraction_run(self, run: PipelineRun) -> None:
+        if self._diagnostics_for_run(run):
             raise ChangeIntelligenceError(
                 "strict deterministic change comparison rejects extraction runs containing diagnostics"
             )
@@ -454,11 +467,7 @@ class DeterministicChangeService:
         )
         diagnostics = tuple(
             sorted(
-                (
-                    item
-                    for item in self.store.list(ExtractionDiagnostic)
-                    if item.run_id == run.run_id
-                ),
+                self._diagnostics_for_run(run),
                 key=lambda item: (
                     item.source_locator,
                     item.extractor_name,
