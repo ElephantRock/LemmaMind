@@ -11,6 +11,7 @@ from lemmamind.candidate_reduction_contracts import (
     CandidateReductionDisposition,
     CandidateSignalKind,
 )
+from lemmamind.change_intelligence import ChangeIntelligenceError
 from lemmamind.contracts import (
     CONTRACT_SCHEMA_VERSION,
     Artifact,
@@ -32,6 +33,9 @@ from lemmamind.extraction import (
 from lemmamind.extraction_diagnostics import (
     ExtractionDiagnostic,
     GapTolerantExtractionPairService,
+)
+from lemmamind.gap_aware_candidate_reduction import (
+    GapAwareCandidateFactualReductionService,
 )
 from lemmamind.gap_aware_change import GapAwareDeterministicChangeService
 from lemmamind.interval_segmentation_contracts import IntervalCandidateSegment
@@ -58,12 +62,13 @@ class FixedClock:
 
 
 class Ids:
-    def __init__(self):
+    def __init__(self, prefix="gap-test"):
+        self.prefix = prefix
         self.value = 0
 
     def __call__(self):
         self.value += 1
-        return f"gap-test-{self.value}"
+        return f"{self.prefix}-{self.value}"
 
 
 class ContentFactExtractor:
@@ -253,6 +258,82 @@ def test_pair_records_source_local_gap_and_gap_aware_change_excludes_it(tmp_path
         BAD_PATH,
     }
     assert {item.source_locator for item in changed.structural_deltas} == {GOOD_PATH}
+
+
+def test_gap_tolerant_outputs_hash_is_stable_across_new_run_ids(tmp_path) -> None:
+    store, objects, previous, current = _prepare(tmp_path)
+    extractors = (ContentFactExtractor(), RecoverableSyntaxExtractor())
+
+    first = GapTolerantExtractionPairService(
+        store,
+        objects,
+        artifact_extractors=extractors,
+        clock=FixedClock(NOW + timedelta(seconds=10)),
+        id_factory=Ids("first"),
+    ).extract_pair(previous.capture_id, current.capture_id)
+    second = GapTolerantExtractionPairService(
+        store,
+        objects,
+        artifact_extractors=extractors,
+        clock=FixedClock(NOW + timedelta(seconds=20)),
+        id_factory=Ids("second"),
+    ).extract_pair(previous.capture_id, current.capture_id)
+
+    assert first.previous.extraction.run.run_id != second.previous.extraction.run.run_id
+    assert first.current.extraction.run.run_id != second.current.extraction.run.run_id
+    assert (
+        first.previous.extraction.run.outputs_hash
+        == second.previous.extraction.run.outputs_hash
+    )
+    assert first.current.extraction.run.outputs_hash == second.current.extraction.run.outputs_hash
+    assert (
+        first.current.diagnostics[0].extraction_diagnostic_id
+        != second.current.diagnostics[0].extraction_diagnostic_id
+    )
+
+
+def test_gap_aware_reducer_has_distinct_default_policy_versions(tmp_path) -> None:
+    store, objects, _, _ = _prepare(tmp_path)
+    service = GapAwareCandidateFactualReductionService(store, objects)
+
+    assert service.policy_version == "candidate-factual-reduction.gap-aware.v1"
+    assert service.change_policy_version == "candidate-factual-change.gap-aware.v1"
+
+
+def test_gap_aware_change_rejects_foreign_diagnostic_provenance(tmp_path) -> None:
+    store, objects, previous, current = _prepare(tmp_path)
+    extractors = (ContentFactExtractor(), RecoverableSyntaxExtractor())
+    pair = GapTolerantExtractionPairService(
+        store,
+        objects,
+        artifact_extractors=extractors,
+        clock=FixedClock(NOW + timedelta(seconds=10)),
+        id_factory=Ids(),
+    ).extract_pair(previous.capture_id, current.capture_id)
+    real = pair.current.diagnostics[0]
+    store.put(
+        ExtractionDiagnostic(
+            extraction_diagnostic_id="diagnostic:foreign",
+            capture_id="capture:foreign",
+            source_revision_id=CURRENT_REVISION_ID,
+            artifact_id=real.artifact_id,
+            source_locator=real.source_locator,
+            extractor_name=real.extractor_name,
+            extractor_version=real.extractor_version,
+            error_type=real.error_type,
+            error_message="foreign provenance fixture",
+            run_id=pair.current.extraction.run.run_id,
+        )
+    )
+
+    with pytest.raises(ChangeIntelligenceError, match="capture disagrees"):
+        GapAwareDeterministicChangeService(store, objects).compare_captures(
+            previous.capture_id,
+            current.capture_id,
+            previous_extraction_run_id=pair.previous.extraction.run.run_id,
+            current_extraction_run_id=pair.current.extraction.run.run_id,
+            artifact_extractors=extractors,
+        )
 
 
 def test_strict_v1_extraction_still_fails_on_same_recoverable_error(tmp_path) -> None:
