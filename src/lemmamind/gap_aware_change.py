@@ -19,6 +19,7 @@ from .change_intelligence import (
     DeterminismViolation,
     DeterministicChangeService,
 )
+from .contracts import PipelineRun
 from .extraction_diagnostics import ExtractionDiagnostic
 from .revision_capture import ReconstructedCapture
 
@@ -194,14 +195,8 @@ class GapAwareDeterministicChangeService(DeterministicChangeService):
                 )
             paths.add(item.source_locator)
 
-        run = self.store.get(type(self)._pipeline_run_type(), run_id)
+        run = self.store.get(PipelineRun, run_id)
         if run is None:
             raise ChangeIntelligenceError(f"unknown extraction PipelineRun: {run_id}")
         self._authenticate_gap_tolerant_extraction_run(run)
         return paths
-
-    @staticmethod
-    def _pipeline_run_type():
-        from .contracts import PipelineRun
-
-        return PipelineRun
