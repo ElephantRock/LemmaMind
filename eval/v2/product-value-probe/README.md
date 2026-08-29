@@ -16,6 +16,7 @@ The first three eligible changed intervals failed that gate with bottleneck `CHA
 - `m5-recursive-localization-v1.md` — first full-M5 corrective replay: exact recursive changed-path localization.
 - `m5-affected-file-planning-v1.md` — deterministic affected-file capture-planning replay.
 - `m5-interval-segmentation-v1.md` — deterministic commit/path candidate segmentation replay, including first-parent integration routing and the remaining attention-size gap.
+- `m5-candidate-factual-reduction-v1.md` — candidate-scoped deterministic evidence, extraction-gap isolation, and the measured boundary where factual reduction stops saving attention.
 
 Templates remain for future prospective evaluations:
 
@@ -26,7 +27,7 @@ Templates remain for future prospective evaluations:
 
 The V2-P0 failure was not an evidence-integrity regression. The evidence engine can reproduce and prove factual change, but repository-local change signal was too broad to save human attention.
 
-Full-M5 progress has now established three deterministic layers:
+Full-M5 progress has now established five deterministic layers:
 
 ```text
 root-tree change
@@ -36,8 +37,18 @@ exact recursive GitPathDelta
 governed affected-file capture plan
     ↓
 first-parent temporal/path candidate segmentation
+    ↓
+candidate-scoped factual evidence + explicit extraction gaps
 ```
 
-The frozen segmentation replay retained every net changed path and every known high-value miss location, but OpenClaw still produced 229 deterministic candidate units from 1,291 changed leaf paths. Those are useful machine-processing units, not yet an acceptable human review queue.
+The final factual-reduction replay retained every known high-value miss location and safely isolated parser/extractor gaps without weakening the strict V1 extraction contract. It also showed that deterministic evidence does **not** materially reduce the review surface under the current evidence-first rules:
 
-The next measured work remains inside full M5: candidate-scoped capture, deterministic evidence/StructuralDelta, and evidence-aware factual suppression/reduction before semantic `ChangeInterpretation` is authorized. M6.5/embeddings remain deferred.
+```text
+OpenBot:     9 candidates ->   9 retained
+OpenClaw:  229 candidates -> 229 retained
+Hermes:     65 candidates ->  65 retained
+```
+
+OpenClaw produced 356,123 `StructuralDelta` records and explicit extraction gaps on 69 paths across 41 candidates. That is abundant, auditable source-local evidence, but it is not an attention product by itself. Suppressing tests, docs, configuration, `UNKNOWN`, parser-incompatible paths, or changed bytes without extracted structure merely to reduce counts would exceed what the deterministic evidence supports.
+
+The next measured work therefore remains inside full M5 but moves to provenance-bound `ChangeInterpretation`: use the retained factual evidence and explicit uncertainty to surface mechanism-level meaning in a genuinely smaller review set. M6.5/embeddings, learned ranking, autonomous promotion, and action execution remain deferred.
