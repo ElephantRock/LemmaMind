@@ -1,16 +1,18 @@
-"""Durable extraction-gap diagnostics and paired fail-closed isolation for full M5.
+"""Durable source-local extraction-gap diagnostics for full M5.
 
 The V1 ``DeterministicExtractionService`` remains strict: any recoverable source
 parse/format error aborts that capture generation. Full M5 additionally needs to
 process broad explicit-file capture sets where one parser-incompatible artifact
 must not erase deterministic evidence from independent artifacts.
 
-This module therefore provides an opt-in paired extraction service. It records
-recoverable extractor failures as durable ``ExtractionDiagnostic`` records and,
-critically, excludes every fact/assertion for a path from *both* sides whenever
-that path has a diagnostic on either side. This prevents asymmetric parser
-coverage from being misrepresented later as a ``StructuralDelta`` while keeping
-byte-level ``ArtifactDelta`` evidence available to the candidate reducer.
+This module therefore provides an opt-in paired convenience service that still
+persists two *source-local* extraction generations. Recoverable extractor failures
+become durable ``ExtractionDiagnostic`` records while other extractors/artifacts
+continue normally. The union of diagnostic paths is returned to a gap-aware
+change layer, which is responsible for excluding those paths symmetrically from
+StructuralDelta comparison. Keeping the extraction generations source-local is
+critical: an extraction run must never depend on which peer revision it happened
+to be compared with.
 """
 from __future__ import annotations
 
@@ -33,6 +35,7 @@ from .contracts import (
     SourceLocator,
 )
 from .extraction import (
+    ArtifactContractMismatch,
     ArtifactExtractor,
     AssertionSpec,
     DeterministicExtractionService,
@@ -75,8 +78,8 @@ class _DiagnosticSpec:
 @dataclass(frozen=True)
 class _CollectedExtraction:
     manifest: CaptureManifest
-    fact_specs: tuple[tuple[str, str, FactSpec], ...]
-    assertion_specs: tuple[tuple[str, str, AssertionSpec], ...]
+    fact_specs: tuple[tuple[str, FactSpec], ...]
+    assertion_specs: tuple[tuple[str, AssertionSpec], ...]
     diagnostics: tuple[_DiagnosticSpec, ...]
 
 
@@ -84,7 +87,10 @@ class _CollectedExtraction:
 class GapTolerantExtractionSideResult:
     extraction: ExtractionResult
     diagnostics: tuple[ExtractionDiagnostic, ...]
-    excluded_paths: tuple[str, ...]
+
+    @property
+    def diagnostic_paths(self) -> tuple[str, ...]:
+        return tuple(sorted({item.source_locator for item in self.diagnostics}))
 
 
 @dataclass(frozen=True)
@@ -95,13 +101,14 @@ class GapTolerantExtractionPairResult:
 
 
 class GapTolerantExtractionPairService(DeterministicExtractionService):
-    """Extract two capture generations while isolating recoverable path gaps.
+    """Persist two independent extraction generations and their recoverable gaps.
 
     Only expected source/data extraction failures are recoverable. Programming
-    errors and contract/storage violations still propagate immediately. If either
-    side reports a recoverable diagnostic for a path, all fact/assertion specs for
-    that path are excluded from both extraction generations. The path remains in
-    the original CaptureManifest and therefore remains visible to ArtifactDelta.
+    errors and contract/storage violations still propagate immediately. A
+    diagnostic affects only the extractor invocation that failed; all other local
+    evidence remains persisted. Cross-revision exclusion is deliberately deferred
+    to the gap-aware change layer so each extraction run is reproducible from its
+    own capture, extractor profile, and policy version alone.
     """
 
     _recoverable_errors = (
@@ -116,7 +123,7 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
         object_store,
         *,
         artifact_extractors: Iterable[ArtifactExtractor] | None = None,
-        extraction_policy_version: str = "deterministic-evidence.gap-tolerant-pair.v1",
+        extraction_policy_version: str = "deterministic-evidence.gap-tolerant.v1",
         code_version: str = "lemmamind-0.1.0",
         clock=None,
         id_factory=None,
@@ -136,34 +143,20 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
         previous_capture_id: str,
         current_capture_id: str,
     ) -> GapTolerantExtractionPairResult:
-        previous = self._collect(previous_capture_id)
-        current = self._collect(current_capture_id)
-
+        previous = self._persist_collected(self._collect(previous_capture_id))
+        current = self._persist_collected(self._collect(current_capture_id))
         gap_paths = tuple(
-            sorted(
-                {
-                    item.source_locator
-                    for item in (*previous.diagnostics, *current.diagnostics)
-                }
-            )
+            sorted(set(previous.diagnostic_paths) | set(current.diagnostic_paths))
         )
-        excluded = set(gap_paths)
-
-        previous_result = self._persist_collected(previous, excluded)
-        current_result = self._persist_collected(current, excluded)
-        return GapTolerantExtractionPairResult(
-            previous_result,
-            current_result,
-            gap_paths,
-        )
+        return GapTolerantExtractionPairResult(previous, current, gap_paths)
 
     def _collect(self, capture_id: str) -> _CollectedExtraction:
         manifest = self.store.get(CaptureManifest, capture_id)
         if manifest is None:
             raise KeyError(f"unknown capture: {capture_id}")
 
-        fact_specs: list[tuple[str, str, FactSpec]] = []
-        assertion_specs: list[tuple[str, str, AssertionSpec]] = []
+        fact_specs: list[tuple[str, FactSpec]] = []
+        assertion_specs: list[tuple[str, AssertionSpec]] = []
         diagnostics: list[_DiagnosticSpec] = []
 
         for reference in manifest.artifacts:
@@ -171,7 +164,7 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
                 continue
             artifact = self.store.get(Artifact, reference.artifact_id)
             if artifact is None:
-                raise RuntimeError(
+                raise ArtifactContractMismatch(
                     f"manifest references missing Artifact record: {reference.artifact_id}"
                 )
             self._validate_artifact(manifest, reference, artifact)
@@ -197,13 +190,9 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
 
                 for spec in extracted:
                     if isinstance(spec, FactSpec):
-                        fact_specs.append(
-                            (artifact.artifact_id, artifact.source_locator, spec)
-                        )
+                        fact_specs.append((artifact.artifact_id, spec))
                     else:
-                        assertion_specs.append(
-                            (artifact.artifact_id, artifact.source_locator, spec)
-                        )
+                        assertion_specs.append((artifact.artifact_id, spec))
 
         diagnostics.sort(
             key=lambda item: (
@@ -224,21 +213,12 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
     def _persist_collected(
         self,
         collected: _CollectedExtraction,
-        excluded_paths: set[str],
     ) -> GapTolerantExtractionSideResult:
         started_at = self._aware_now()
         run_id = f"run:{self.id_factory()}"
 
-        fact_specs = [
-            (artifact_id, spec)
-            for artifact_id, path, spec in collected.fact_specs
-            if path not in excluded_paths
-        ]
-        assertion_specs = [
-            (artifact_id, spec)
-            for artifact_id, path, spec in collected.assertion_specs
-            if path not in excluded_paths
-        ]
+        fact_specs = list(collected.fact_specs)
+        assertion_specs = list(collected.assertion_specs)
         fact_specs.sort(
             key=lambda pair: (
                 pair[1].extractor_name,
@@ -313,7 +293,6 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
                     item.model_dump(mode="json", by_alias=True)
                     for item in diagnostics
                 ],
-                "paired_excluded_paths": sorted(excluded_paths),
             }
         )
         run = PipelineRun(
@@ -334,11 +313,7 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
             run,
         )
         self.store.put_many((*extraction.records(), *diagnostics))
-        return GapTolerantExtractionSideResult(
-            extraction,
-            diagnostics,
-            tuple(sorted(excluded_paths)),
-        )
+        return GapTolerantExtractionSideResult(extraction, diagnostics)
 
     @staticmethod
     def _diagnostic_id(run_id: str, index: int, item: _DiagnosticSpec) -> str:
