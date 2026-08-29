@@ -154,7 +154,6 @@ class GapAwareDeterministicChangeService(DeterministicChangeService):
         run = self.store.get(PipelineRun, run_id)
         if run is None:
             raise ChangeIntelligenceError(f"unknown extraction PipelineRun: {run_id}")
-        self._authenticate_gap_tolerant_extraction_run(run)
 
         diagnostics = tuple(
             item
@@ -162,6 +161,7 @@ class GapAwareDeterministicChangeService(DeterministicChangeService):
             if item.run_id == run_id
         )
         if not diagnostics:
+            self._authenticate_gap_tolerant_extraction_run(run)
             return set()
 
         artifact_by_id = {
@@ -200,4 +200,5 @@ class GapAwareDeterministicChangeService(DeterministicChangeService):
                 )
             paths.add(item.source_locator)
 
+        self._authenticate_gap_tolerant_extraction_run(run)
         return paths
