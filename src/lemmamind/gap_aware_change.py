@@ -8,7 +8,12 @@ across the pair so parser coverage cannot manufacture a structural change.
 """
 from __future__ import annotations
 
-from .change_contracts import ArtifactDelta, ArtifactDeltaType, StructuralDelta, StructuralDeltaType
+from .change_contracts import (
+    ArtifactDelta,
+    ArtifactDeltaType,
+    StructuralDelta,
+    StructuralDeltaType,
+)
 from .change_intelligence import (
     ChangeIntelligenceError,
     DeterminismViolation,
@@ -161,6 +166,17 @@ class GapAwareDeterministicChangeService(DeterministicChangeService):
         }
         paths: set[str] = set()
         for item in diagnostics:
+            if item.capture_id != capture.manifest.capture_id:
+                raise ChangeIntelligenceError(
+                    "ExtractionDiagnostic capture disagrees with extraction generation: "
+                    f"{item.extraction_diagnostic_id}"
+                )
+            if item.source_revision_id != capture.revision.source_revision_id:
+                raise ChangeIntelligenceError(
+                    "ExtractionDiagnostic revision disagrees with extraction generation: "
+                    f"{item.extraction_diagnostic_id}"
+                )
+
             artifact = artifact_by_id.get(item.artifact_id)
             if artifact is None:
                 raise ChangeIntelligenceError(
