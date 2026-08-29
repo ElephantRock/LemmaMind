@@ -5,6 +5,10 @@ silently converted into structural evidence. ``ExtractionDiagnostic`` records
 preserve the source-local failure; this module projects those diagnostics onto
 the deterministic ``IntervalCandidateSegment`` review units so the attention
 surface can explicitly say that a retained candidate contains an extraction gap.
+
+Projection is fail-closed across the complete lineage: segmentation candidate →
+candidate factual reduction → exact previous/current captures and extraction
+runs → source-local diagnostic. Matching only by path is never sufficient.
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ from dataclasses import dataclass
 
 from pydantic import model_validator
 
+from .candidate_reduction_contracts import CandidateFactualReduction
 from .contracts import (
     CONTRACT_TYPES,
     ContractModel,
@@ -35,6 +40,8 @@ class CandidateExtractionGapSignal(ContractModel):
     source_id: Identifier
     previous_source_revision_id: Identifier
     current_source_revision_id: Identifier
+    previous_capture_id: Identifier
+    current_capture_id: Identifier
     paths: tuple[SourceLocator, ...]
     previous_diagnostic_ids: tuple[Identifier, ...] = ()
     current_diagnostic_ids: tuple[Identifier, ...] = ()
@@ -134,6 +141,56 @@ class CandidateExtractionGapService:
                     )
                 path_to_candidate[path] = candidate
 
+        reductions = tuple(
+            item
+            for item in self.store.list(CandidateFactualReduction)
+            if item.reduction_run_id == reduction_run_id
+        )
+        reduction_by_candidate: dict[str, CandidateFactualReduction] = {}
+        for reduction in reductions:
+            if reduction.interval_candidate_segment_id in reduction_by_candidate:
+                raise CandidateExtractionGapError(
+                    "candidate reduction generation contains duplicate candidate identities"
+                )
+            reduction_by_candidate[reduction.interval_candidate_segment_id] = reduction
+
+        expected_candidate_ids = {
+            item.interval_candidate_segment_id for item in candidates
+        }
+        if set(reduction_by_candidate) != expected_candidate_ids:
+            raise CandidateExtractionGapError(
+                "candidate reduction generation does not cover the segmentation exactly"
+            )
+
+        for candidate in candidates:
+            reduction = reduction_by_candidate[candidate.interval_candidate_segment_id]
+            expected = (
+                candidate.source_id,
+                candidate.previous_source_revision_id,
+                candidate.current_source_revision_id,
+                candidate.segmentation_run_id,
+                previous_extraction_run_id,
+                current_extraction_run_id,
+                reduction_run_id,
+            )
+            observed = (
+                reduction.source_id,
+                reduction.previous_source_revision_id,
+                reduction.current_source_revision_id,
+                reduction.segmentation_run_id,
+                reduction.previous_extraction_run_id,
+                reduction.current_extraction_run_id,
+                reduction.reduction_run_id,
+            )
+            if observed != expected:
+                raise CandidateExtractionGapError(
+                    "candidate reduction lineage disagrees with supplied generation"
+                )
+            if reduction.paths != candidate.paths:
+                raise CandidateExtractionGapError(
+                    "candidate reduction paths disagree with interval candidate"
+                )
+
         previous = tuple(
             item
             for item in self.store.list(ExtractionDiagnostic)
@@ -159,6 +216,19 @@ class CandidateExtractionGapService:
                 f"{foreign_paths}"
             )
 
+        self._validate_diagnostic_generation(
+            previous,
+            path_to_candidate,
+            reduction_by_candidate,
+            previous=True,
+        )
+        self._validate_diagnostic_generation(
+            current,
+            path_to_candidate,
+            reduction_by_candidate,
+            previous=False,
+        )
+
         previous_by_candidate: dict[str, list[ExtractionDiagnostic]] = {}
         current_by_candidate: dict[str, list[ExtractionDiagnostic]] = {}
         for item in previous:
@@ -179,6 +249,7 @@ class CandidateExtractionGapService:
             if not previous_items and not current_items:
                 continue
 
+            reduction = reduction_by_candidate[candidate.interval_candidate_segment_id]
             paths = tuple(
                 sorted(
                     {
@@ -199,6 +270,8 @@ class CandidateExtractionGapService:
                         segmentation_run_id,
                         reduction_run_id,
                         candidate.interval_candidate_segment_id,
+                        reduction.previous_capture_id,
+                        reduction.current_capture_id,
                         paths,
                         previous_ids,
                         current_ids,
@@ -207,6 +280,8 @@ class CandidateExtractionGapService:
                     source_id=candidate.source_id,
                     previous_source_revision_id=candidate.previous_source_revision_id,
                     current_source_revision_id=candidate.current_source_revision_id,
+                    previous_capture_id=reduction.previous_capture_id,
+                    current_capture_id=reduction.current_capture_id,
                     paths=paths,
                     previous_diagnostic_ids=previous_ids,
                     current_diagnostic_ids=current_ids,
@@ -220,6 +295,34 @@ class CandidateExtractionGapService:
         result = CandidateExtractionGapResult(tuple(signals))
         self.store.put_many(result.signals)
         return result
+
+    @staticmethod
+    def _validate_diagnostic_generation(
+        diagnostics: tuple[ExtractionDiagnostic, ...],
+        path_to_candidate: dict[str, IntervalCandidateSegment],
+        reduction_by_candidate: dict[str, CandidateFactualReduction],
+        *,
+        previous: bool,
+    ) -> None:
+        for item in diagnostics:
+            candidate = path_to_candidate[item.source_locator]
+            reduction = reduction_by_candidate[candidate.interval_candidate_segment_id]
+            expected_revision_id = (
+                reduction.previous_source_revision_id
+                if previous
+                else reduction.current_source_revision_id
+            )
+            expected_capture_id = (
+                reduction.previous_capture_id if previous else reduction.current_capture_id
+            )
+            if item.source_revision_id != expected_revision_id:
+                raise CandidateExtractionGapError(
+                    "extraction diagnostic revision disagrees with candidate reduction"
+                )
+            if item.capture_id != expected_capture_id:
+                raise CandidateExtractionGapError(
+                    "extraction diagnostic capture disagrees with candidate reduction"
+                )
 
     def _completed_run(self, run_id: str, run_type: RunType, label: str) -> PipelineRun:
         run = self.store.get(PipelineRun, run_id)
@@ -236,6 +339,8 @@ class CandidateExtractionGapService:
         segmentation_run_id: str,
         reduction_run_id: str,
         candidate_id: str,
+        previous_capture_id: str,
+        current_capture_id: str,
         paths: tuple[str, ...],
         previous_ids: tuple[str, ...],
         current_ids: tuple[str, ...],
@@ -245,6 +350,8 @@ class CandidateExtractionGapService:
                 segmentation_run_id,
                 reduction_run_id,
                 candidate_id,
+                previous_capture_id,
+                current_capture_id,
                 *paths,
                 "previous",
                 *previous_ids,
