@@ -1,4 +1,4 @@
-"""Executable V1 basic review/feedback capture.
+"""Append-only review/feedback capture.
 
 The service records feedback; it does not mutate the reviewed subject, promote
 validation state, authenticate the supplied reviewer identity, or authorize actions.
@@ -41,6 +41,7 @@ DEFAULT_REVIEWABLE_SUBJECT_TYPES = frozenset(
         "Observation",
         "Pattern",
         "ActionRecommendation",
+        "ChangeInterpretation",
     }
 )
 
@@ -92,7 +93,9 @@ class ReviewFeedbackService:
         if subject_type not in CONTRACT_TYPES:
             raise ReviewCaptureError(f"unknown review subject contract type: {subject_type}")
         if subject_type not in self.reviewable_subject_types:
-            raise ReviewCaptureError(f"contract type is not reviewable in V1: {subject_type}")
+            raise ReviewCaptureError(
+                f"contract type is not reviewable under current policy: {subject_type}"
+            )
 
         subject = self.store.get_untyped(subject_type, subject_id)
         if subject is None:
