@@ -1,5 +1,6 @@
 """LemmaMind executable contracts and persistence."""
 
+from .candidate_evidence_packet_contracts import CandidateEvidencePacket
 from .candidate_extraction_gap_contracts import CandidateExtractionGapSignal
 from .candidate_reduction_contracts import (
     CandidateFactualReduction,
@@ -48,6 +49,7 @@ __all__ = [
     "ArchitectureProfile",
     "ArtifactDelta",
     "ArtifactDeltaType",
+    "CandidateEvidencePacket",
     "CandidateExtractionGapSignal",
     "CandidateFactualReduction",
     "CandidateReductionDisposition",

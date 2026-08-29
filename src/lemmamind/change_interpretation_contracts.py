@@ -65,6 +65,7 @@ class ChangeInterpretation(ContractModel):
 
     interval_candidate_segment_ids: tuple[Identifier, ...]
     candidate_factual_reduction_ids: tuple[Identifier, ...]
+    candidate_evidence_packet_ids: tuple[Identifier, ...]
 
     interpretation_types: tuple[ChangeInterpretationType, ...]
     mechanism: InterpretationText
@@ -80,23 +81,23 @@ class ChangeInterpretation(ContractModel):
     def validate_interpretation(self) -> "ChangeInterpretation":
         if not self.interval_candidate_segment_ids:
             raise ValueError("ChangeInterpretation requires at least one interval candidate")
-        if self.interval_candidate_segment_ids != tuple(
-            sorted(set(self.interval_candidate_segment_ids))
+        for field_name in (
+            "interval_candidate_segment_ids",
+            "candidate_factual_reduction_ids",
+            "candidate_evidence_packet_ids",
         ):
-            raise ValueError(
-                "interval_candidate_segment_ids must be sorted and unique"
-            )
-        if self.candidate_factual_reduction_ids != tuple(
-            sorted(set(self.candidate_factual_reduction_ids))
-        ):
-            raise ValueError(
-                "candidate_factual_reduction_ids must be sorted and unique"
-            )
-        if len(self.candidate_factual_reduction_ids) != len(
-            self.interval_candidate_segment_ids
-        ):
+            values = getattr(self, field_name)
+            if values != tuple(sorted(set(values))):
+                raise ValueError(f"{field_name} must be sorted and unique")
+
+        candidate_count = len(self.interval_candidate_segment_ids)
+        if len(self.candidate_factual_reduction_ids) != candidate_count:
             raise ValueError(
                 "each interpreted interval candidate requires one factual reduction"
+            )
+        if len(self.candidate_evidence_packet_ids) != candidate_count:
+            raise ValueError(
+                "each interpreted interval candidate requires one deterministic evidence packet"
             )
 
         if not self.interpretation_types:
