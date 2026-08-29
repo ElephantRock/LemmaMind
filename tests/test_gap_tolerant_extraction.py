@@ -226,7 +226,7 @@ def test_pair_isolates_recoverable_gap_without_false_structural_delta(tmp_path) 
         store,
         objects,
         clock=FixedClock(NOW + timedelta(seconds=20)),
-        id_factory=Ids(),
+        id_factory=lambda: "gap-change",
     ).compare_captures(
         previous.capture_id,
         current.capture_id,
