@@ -123,7 +123,7 @@ class CandidateFactualReductionService:
         if not extractor_profile:
             raise ValueError("artifact_extractors must not be empty")
 
-        self._completed_run(segmentation_run_id, RunType.OTHER, "segmentation")
+        self._completed_run(segmentation_run_id, RunType.DIFF, "segmentation")
         self._completed_run(planner_run_id, RunType.OTHER, "affected-file planner")
 
         summary = self._diff_summary(diff_run_id)
