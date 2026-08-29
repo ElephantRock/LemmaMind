@@ -17,6 +17,7 @@ from .contracts import (
     ContractModel,
     Identifier,
     RetrievalStatus,
+    SourceLocator,
 )
 
 
@@ -46,7 +47,7 @@ class ArtifactDelta(ContractModel):
     current_source_revision_id: Identifier
     previous_capture_id: Identifier
     current_capture_id: Identifier
-    source_locator: Identifier
+    source_locator: SourceLocator
     change_type: ArtifactDeltaType
 
     previous_artifact_id: Identifier | None = None
@@ -138,7 +139,7 @@ class StructuralDelta(ContractModel):
     source_id: Identifier
     previous_source_revision_id: Identifier
     current_source_revision_id: Identifier
-    source_locator: Identifier
+    source_locator: SourceLocator
     structural_key: Identifier
     change_type: StructuralDeltaType
     extractor_name: Identifier
@@ -146,8 +147,8 @@ class StructuralDelta(ContractModel):
 
     previous_evidence_id: Identifier | None = None
     current_evidence_id: Identifier | None = None
-    previous_locator: Identifier | None = None
-    current_locator: Identifier | None = None
+    previous_locator: SourceLocator | None = None
+    current_locator: SourceLocator | None = None
     previous_value: JsonValue | None = None
     current_value: JsonValue | None = None
     diff_run_id: Identifier

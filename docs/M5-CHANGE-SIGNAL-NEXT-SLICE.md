@@ -2,15 +2,15 @@
 
 ## Status
 
-**Authorized by V2-P0 FAIL / `CHANGE_SIGNAL` bottleneck.**
+**COMPLETED and evaluated against the frozen V2-P0 `CHANGE_SIGNAL` failures.**
 
-The authoritative product-value closeout is [`eval/v2/product-value-probe/V2-P0-CLOSEOUT.md`](../eval/v2/product-value-probe/V2-P0-CLOSEOUT.md).
+The authoritative product-value closeout remains [`eval/v2/product-value-probe/V2-P0-CLOSEOUT.md`](../eval/v2/product-value-probe/V2-P0-CLOSEOUT.md). The staged corrective evaluations are recorded under [`eval/v2/product-value-probe/`](../eval/v2/product-value-probe/), culminating in `m5-candidate-factual-reduction-v1.md`.
 
-V1 remains PASS. This document narrows the next implementation slice; it does not redefine the V1 release boundary or authorize later V2 capabilities.
+V1 remains PASS. This full-M5 slice did not redefine the V1 release boundary or authorize embeddings, learned ranking, promotion, or action execution.
 
 ## Problem
 
-V1 can prove that an exact repository revision changed, retain exact root-tree evidence, compare governed explicit files, and route an evidence-rich Deep-tracked source to review. The first prospective V2-P0 intervals showed that this is still too coarse for attention-saving intelligence:
+V1 could prove that an exact repository revision changed, retain exact root-tree evidence, compare governed explicit files, and route an evidence-rich Deep-tracked source to review. The first prospective V2-P0 intervals showed that this was still too coarse for attention-saving intelligence:
 
 ```text
 exact root tree changed
@@ -20,7 +20,7 @@ top-level areas changed
 REVIEW
 ```
 
-The missing deterministic bridge is:
+The deterministic bridge evaluated in this slice was:
 
 ```text
 exact root tree changed
@@ -29,107 +29,144 @@ recursive changed paths
         ↓
 affected eligible artifacts
         ↓
-normalized factual change
+first-parent temporal/path candidates
         ↓
-low-value churn suppressed/classified
+candidate-scoped deterministic evidence
         ↓
-small candidate set for interpretation/review
+explicit factual signals + extraction gaps
 ```
 
-## Slice objective
-
-Implement the smallest full-M5 capability that can turn exact Git revision differences into a bounded, reproducible changed-artifact set without executing untrusted repository code and without introducing model-generated interpretation.
-
-## Required capabilities
+## Implemented capabilities
 
 ### 1. Recursive changed-path localization
 
-Given two exact `SourceRevision` records for the same Source:
+Given two exact `SourceRevision` records for the same Source, LemmaMind now:
 
-- compare Git trees recursively or through an equivalent exact Git object/API path;
-- emit deterministic path-level additions, removals, type changes, and content-object changes;
-- preserve old/new blob or tree object identities where available;
-- distinguish directory movement from authored semantic interpretation;
-- fail closed on truncated/incomplete provider tree responses rather than claiming completeness.
+- compares Git trees recursively;
+- emits deterministic path-level additions, removals, type changes, and content-object changes;
+- preserves old/new Git object identities where available;
+- suppresses parent-directory hash churn without suppressing changed leaf paths;
+- fails closed on incomplete/truncated provider tree evidence.
 
-The output is factual change localization, not `ChangeInterpretation`.
+The output remains factual `GitPathDelta`, not `ChangeInterpretation`.
 
 ### 2. Affected-file capture planning
 
-Use the path-level factual change set to determine which changed artifacts are eligible for capture under the active tracking policy and trust boundary.
+The planner now maps the complete path-level factual generation into explicit before/after capture scope under the active tracking policy and trust boundary. It:
 
-The planner must:
+- preserves tracking-level authorization;
+- never executes changed repository source code;
+- uses exact provider/Git evidence rather than broad checkout for path discovery;
+- retains add/remove missing-side state;
+- handles directories/submodules distinctly from ordinary file capture;
+- suppresses only explicitly governed generated, vendored, or oversized surfaces;
+- preserves `UNKNOWN` rather than guessing it away.
 
-- preserve tracking-level authorization;
-- never execute changed source code;
-- avoid broad repository checkout merely to discover paths when exact provider/Git evidence is sufficient;
-- retain explicit missing/unavailable states;
-- keep capture scope distinct from repository-authored add/remove claims.
+### 3. Deterministic interval/candidate segmentation
 
-### 3. Deterministic surface/churn classification
+High-velocity intervals are decomposed through a first-parent integration model while preserving the full compare frontier as evidence. Every net `GitPathDelta` is assigned exactly once to a bounded deterministic candidate, with typed path grouping and fixed chunking.
 
-Where classification can be made from path, media type, retained bytes, or normalized deterministic evidence, tag factual change surfaces such as:
+This produced:
 
 ```text
-SOURCE
-TEST
-DOCS
-CONFIG
-WORKFLOW
-MANIFEST
-LOCKFILE
-GENERATED
-VENDORED
-UNKNOWN
+OpenBot:      41 changed paths ->   9 candidates
+OpenClaw:  1,291 changed paths -> 229 candidates
+Hermes:      147 changed paths ->  65 candidates
 ```
 
-Formatting-only or equivalent-normalized churn may be suppressed only when the equivalence is deterministic and reproducible. Unknown cases remain unknown rather than being guessed away.
+The candidates are machine-processing units, not semantic claims or direct-review items.
 
-### 4. Candidate-set production
+### 4. Candidate-scoped factual reduction
 
-Produce a small factual candidate set suitable for later review or `ChangeInterpretation`.
+Each candidate can now be reduced through exact explicit-file captures and deterministic evidence. The full-M5 factual layer distinguishes:
 
-A candidate must retain:
+```text
+structural_delta
+authored_assertion_change
+artifact_delta_without_extracted_signal
+git_only_change
+policy_suppressed
+```
 
-- exact previous/current SourceRevision IDs;
-- changed paths and old/new object identities;
-- capture/evidence provenance;
-- deterministic surface/churn tags;
-- suppression reason when suppressed;
-- producer/run/schema/policy versions.
+`EvidenceFact` / `StructuralDelta` remain separate from authored `SourceAssertion` changes. Exact Git path identity is preserved through capture, evidence, and change contracts.
 
-The candidate is not yet a claim about architectural importance, causality, adoption, reversal, or failure.
+A candidate is automatically suppressed only when all of its paths were already explicitly policy-suppressed. Changed bytes without selected extracted structure remain retained fail-closed.
 
-## Explicitly deferred inside this slice
+### 5. Explicit extraction-gap isolation
 
-Do not add yet:
+Broad candidate captures exposed a real scaling boundary: one parser-incompatible artifact could previously abort an otherwise useful large extraction generation. The full-M5 path now isolates that uncertainty without weakening strict V1 behavior:
 
-- embeddings or vector search;
-- learned ranking;
-- autonomous model-generated change summaries;
-- semantic importance scores without a reviewed evaluation basis;
-- automatic Pattern discovery;
-- knowledge promotion;
-- action authorization or execution.
+- strict deterministic extraction remains fail-closed;
+- gap-tolerant extraction is explicitly versioned and opt-in;
+- recoverable parser/extractor failures become source-local `ExtractionDiagnostic` records;
+- gap paths are excluded symmetrically from `StructuralDelta` comparison;
+- candidate-level gap signals close exact capture/revision/artifact/path/run lineage;
+- strict deterministic change rejects gap-tolerant or diagnostic-bearing extraction generations.
 
-`ChangeInterpretation` should begin only after recursive localization and deterministic suppression are proven against the frozen V2-P0 failures.
+An extraction gap is explicit incomplete coverage, not semantic evidence and not a suppression reason.
 
-## Evaluation target
+## Frozen evaluation
 
-Replay the three failed prospective intervals:
+The same three prospective failure intervals were replayed without target-path routing exceptions:
 
 - `CopilotKit/OpenBot` — `43ea5c1… → e8aa344…`
 - `openclaw/openclaw` — `20eef85… → aec260b…`
 - `NousResearch/hermes-agent` — `b2bd1ac… → a6d6060…`
 
-The slice passes only if it materially reduces each interval from broad top-level tree movement to an auditable changed-path/candidate set that includes the locations containing the important misses recorded in V2-P0, without using those misses as hard-coded path exceptions.
+The final candidate factual-reduction replay succeeded and retained every known high-value miss location:
 
-## Next decision
+| Repository | Interval candidates | Retained | Suppressed | StructuralDelta | Extraction-gap paths |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| CopilotKit/OpenBot | 9 | 9 | 0 | 3,612 | 0 |
+| openclaw/openclaw | 229 | 229 | 0 | 356,123 | 69 |
+| NousResearch/hermes-agent | 65 | 65 | 0 | 120,864 | 0 |
 
-After this deterministic localization/suppression slice passes, reassess whether the remaining bottleneck is:
+The OpenClaw gaps span 41 candidates and are preserved as explicit uncertainty. They do not erase deterministic evidence from independent paths.
 
-- semantic `ChangeInterpretation` within full M5;
-- richer deterministic profiling in full M6;
-- or another measured issue.
+The detailed replay, target retention, signal distribution, and provenance are recorded in `eval/v2/product-value-probe/m5-candidate-factual-reduction-v1.md`.
 
-M6.5 remains deferred until cross-repository comparison, rather than source-local change signal, is the demonstrated bottleneck.
+## Product conclusion
+
+The deterministic change-signal foundation is now substantially stronger, but **deterministic factual reduction did not produce an attention-sized human review set**.
+
+The final counts remained:
+
+```text
+OpenBot:     9 ->   9 retained
+OpenClaw:  229 -> 229 retained
+Hermes:     65 ->  65 retained
+```
+
+This result is informative rather than a reason to add broader suppression. The current evidence does not justify discarding tests, docs, configuration, `UNKNOWN`, parser-incompatible artifacts, or changed bytes without extracted structure merely to reduce counts. Doing so would violate the evidence-first contract and risks removing exactly the mechanisms LemmaMind is intended to surface.
+
+At the same time, source-local factual evidence is now abundant: OpenClaw alone produces 356,123 deterministic `StructuralDelta` records. The remaining attention problem is therefore not primarily “where did change occur?” or “can we extract facts from it?” It is “which evidenced mechanism-level changes matter, and why?”
+
+## Next authorized full-M5 slice
+
+The measured next bottleneck is **provenance-bound `ChangeInterpretation`**.
+
+The next slice is authorized to consume retained candidate paths, `ArtifactDelta`, `StructuralDelta`, authored assertions, and extraction-gap signals and produce bounded mechanism-level interpretations that:
+
+- cite exact retained evidence;
+- preserve the distinction between fact, source assertion, and interpretation;
+- state uncertainty when extraction coverage is incomplete;
+- avoid unsupported causality or importance claims;
+- reduce the machine-candidate surface to a genuinely smaller review set;
+- replay the same frozen V2-P0 intervals and recover the known mechanism-level findings without hard-coded path exceptions.
+
+A ChangeInterpretation slice fails the product gate if it merely paraphrases diffs or emits one summary per deterministic candidate without reducing attention.
+
+Extractor coverage should expand only when a measured miss is attributable to an extraction gap. Broad extractor expansion is not the current primary bottleneck.
+
+## Still deferred
+
+Do not add yet:
+
+- embeddings or vector search / M6.5;
+- learned ranking;
+- automatic Pattern discovery;
+- autonomous knowledge promotion;
+- semantic importance scores without a reviewed evaluation basis;
+- action authorization or execution.
+
+M6.5 remains deferred until cross-repository comparison, rather than source-local change interpretation, is the demonstrated bottleneck.

@@ -323,7 +323,7 @@ class EvidenceFact(ContractModel):
 
     evidence_id: Identifier
     artifact_id: Identifier
-    locator: Identifier
+    locator: SourceLocator
     raw_value: JsonValue
     normalized_value: JsonValue
     extractor_name: Identifier
@@ -336,7 +336,7 @@ class SourceAssertion(ContractModel):
 
     assertion_id: Identifier
     artifact_id: Identifier
-    locator: Identifier
+    locator: SourceLocator
     statement: Identifier
     extractor_name: Identifier
     extractor_version: Identifier

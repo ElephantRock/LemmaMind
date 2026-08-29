@@ -1,5 +1,11 @@
 """LemmaMind executable contracts and persistence."""
 
+from .candidate_extraction_gap_contracts import CandidateExtractionGapSignal
+from .candidate_reduction_contracts import (
+    CandidateFactualReduction,
+    CandidateReductionDisposition,
+    CandidateSignalKind,
+)
 from .capture_planning_contracts import (
     AffectedFileCapturePlan,
     CapturePlanDisposition,
@@ -13,6 +19,7 @@ from .change_contracts import (
     StructuralDeltaType,
 )
 from .contracts import CONTRACT_SCHEMA_VERSION
+from .extraction_diagnostic_contracts import ExtractionDiagnostic
 from .interval_segmentation_contracts import (
     CommitPathSnapshot,
     CommitRangeStatus,
@@ -35,6 +42,10 @@ __all__ = [
     "ArchitectureProfile",
     "ArtifactDelta",
     "ArtifactDeltaType",
+    "CandidateExtractionGapSignal",
+    "CandidateFactualReduction",
+    "CandidateReductionDisposition",
+    "CandidateSignalKind",
     "CapturePlanDisposition",
     "CapturePlanReason",
     "CapturePlanSide",
@@ -43,6 +54,7 @@ __all__ = [
     "CommitRangeStatus",
     "CommitRangeSummary",
     "CONTRACT_SCHEMA_VERSION",
+    "ExtractionDiagnostic",
     "GitPathDelta",
     "GitPathDeltaType",
     "IntervalCandidateSegment",
