@@ -322,7 +322,7 @@ def prepare(
             previous_revision,
             current_revision,
             pipeline_run(DIFF_RUN_ID, RunType.DIFF, 2),
-            pipeline_run(SEGMENTATION_RUN_ID, RunType.OTHER, 4),
+            pipeline_run(SEGMENTATION_RUN_ID, RunType.DIFF, 4),
             pipeline_run(PLANNER_RUN_ID, RunType.OTHER, 6),
             diff_summary,
             delta,
