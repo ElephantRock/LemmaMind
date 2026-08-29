@@ -17,6 +17,10 @@ from dataclasses import dataclass
 
 from .candidate_extraction_gap_contracts import CandidateExtractionGapSignal
 from .candidate_reduction_contracts import CandidateFactualReduction
+from .change_intelligence import (
+    ChangeIntelligenceError,
+    DeterministicChangeService,
+)
 from .contracts import CaptureManifest, PipelineRun, RetrievalStatus, RunType
 from .extraction_diagnostic_contracts import ExtractionDiagnostic
 from .interval_segmentation_contracts import IntervalCandidateSegment
@@ -64,17 +68,30 @@ class CandidateExtractionGapService:
         reduction_run_id: str,
     ) -> CandidateExtractionGapResult:
         self._completed_run(segmentation_run_id, RunType.DIFF, "segmentation")
-        self._completed_run(
+        previous_extraction_run = self._completed_run(
             previous_extraction_run_id,
             RunType.EXTRACTION,
             "previous extraction",
         )
-        self._completed_run(
+        current_extraction_run = self._completed_run(
             current_extraction_run_id,
             RunType.EXTRACTION,
             "current extraction",
         )
         self._completed_run(reduction_run_id, RunType.OTHER, "candidate reduction")
+
+        authenticator = DeterministicChangeService(self.store, None)
+        try:
+            authenticator._authenticate_gap_tolerant_extraction_run(
+                previous_extraction_run
+            )
+            authenticator._authenticate_gap_tolerant_extraction_run(
+                current_extraction_run
+            )
+        except ChangeIntelligenceError as exc:
+            raise CandidateExtractionGapError(
+                "candidate gap projection requires authenticated gap-tolerant extraction outputs"
+            ) from exc
 
         candidates = tuple(
             sorted(
