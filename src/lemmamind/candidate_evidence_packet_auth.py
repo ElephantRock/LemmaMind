@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from .candidate_evidence_packet_contracts import CandidateEvidencePacket
+from .candidate_evidence_packet_generation_contracts import (
+    CandidateEvidencePacketGeneration,
+)
 from .candidate_evidence_packets import (
     CandidateEvidencePacketError,
     CandidateEvidencePacketService,
@@ -20,32 +23,36 @@ class CandidateEvidencePacketGenerationAuthenticator:
         self,
         packet_run_id: str,
     ) -> tuple[PipelineRun, tuple[CandidateEvidencePacket, ...]]:
-        service = CandidateEvidencePacketService(self.store)
+        generations = tuple(
+            item
+            for item in self.store.list(CandidateEvidencePacketGeneration)
+            if item.packet_run_id == packet_run_id
+        )
+        if len(generations) != 1:
+            raise CandidateEvidencePacketError(
+                "packet generation requires exactly one durable bounded-profile envelope"
+            )
+        generation = generations[0]
+
+        service = CandidateEvidencePacketService(
+            self.store,
+            policy_version=generation.policy_version,
+            max_structural_previews=generation.max_structural_previews,
+            max_assertion_previews=generation.max_assertion_previews,
+            preview_chars=generation.preview_chars,
+        )
         run = service._completed_run(packet_run_id, RunType.OTHER, "evidence packet")
         if run.policy_version != service.policy_version:
             raise CandidateEvidencePacketError(
                 "packet generation policy disagrees with bounded packet policy"
             )
-        persisted = tuple(
-            item
-            for item in self.store.list(CandidateEvidencePacket)
-            if item.packet_run_id == packet_run_id
-        )
-        if not persisted:
-            if run.outputs_hash != service._digest_json([]):
-                raise CandidateEvidencePacketError(
-                    "empty packet generation does not authenticate against outputs_hash"
-                )
-            return run, ()
-
-        reduction_run_ids = {item.reduction_run_id for item in persisted}
-        if len(reduction_run_ids) != 1:
+        if generation.packet_run_id != run.run_id:
             raise CandidateEvidencePacketError(
-                "packet generation spans multiple factual-reduction runs"
+                "bounded packet profile disagrees with packet PipelineRun"
             )
-        reduction_run_id = next(iter(reduction_run_ids))
+
         reduction_run, pairs = service._authenticated_reduction_generation(
-            reduction_run_id
+            generation.reduction_run_id
         )
         expected_inputs_hash = service._digest_json(
             {
@@ -66,7 +73,12 @@ class CandidateEvidencePacketGenerationAuthenticator:
             for candidate, reduction in pairs
             if reduction.disposition is CandidateReductionDisposition.RETAIN
         )
-        persisted_by_candidate = {}
+        persisted = tuple(
+            item
+            for item in self.store.list(CandidateEvidencePacket)
+            if item.packet_run_id == packet_run_id
+        )
+        persisted_by_candidate: dict[str, CandidateEvidencePacket] = {}
         for packet in persisted:
             candidate_id = packet.interval_candidate_segment_id
             if candidate_id in persisted_by_candidate:
@@ -89,6 +101,15 @@ class CandidateEvidencePacketGenerationAuthenticator:
                 raise CandidateEvidencePacketError(
                     "persisted packet disagrees with reconstruction from upstream factual evidence"
                 )
+
+        reconstructed_ids = tuple(
+            sorted(item.candidate_evidence_packet_id for item in reconstructed)
+        )
+        if generation.candidate_evidence_packet_ids != reconstructed_ids:
+            raise CandidateEvidencePacketError(
+                "bounded packet profile does not exactly name reconstructed packet outputs"
+            )
+
         expected_outputs_hash = service._digest_json(
             [service._stable_packet_payload(item) for item in reconstructed]
         )

@@ -6,15 +6,21 @@ from .candidate_evidence_packet_contracts import (
     SourceAssertionPreview,
     StructuralDeltaPreview,
 )
+from .candidate_evidence_packet_generation_contracts import (
+    CandidateEvidencePacketGeneration,
+)
 from .candidate_evidence_packets_hardened_base import (
     CandidateEvidencePacketError,
     CandidateEvidencePacketResult,
     CandidateEvidencePacketService as _HardenedCandidateEvidencePacketService,
     ContractStore,
 )
-from .candidate_reduction_contracts import CandidateFactualReduction
+from .candidate_reduction_contracts import (
+    CandidateFactualReduction,
+    CandidateReductionDisposition,
+)
 from .change_contracts import StructuralDelta
-from .contracts import SourceAssertion
+from .contracts import CONTRACT_SCHEMA_VERSION, PipelineRun, RunType, SourceAssertion
 
 
 class CandidateEvidencePacketService(_HardenedCandidateEvidencePacketService):
@@ -45,6 +51,63 @@ class CandidateEvidencePacketService(_HardenedCandidateEvidencePacketService):
             preview_chars=preview_chars,
             **kwargs,
         )
+
+    def build_reduction(self, reduction_run_id: str) -> CandidateEvidencePacketResult:
+        """Persist the exact bounded profile needed to authenticate this generation."""
+
+        started_at = self._aware_now()
+        reduction_run, pairs = self._authenticated_reduction_generation(
+            reduction_run_id
+        )
+        packet_run_id = f"run:candidate-evidence-packet:{self.id_factory()}"
+        packets = tuple(
+            self._build_packet(reduction, candidate, packet_run_id)
+            for candidate, reduction in pairs
+            if reduction.disposition is CandidateReductionDisposition.RETAIN
+        )
+
+        inputs_hash = self._digest_json(
+            {
+                "reduction_run": reduction_run.model_dump(
+                    mode="json", by_alias=True
+                ),
+                "policy_version": self.policy_version,
+                "max_structural_previews": self.max_structural_previews,
+                "max_assertion_previews": self.max_assertion_previews,
+                "preview_chars": self.preview_chars,
+            }
+        )
+        outputs_hash = self._digest_json(
+            [self._stable_packet_payload(item) for item in packets]
+        )
+        run = PipelineRun(
+            run_id=packet_run_id,
+            run_type=RunType.OTHER,
+            code_version=self.code_version,
+            contract_schema_version=CONTRACT_SCHEMA_VERSION,
+            policy_version=self.policy_version,
+            started_at=started_at,
+            finished_at=self._aware_now(),
+            inputs_hash=inputs_hash,
+            outputs_hash=outputs_hash,
+        )
+        generation = CandidateEvidencePacketGeneration(
+            candidate_evidence_packet_generation_id=(
+                f"candidate-evidence-packet-generation:{packet_run_id}"
+            ),
+            packet_run_id=packet_run_id,
+            reduction_run_id=reduction_run_id,
+            policy_version=self.policy_version,
+            max_structural_previews=self.max_structural_previews,
+            max_assertion_previews=self.max_assertion_previews,
+            preview_chars=self.preview_chars,
+            candidate_evidence_packet_ids=tuple(
+                sorted(item.candidate_evidence_packet_id for item in packets)
+            ),
+        )
+        result = CandidateEvidencePacketResult(reduction_run_id, packets, run)
+        self.store.put_many((*packets, run, generation))
+        return result
 
     def _assertion_snapshots(
         self,

@@ -1,6 +1,9 @@
 """LemmaMind executable contracts and persistence."""
 
 from .candidate_evidence_packet_contracts import CandidateEvidencePacket
+from .candidate_evidence_packet_generation_contracts import (
+    CandidateEvidencePacketGeneration,
+)
 from .candidate_extraction_gap_contracts import CandidateExtractionGapSignal
 from .candidate_reduction_contracts import (
     CandidateFactualReduction,
@@ -24,6 +27,9 @@ from .change_interpretation_contracts import (
     ChangeInterpretationSupportRef,
     ChangeInterpretationSupportType,
     ChangeInterpretationType,
+)
+from .change_interpretation_generation_contracts import (
+    ChangeInterpretationGeneration,
 )
 from .contracts import CONTRACT_SCHEMA_VERSION
 from .extraction_diagnostic_contracts import ExtractionDiagnostic
@@ -51,6 +57,7 @@ __all__ = [
     "ArtifactDelta",
     "ArtifactDeltaType",
     "CandidateEvidencePacket",
+    "CandidateEvidencePacketGeneration",
     "CandidateExtractionGapSignal",
     "CandidateFactualReduction",
     "CandidateReductionDisposition",
@@ -59,6 +66,7 @@ __all__ = [
     "CapturePlanReason",
     "CapturePlanSide",
     "ChangeInterpretation",
+    "ChangeInterpretationGeneration",
     "ChangeInterpretationSupportRef",
     "ChangeInterpretationSupportType",
     "ChangeInterpretationType",

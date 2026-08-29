@@ -8,8 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 
 from .candidate_reduction_contracts import CandidateSignalKind
 from .change_contracts import StructuralDeltaType
-from .contracts import CONTRACT_TYPES, ContractModel, Identifier
+from .contracts import CONTRACT_TYPES, ContractModel
 
+PacketIdentifier = Annotated[
+    str, StringConstraints(min_length=1, max_length=256, strip_whitespace=True)
+]
 PacketPath = Annotated[str, StringConstraints(min_length=1, max_length=4096)]
 PacketPreviewText = Annotated[str, StringConstraints(max_length=512)]
 PacketPreviewLocator = Annotated[
@@ -27,13 +30,13 @@ class StructuralDeltaPreview(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    structural_delta_id: Identifier
+    structural_delta_id: PacketIdentifier
     source_locator: PacketPath
     structural_key: PacketPreviewLocator
     structural_key_truncated: bool = False
     change_type: StructuralDeltaType
-    extractor_name: Identifier
-    extractor_version: Identifier
+    extractor_name: PacketIdentifier
+    extractor_version: PacketIdentifier
     previous_value_preview: PacketPreviewText | None = None
     current_value_preview: PacketPreviewText | None = None
     value_preview_truncated: bool = False
@@ -44,15 +47,15 @@ class SourceAssertionPreview(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    assertion_id: Identifier
+    assertion_id: PacketIdentifier
     side: AssertionSnapshotSide
     source_locator: PacketPath
     locator: PacketPreviewLocator
     locator_truncated: bool = False
     statement_preview: PacketPreviewText
     statement_truncated: bool
-    extractor_name: Identifier
-    extractor_version: Identifier
+    extractor_name: PacketIdentifier
+    extractor_version: PacketIdentifier
 
 
 class CandidateEvidencePacket(ContractModel):
@@ -60,12 +63,12 @@ class CandidateEvidencePacket(ContractModel):
 
     record_id_field = "candidate_evidence_packet_id"
 
-    candidate_evidence_packet_id: Identifier
-    interval_candidate_segment_id: Identifier
-    candidate_factual_reduction_id: Identifier
-    source_id: Identifier
-    previous_source_revision_id: Identifier
-    current_source_revision_id: Identifier
+    candidate_evidence_packet_id: PacketIdentifier
+    interval_candidate_segment_id: PacketIdentifier
+    candidate_factual_reduction_id: PacketIdentifier
+    source_id: PacketIdentifier
+    previous_source_revision_id: PacketIdentifier
+    current_source_revision_id: PacketIdentifier
 
     paths: tuple[PacketPath, ...]
     signal_kinds: tuple[CandidateSignalKind, ...]
@@ -73,7 +76,7 @@ class CandidateEvidencePacket(ContractModel):
     artifact_only_paths: tuple[PacketPath, ...] = ()
     git_only_paths: tuple[PacketPath, ...] = ()
 
-    artifact_delta_ids: tuple[Identifier, ...] = ()
+    artifact_delta_ids: tuple[PacketIdentifier, ...] = ()
 
     structural_delta_total: int = Field(ge=0)
     structural_delta_previews: tuple[StructuralDeltaPreview, ...] = ()
@@ -83,15 +86,15 @@ class CandidateEvidencePacket(ContractModel):
     assertion_previews: tuple[SourceAssertionPreview, ...] = ()
     assertion_snapshot_omitted_count: int = Field(ge=0)
 
-    extraction_gap_signal_ids: tuple[Identifier, ...] = ()
+    extraction_gap_signal_ids: tuple[PacketIdentifier, ...] = ()
     extraction_gap_paths: tuple[PacketPath, ...] = ()
 
-    segmentation_run_id: Identifier
-    reduction_run_id: Identifier
-    previous_extraction_run_id: Identifier
-    current_extraction_run_id: Identifier
-    change_run_id: Identifier
-    packet_run_id: Identifier
+    segmentation_run_id: PacketIdentifier
+    reduction_run_id: PacketIdentifier
+    previous_extraction_run_id: PacketIdentifier
+    current_extraction_run_id: PacketIdentifier
+    change_run_id: PacketIdentifier
+    packet_run_id: PacketIdentifier
 
     @model_validator(mode="after")
     def validate_packet(self) -> "CandidateEvidencePacket":
