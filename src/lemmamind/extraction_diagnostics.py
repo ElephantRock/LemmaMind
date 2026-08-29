@@ -8,11 +8,13 @@ must not erase deterministic evidence from independent artifacts.
 This module therefore provides an opt-in paired convenience service that still
 persists two *source-local* extraction generations. Recoverable extractor failures
 become durable ``ExtractionDiagnostic`` records while other extractors/artifacts
-continue normally. The union of diagnostic paths is returned to a gap-aware
-change layer, which is responsible for excluding those paths symmetrically from
-StructuralDelta comparison. Keeping the extraction generations source-local is
-critical: an extraction run must never depend on which peer revision it happened
-to be compared with.
+continue normally. Every diagnostic is bound to the exact CaptureManifest,
+SourceRevision, Artifact, path, extractor, and extraction run that produced it.
+The union of diagnostic paths is returned to a gap-aware change layer, which is
+responsible for excluding those paths symmetrically from StructuralDelta
+comparison. Keeping extraction generations source-local is critical: an
+extraction run must never depend on which peer revision it happened to be
+compared with.
 """
 from __future__ import annotations
 
@@ -48,11 +50,13 @@ from .typescript_ast import TypeScriptAstExtractionError
 
 
 class ExtractionDiagnostic(ContractModel):
-    """One recoverable extractor failure bound to an exact captured artifact."""
+    """One recoverable extractor failure bound to one captured source revision."""
 
     record_id_field = "extraction_diagnostic_id"
 
     extraction_diagnostic_id: Identifier
+    capture_id: Identifier
+    source_revision_id: Identifier
     artifact_id: Identifier
     source_locator: SourceLocator
     extractor_name: Identifier
@@ -67,6 +71,8 @@ CONTRACT_TYPES[ExtractionDiagnostic.__name__] = ExtractionDiagnostic
 
 @dataclass(frozen=True)
 class _DiagnosticSpec:
+    capture_id: str
+    source_revision_id: str
     artifact_id: str
     source_locator: str
     extractor_name: str
@@ -178,6 +184,8 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
                 except self._recoverable_errors as exc:
                     diagnostics.append(
                         _DiagnosticSpec(
+                            capture_id=manifest.capture_id,
+                            source_revision_id=manifest.source_revision_id,
                             artifact_id=artifact.artifact_id,
                             source_locator=artifact.source_locator,
                             extractor_name=extractor.name,
@@ -260,6 +268,8 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
         diagnostics = tuple(
             ExtractionDiagnostic(
                 extraction_diagnostic_id=self._diagnostic_id(run_id, index, item),
+                capture_id=item.capture_id,
+                source_revision_id=item.source_revision_id,
                 artifact_id=item.artifact_id,
                 source_locator=item.source_locator,
                 extractor_name=item.extractor_name,
@@ -318,9 +328,9 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
     @staticmethod
     def _diagnostic_id(run_id: str, index: int, item: _DiagnosticSpec) -> str:
         material = (
-            f"diagnostic\0{run_id}\0{index}\0{item.artifact_id}\0"
-            f"{item.extractor_name}\0{item.extractor_version}\0{item.error_type}\0"
-            f"{item.error_message}"
+            f"diagnostic\0{run_id}\0{index}\0{item.capture_id}\0"
+            f"{item.source_revision_id}\0{item.artifact_id}\0{item.extractor_name}\0"
+            f"{item.extractor_version}\0{item.error_type}\0{item.error_message}"
         ).encode("utf-8")
         return f"extraction-diagnostic:{hashlib.sha256(material).hexdigest()}"
 
