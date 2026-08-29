@@ -16,6 +16,8 @@ from .contracts import PipelineRun, RunType
 class CandidateEvidencePacketGenerationAuthenticator:
     """Reconstruct packets from upstream facts before semantic consumption."""
 
+    _PACKET_POLICY = "candidate-evidence-packet.v1"
+
     def __init__(self, store) -> None:
         self.store = store
 
@@ -33,6 +35,10 @@ class CandidateEvidencePacketGenerationAuthenticator:
                 "packet generation requires exactly one durable bounded-profile envelope"
             )
         generation = generations[0]
+        if generation.policy_version != self._PACKET_POLICY:
+            raise CandidateEvidencePacketError(
+                "packet generation rejects unrecognized packet policies"
+            )
 
         service = CandidateEvidencePacketService(
             self.store,
@@ -42,6 +48,10 @@ class CandidateEvidencePacketGenerationAuthenticator:
             preview_chars=generation.preview_chars,
         )
         run = service._completed_run(packet_run_id, RunType.OTHER, "evidence packet")
+        if run.policy_version != self._PACKET_POLICY:
+            raise CandidateEvidencePacketError(
+                "packet PipelineRun uses an unrecognized packet policy"
+            )
         if run.policy_version != service.policy_version:
             raise CandidateEvidencePacketError(
                 "packet generation policy disagrees with bounded packet policy"
@@ -56,7 +66,9 @@ class CandidateEvidencePacketGenerationAuthenticator:
         )
         expected_inputs_hash = service._digest_json(
             {
-                "reduction_run": reduction_run.model_dump(mode="json", by_alias=True),
+                "reduction_run": reduction_run.model_dump(
+                    mode="json", by_alias=True
+                ),
                 "policy_version": service.policy_version,
                 "max_structural_previews": service.max_structural_previews,
                 "max_assertion_previews": service.max_assertion_previews,
