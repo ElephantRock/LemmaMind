@@ -1,5 +1,10 @@
 """LemmaMind executable contracts and persistence."""
 
+from .candidate_reduction_contracts import (
+    CandidateFactualReduction,
+    CandidateReductionDisposition,
+    CandidateSignalKind,
+)
 from .capture_planning_contracts import (
     AffectedFileCapturePlan,
     CapturePlanDisposition,
@@ -35,6 +40,9 @@ __all__ = [
     "ArchitectureProfile",
     "ArtifactDelta",
     "ArtifactDeltaType",
+    "CandidateFactualReduction",
+    "CandidateReductionDisposition",
+    "CandidateSignalKind",
     "CapturePlanDisposition",
     "CapturePlanReason",
     "CapturePlanSide",
