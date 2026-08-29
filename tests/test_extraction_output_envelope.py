@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from lemmamind.candidate_extraction_gaps import CandidateExtractionGapError
 from lemmamind.change_intelligence import (
     ChangeIntelligenceError,
     DeterministicChangeService,
