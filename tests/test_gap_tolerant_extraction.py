@@ -11,7 +11,10 @@ from lemmamind.candidate_reduction_contracts import (
     CandidateReductionDisposition,
     CandidateSignalKind,
 )
-from lemmamind.change_intelligence import ChangeIntelligenceError
+from lemmamind.change_intelligence import (
+    ChangeIntelligenceError,
+    DeterministicChangeService,
+)
 from lemmamind.contracts import (
     CONTRACT_SCHEMA_VERSION,
     Artifact,
@@ -328,6 +331,52 @@ def test_gap_aware_change_rejects_foreign_diagnostic_provenance(tmp_path) -> Non
 
     with pytest.raises(ChangeIntelligenceError, match="capture disagrees"):
         GapAwareDeterministicChangeService(store, objects).compare_captures(
+            previous.capture_id,
+            current.capture_id,
+            previous_extraction_run_id=pair.previous.extraction.run.run_id,
+            current_extraction_run_id=pair.current.extraction.run.run_id,
+            artifact_extractors=extractors,
+        )
+
+
+def test_strict_change_rejects_gap_tolerant_policy_even_without_diagnostics(tmp_path) -> None:
+    store, objects, previous, current = _prepare(tmp_path)
+    extractors = (ContentFactExtractor(),)
+    pair = GapTolerantExtractionPairService(
+        store,
+        objects,
+        artifact_extractors=extractors,
+        clock=FixedClock(NOW + timedelta(seconds=10)),
+        id_factory=Ids("gap-policy"),
+    ).extract_pair(previous.capture_id, current.capture_id)
+
+    assert pair.previous.diagnostics == ()
+    assert pair.current.diagnostics == ()
+    with pytest.raises(ChangeIntelligenceError, match="gap-tolerant extraction runs"):
+        DeterministicChangeService(store, objects).compare_captures(
+            previous.capture_id,
+            current.capture_id,
+            previous_extraction_run_id=pair.previous.extraction.run.run_id,
+            current_extraction_run_id=pair.current.extraction.run.run_id,
+            artifact_extractors=extractors,
+        )
+
+
+def test_strict_change_rejects_diagnostic_bearing_custom_policy(tmp_path) -> None:
+    store, objects, previous, current = _prepare(tmp_path)
+    extractors = (ContentFactExtractor(), RecoverableSyntaxExtractor())
+    pair = GapTolerantExtractionPairService(
+        store,
+        objects,
+        artifact_extractors=extractors,
+        extraction_policy_version="deterministic-evidence.custom-partial.v1",
+        clock=FixedClock(NOW + timedelta(seconds=10)),
+        id_factory=Ids("diagnostic-policy"),
+    ).extract_pair(previous.capture_id, current.capture_id)
+
+    assert len(pair.current.diagnostics) == 1
+    with pytest.raises(ChangeIntelligenceError, match="runs containing diagnostics"):
+        DeterministicChangeService(store, objects).compare_captures(
             previous.capture_id,
             current.capture_id,
             previous_extraction_run_id=pair.previous.extraction.run.run_id,
