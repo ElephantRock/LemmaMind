@@ -33,6 +33,7 @@ from .contracts import (
     SourceAssertion,
 )
 from .extraction import ArtifactExtractor
+from .extraction_diagnostic_contracts import ExtractionDiagnostic
 from .objects import ContentAddressedFileStore
 from .revision_capture import (
     CaptureReconstructionService,
@@ -295,6 +296,8 @@ class DeterministicChangeService:
         current_run, current_facts = self._extraction_generation(
             current, current_extraction_run_id, extractor_descriptors
         )
+        self._require_strict_extraction_run(previous_run)
+        self._require_strict_extraction_run(current_run)
         self._require_compatible_extraction_runs(previous_run, current_run)
 
         previous_map = self._fact_map(previous, previous_facts)
@@ -419,6 +422,21 @@ class DeterministicChangeService:
                 f"{capture.manifest.capture_id}: {foreign}"
             )
         return run, facts
+
+    def _require_strict_extraction_run(self, run: PipelineRun) -> None:
+        if "gap-tolerant" in run.policy_version:
+            raise ChangeIntelligenceError(
+                "strict deterministic change comparison rejects gap-tolerant extraction runs"
+            )
+        diagnostics = tuple(
+            item
+            for item in self.store.list(ExtractionDiagnostic)
+            if item.run_id == run.run_id
+        )
+        if diagnostics:
+            raise ChangeIntelligenceError(
+                "strict deterministic change comparison rejects extraction runs containing diagnostics"
+            )
 
     @staticmethod
     def _require_compatible_extraction_runs(
