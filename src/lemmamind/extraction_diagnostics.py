@@ -24,17 +24,13 @@ from typing import Iterable
 
 from .contracts import (
     CONTRACT_SCHEMA_VERSION,
-    CONTRACT_TYPES,
     Artifact,
     CaptureManifest,
-    ContractModel,
     EvidenceFact,
-    Identifier,
     PipelineRun,
     RetrievalStatus,
     RunType,
     SourceAssertion,
-    SourceLocator,
 )
 from .extraction import (
     ArtifactContractMismatch,
@@ -45,28 +41,9 @@ from .extraction import (
     ExtractionResult,
     FactSpec,
 )
+from .extraction_diagnostic_contracts import ExtractionDiagnostic
 from .python_ast import PythonAstExtractionError
 from .typescript_ast import TypeScriptAstExtractionError
-
-
-class ExtractionDiagnostic(ContractModel):
-    """One recoverable extractor failure bound to one captured source revision."""
-
-    record_id_field = "extraction_diagnostic_id"
-
-    extraction_diagnostic_id: Identifier
-    capture_id: Identifier
-    source_revision_id: Identifier
-    artifact_id: Identifier
-    source_locator: SourceLocator
-    extractor_name: Identifier
-    extractor_version: Identifier
-    error_type: Identifier
-    error_message: str
-    run_id: Identifier
-
-
-CONTRACT_TYPES[ExtractionDiagnostic.__name__] = ExtractionDiagnostic
 
 
 @dataclass(frozen=True)
@@ -345,8 +322,3 @@ class GapTolerantExtractionPairService(DeterministicExtractionService):
             f"{item.extractor_version}\0{item.error_type}\0{item.error_message}"
         ).encode("utf-8")
         return f"extraction-diagnostic:{hashlib.sha256(material).hexdigest()}"
-
-
-EXTRACTION_DIAGNOSTIC_CONTRACT_TYPES: dict[str, type[ContractModel]] = {
-    ExtractionDiagnostic.__name__: ExtractionDiagnostic,
-}
