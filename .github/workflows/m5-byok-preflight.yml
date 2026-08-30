@@ -13,7 +13,6 @@ jobs:
     env:
       COPILOT_PROVIDER_TYPE: ${{ vars.M5_BYOK_PROVIDER_TYPE }}
       COPILOT_PROVIDER_BASE_URL: ${{ vars.M5_BYOK_BASE_URL }}
-      COPILOT_PROVIDER_API_KEY: ${{ secrets.M5_BYOK_API_KEY }}
       COPILOT_MODEL: ${{ vars.M5_BYOK_MODEL }}
       COPILOT_OFFLINE: "true"
       GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS: "false"
@@ -40,10 +39,6 @@ jobs:
             echo "::error::Repository Actions variable M5_BYOK_MODEL is not configured."
             exit 1
           fi
-          if [[ -z "${COPILOT_PROVIDER_API_KEY}" ]]; then
-            echo "::error::Repository Actions secret M5_BYOK_API_KEY is not configured."
-            exit 1
-          fi
           case "${COPILOT_PROVIDER_TYPE}" in
             openai|anthropic|azure) ;;
             *)
@@ -65,7 +60,14 @@ jobs:
 
       - name: Verify bounded BYOK inference
         shell: bash
+        env:
+          COPILOT_PROVIDER_API_KEY: ${{ secrets.M5_BYOK_API_KEY }}
         run: |
+          if [[ -z "${COPILOT_PROVIDER_API_KEY}" ]]; then
+            echo "::error::Repository Actions secret M5_BYOK_API_KEY is not configured."
+            exit 1
+          fi
+
           unset GITHUB_TOKEN GH_TOKEN COPILOT_GITHUB_TOKEN
           mkdir -p "${RUNNER_TEMP}/lemmamind-byok-preflight"
           cd "${RUNNER_TEMP}/lemmamind-byok-preflight"
