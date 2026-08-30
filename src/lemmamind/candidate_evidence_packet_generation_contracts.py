@@ -1,9 +1,18 @@
 """Durable profile envelope for one candidate evidence-packet generation."""
 from __future__ import annotations
 
-from pydantic import Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .contracts import CONTRACT_TYPES, ContractModel, Identifier
+
+
+class PacketExtractorDescriptor(BaseModel):
+    """Exact ordered extractor identity authenticated by upstream run hashes."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: Identifier
+    version: Identifier
 
 
 class CandidateEvidencePacketGeneration(ContractModel):
@@ -18,6 +27,7 @@ class CandidateEvidencePacketGeneration(ContractModel):
     max_structural_previews: int = Field(ge=1, le=256)
     max_assertion_previews: int = Field(ge=2, le=128)
     preview_chars: int = Field(ge=32, le=512)
+    artifact_extractors: tuple[PacketExtractorDescriptor, ...] = Field(min_length=1)
     candidate_evidence_packet_ids: tuple[Identifier, ...] = ()
 
     @model_validator(mode="after")
