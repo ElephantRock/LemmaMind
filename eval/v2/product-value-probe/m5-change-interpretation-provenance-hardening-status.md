@@ -6,33 +6,44 @@ This note records implementation-validation status only. It does **not** close t
 
 ## Validated runtime head
 
-The provenance-hardening runtime/test implementation was committed at:
+The current provenance-hardening runtime/test implementation was committed at:
 
-- `fae18faf47c09475b985048deb6790f36062912d` — `Harden packet upstream provenance authentication`
+- `35af88f767066bd89167132e23219fac1abe9250` — `Persist exact interval segmentation profiles`
 
-The hardening closes the deterministic lineage boundary used before semantic interpretation by requiring packet construction/authentication to preserve and reauthenticate the exact upstream generation context, including:
+This extends the earlier upstream-lineage hardening at `fae18faf47c09475b985048deb6790f36062912d` and closes the deterministic boundary used before semantic interpretation by requiring packet construction/authentication to preserve and reauthenticate the exact upstream generation context, including:
 
 - recursive Git path-diff provenance;
 - interval segmentation provenance reconstructed against the authenticated path-diff generation;
+- a durable exact `IntervalSegmentationGeneration` profile containing the configured `max_paths_per_candidate`, so valid packet-safe candidates remain authenticatable even when the upstream segmentation bound is greater than 50;
 - affected-file planning provenance reconstructed against the authenticated path diff, tracking policy, and exact capture scope;
 - completed extraction/change/reduction lineage;
 - the exact ordered artifact-extractor profile as durable packet-generation provenance rather than a profile inferred from outputs;
+- repeated extractor descriptors preserved in their original order when upstream extraction legitimately uses them;
 - bounded assertion preview selection that preserves previous/current snapshot visibility under constrained preview budgets.
 
-The temporary validation harness intentionally failed closed: it applied the staged hardening, compiled the modified modules/tests, ran the complete pytest suite, and only then committed the validated runtime/test state while removing all temporary staging files.
+Both temporary validation harnesses intentionally failed closed: each applied staged changes, compiled the modified modules/tests, ran the complete pytest suite, and only then committed validated runtime/test state while removing temporary staging files.
 
 ## Validation evidence
 
-Temporary one-shot hardening workflow:
+Primary upstream-provenance hardening workflow:
 
 - workflow run: `33290492830`
 - job: `99201154945`
 - result: **success**
 - complete pytest execution: **302 tests completed green**
+- committed runtime/test state: `fae18faf47c09475b985048deb6790f36062912d`
 
-The workflow then deleted its temporary payload/workflow machinery and pushed the validated commit `fae18faf47c09475b985048deb6790f36062912d`.
+Exact segmentation-profile / repeated-extractor follow-up workflow:
 
-The normal pull-request workflow generated for that bot-authored push was run `33290507028`, but GitHub concluded it as `action_required` without creating test jobs. This is workflow-trigger behavior for the bot-authored push, not a LemmaMind test failure. This user-authored status commit exists in part to trigger permanent PR CI on an otherwise unchanged runtime head.
+- workflow run: `33291098525`
+- job: `99202748496`
+- result: **success**
+- complete pytest execution: **305 tests completed green**
+- committed runtime/test state: `35af88f767066bd89167132e23219fac1abe9250`
+
+The follow-up added regressions for both fresh exact-head Codex findings: a segmentation configured with `max_paths_per_candidate=100` that produces a one-path packet-safe candidate, and an exact ordered extractor profile containing repeated silent descriptors.
+
+The bot-authored runtime push may not create a normal PR test job because GitHub suppresses recursive workflow execution from `github-actions[bot]`. This user-authored status update exists in part to trigger permanent PR CI on the unchanged runtime head. The permanent exact-head PR CI result should therefore be read from the workflow generated for the commit containing this note, not from any bot-authored push status.
 
 ## Product gate remains open
 
