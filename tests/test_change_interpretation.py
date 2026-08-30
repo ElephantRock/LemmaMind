@@ -21,6 +21,7 @@ from lemmamind.contracts import (
 )
 from tests.test_candidate_evidence_packets import (
     REDUCTION_RUN_ID,
+    EXTRACTOR_PROFILE,
     STRUCTURAL_DELTA_ID,
     prepare as prepare_packet_store,
 )
@@ -99,6 +100,7 @@ def prepare_packet_run(tmp_path):
     store = prepare_packet_store(tmp_path)
     result = CandidateEvidencePacketService(
         store,
+        artifact_extractors=EXTRACTOR_PROFILE,
         clock=FixedClock(NOW + timedelta(seconds=20)),
         id_factory=Ids("packet"),
     ).build_reduction(REDUCTION_RUN_ID)

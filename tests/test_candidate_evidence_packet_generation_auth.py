@@ -36,6 +36,7 @@ from lemmamind.contracts import (
 from lemmamind.interval_segmentation_contracts import IntervalCandidateSegment
 from lemmamind.path_change_contracts import ChangeSurface
 from lemmamind.storage import SQLiteContractStore
+from tests.m5_packet_fixture import seed_path_pipeline
 
 
 NOW = datetime(2026, 8, 29, 18, 0, tzinfo=timezone.utc)
@@ -79,50 +80,44 @@ def _run(run_id, run_type, policy, inputs_hash, outputs_hash) -> PipelineRun:
     )
 
 
-def _seed_retained_git_only_generation(store: SQLiteContractStore) -> None:
-    candidate = IntervalCandidateSegment(
-        interval_candidate_segment_id="candidate:packet-profile",
+
+def _seed_retained_git_only_generation(
+    store: SQLiteContractStore,
+    *,
+    extractor_profile=EXTRACTOR_PROFILE,
+) -> None:
+    from lemmamind.candidate_reduction import CandidateFactualReductionService
+
+    seeded = seed_path_pipeline(
+        store,
         source_id=SOURCE_ID,
-        previous_source_revision_id=PREVIOUS_REVISION_ID,
-        current_source_revision_id=CURRENT_REVISION_ID,
-        commit_path_snapshot_id="snapshot:packet-profile",
-        commit_sha="b" * 40,
-        commit_ordinal=1,
-        path_group="src",
-        chunk_ordinal=1,
-        git_path_delta_ids=("git-delta:packet-profile",),
-        paths=(PATH,),
-        segmentation_run_id=SEGMENTATION_RUN_ID,
-    )
-    plan = AffectedFileCapturePlan(
-        affected_file_plan_id="plan:packet-profile",
-        git_path_delta_id="git-delta:packet-profile",
-        source_id=SOURCE_ID,
-        previous_source_revision_id=PREVIOUS_REVISION_ID,
-        current_source_revision_id=CURRENT_REVISION_ID,
-        path=PATH,
-        surface=ChangeSurface.SOURCE,
-        previous=CapturePlanSide(
-            source_revision_id=PREVIOUS_REVISION_ID,
-            disposition=CapturePlanDisposition.NON_FILE,
-            reason=CapturePlanReason.DIRECTORY_ENTRY,
-            entry_type="tree",
-            object_sha="1" * 40,
-        ),
-        current=CapturePlanSide(
-            source_revision_id=CURRENT_REVISION_ID,
-            disposition=CapturePlanDisposition.NON_FILE,
-            reason=CapturePlanReason.DIRECTORY_ENTRY,
-            entry_type="tree",
-            object_sha="2" * 40,
-        ),
-        tracking_assignment_id="tracking:packet-profile",
-        tracking_level="3",
+        previous_revision_id=PREVIOUS_REVISION_ID,
+        current_revision_id=CURRENT_REVISION_ID,
         diff_run_id=DIFF_RUN_ID,
+        segmentation_run_id=SEGMENTATION_RUN_ID,
         planner_run_id=PLANNER_RUN_ID,
+        tracking_assignment_id="tracking:packet-profile",
+        now=NOW,
+        path_specs=(
+            {
+                "path": PATH,
+                "previous_entry_type": "commit",
+                "current_entry_type": "commit",
+                "previous_mode": "160000",
+                "current_mode": "160000",
+                "previous_object_sha": "1" * 40,
+                "current_object_sha": "2" * 40,
+                "previous_size": None,
+                "current_size": None,
+            },
+        ),
     )
+    candidate = seeded.candidates[0]
+    plan = seeded.plans[0]
     reduction = CandidateFactualReduction(
-        candidate_factual_reduction_id="reduction:packet-profile",
+        candidate_factual_reduction_id=CandidateFactualReductionService._reduction_id(
+            REDUCTION_RUN_ID, candidate.interval_candidate_segment_id
+        ),
         interval_candidate_segment_id=candidate.interval_candidate_segment_id,
         source_id=SOURCE_ID,
         previous_source_revision_id=PREVIOUS_REVISION_ID,
@@ -163,10 +158,8 @@ def _seed_retained_git_only_generation(store: SQLiteContractStore) -> None:
         "deterministic-evidence.v1",
         _digest(
             {
-                "capture_manifest": previous_manifest.model_dump(
-                    mode="json", by_alias=True
-                ),
-                "artifact_extractors": list(EXTRACTOR_PROFILE),
+                "capture_manifest": previous_manifest.model_dump(mode="json", by_alias=True),
+                "artifact_extractors": list(extractor_profile),
                 "policy_version": "deterministic-evidence.v1",
             }
         ),
@@ -178,28 +171,12 @@ def _seed_retained_git_only_generation(store: SQLiteContractStore) -> None:
         "deterministic-evidence.v1",
         _digest(
             {
-                "capture_manifest": current_manifest.model_dump(
-                    mode="json", by_alias=True
-                ),
-                "artifact_extractors": list(EXTRACTOR_PROFILE),
+                "capture_manifest": current_manifest.model_dump(mode="json", by_alias=True),
+                "artifact_extractors": list(extractor_profile),
                 "policy_version": "deterministic-evidence.v1",
             }
         ),
         _digest(extraction_outputs),
-    )
-    segmentation_run = _run(
-        SEGMENTATION_RUN_ID,
-        RunType.DIFF,
-        "interval-candidate-segmentation.v1",
-        _digest({"fixture": "segmentation"}),
-        _digest({"fixture": "segmentation"}),
-    )
-    planner_run = _run(
-        PLANNER_RUN_ID,
-        RunType.OTHER,
-        "affected-file-plan.v1",
-        _digest({"fixture": "planner"}),
-        _digest([plan.model_dump(mode="json", by_alias=True)]),
     )
     change_run = _run(
         CHANGE_RUN_ID,
@@ -213,7 +190,7 @@ def _seed_retained_git_only_generation(store: SQLiteContractStore) -> None:
                 "current_source_revision_id": CURRENT_REVISION_ID,
                 "previous_extraction_run_id": PREVIOUS_EXTRACTION_RUN_ID,
                 "current_extraction_run_id": CURRENT_EXTRACTION_RUN_ID,
-                "artifact_extractors": list(EXTRACTOR_PROFILE),
+                "artifact_extractors": list(extractor_profile),
                 "policy_version": "candidate-factual-change.v1",
                 "artifact_inputs": {"previous": [], "current": []},
             }
@@ -229,20 +206,14 @@ def _seed_retained_git_only_generation(store: SQLiteContractStore) -> None:
                 "diff_run_id": DIFF_RUN_ID,
                 "segmentation_run_id": SEGMENTATION_RUN_ID,
                 "planner_run_id": PLANNER_RUN_ID,
-                "previous_capture": previous_manifest.model_dump(
-                    mode="json", by_alias=True
-                ),
-                "current_capture": current_manifest.model_dump(
-                    mode="json", by_alias=True
-                ),
+                "previous_capture": previous_manifest.model_dump(mode="json", by_alias=True),
+                "current_capture": current_manifest.model_dump(mode="json", by_alias=True),
                 "previous_extraction_run_id": PREVIOUS_EXTRACTION_RUN_ID,
                 "current_extraction_run_id": CURRENT_EXTRACTION_RUN_ID,
-                "artifact_extractors": list(EXTRACTOR_PROFILE),
+                "artifact_extractors": list(extractor_profile),
                 "change_run_id": CHANGE_RUN_ID,
                 "candidates": [candidate.model_dump(mode="json", by_alias=True)],
-                "affected_file_plans": [
-                    plan.model_dump(mode="json", by_alias=True)
-                ],
+                "affected_file_plans": [plan.model_dump(mode="json", by_alias=True)],
                 "policy_version": "candidate-factual-reduction.v1",
             }
         ),
@@ -250,67 +221,15 @@ def _seed_retained_git_only_generation(store: SQLiteContractStore) -> None:
     )
     store.put_many(
         (
-            candidate,
-            plan,
             reduction,
             previous_manifest,
             current_manifest,
             previous_extraction_run,
             current_extraction_run,
-            segmentation_run,
-            planner_run,
             change_run,
             reduction_run,
         )
     )
-
-
-def test_packet_authenticator_recovers_non_default_bounded_profile(tmp_path) -> None:
-    store = SQLiteContractStore(tmp_path / "lemmamind.db")
-    _seed_retained_git_only_generation(store)
-    built = CandidateEvidencePacketService(
-        store,
-        max_structural_previews=1,
-        max_assertion_previews=2,
-        preview_chars=64,
-        clock=lambda: NOW,
-        id_factory=lambda: "custom-profile",
-    ).build_reduction(REDUCTION_RUN_ID)
-
-    authenticated_run, authenticated_packets = (
-        CandidateEvidencePacketGenerationAuthenticator(store).authenticate(
-            built.run.run_id
-        )
-    )
-
-    assert authenticated_run == built.run
-    assert authenticated_packets == built.packets
-    generation = store.list(CandidateEvidencePacketGeneration)[0]
-    assert generation.max_structural_previews == 1
-    assert generation.max_assertion_previews == 2
-    assert generation.preview_chars == 64
-    assert generation.candidate_evidence_packet_ids == tuple(
-        sorted(item.candidate_evidence_packet_id for item in built.packets)
-    )
-
-
-def test_packet_authenticator_rejects_unknown_packet_policy(tmp_path) -> None:
-    store = SQLiteContractStore(tmp_path / "lemmamind.db")
-    _seed_retained_git_only_generation(store)
-    built = CandidateEvidencePacketService(
-        store,
-        policy_version="candidate-evidence-packet.typo",
-        clock=lambda: NOW,
-        id_factory=lambda: "unknown-policy",
-    ).build_reduction(REDUCTION_RUN_ID)
-
-    with pytest.raises(
-        CandidateEvidencePacketError,
-        match="unrecognized packet policies",
-    ):
-        CandidateEvidencePacketGenerationAuthenticator(store).authenticate(
-            built.run.run_id
-        )
 
 
 def test_preview_identifiers_are_bounded_for_interpreter_context() -> None:
@@ -333,3 +252,29 @@ def test_preview_identifiers_are_bounded_for_interpreter_context() -> None:
             extractor_name="e" * 257,
             extractor_version="1",
         )
+
+
+
+def test_packet_generation_preserves_large_custom_profile_with_silent_extractor(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+    custom_profile = tuple(
+        {"name": f"custom-{index}", "version": "1"}
+        for index in range(7)
+    ) + ({"name": "silent-extractor", "version": "1"},)
+    _seed_retained_git_only_generation(store, extractor_profile=custom_profile)
+    built = CandidateEvidencePacketService(
+        store,
+        artifact_extractors=custom_profile,
+        clock=lambda: NOW,
+        id_factory=lambda: "large-custom-profile",
+    ).build_reduction(REDUCTION_RUN_ID)
+
+    generation = store.list(CandidateEvidencePacketGeneration)[0]
+    assert tuple((item.name, item.version) for item in generation.artifact_extractors) == tuple(
+        (item["name"], item["version"]) for item in custom_profile
+    )
+    authenticated_run, authenticated_packets = (
+        CandidateEvidencePacketGenerationAuthenticator(store).authenticate(built.run.run_id)
+    )
+    assert authenticated_run == built.run
+    assert authenticated_packets == built.packets

@@ -48,6 +48,7 @@ from lemmamind.mechanism_review_contracts import MechanismReviewItem
 from lemmamind.path_change_contracts import ChangeSurface
 from lemmamind.review import ReviewFeedbackService
 from lemmamind.storage import SQLiteContractStore
+from tests.m5_packet_fixture import seed_path_pipeline
 
 
 NOW = datetime(2026, 8, 29, 17, 0, tzinfo=timezone.utc)
@@ -292,17 +293,44 @@ def _extraction_run(
     )
 
 
+
 def seed_authenticated_generation(
     store: SQLiteContractStore,
     *,
     interpreter=None,
 ):
-    candidates = (candidate(1), candidate(2))
-    plans = (plan(1), plan(2))
-    reductions = (reduction(1), reduction(2))
-    artifact_deltas = (artifact_delta(1), artifact_delta(2))
-    previous_assertions = (_assertion("previous", 1), _assertion("previous", 2))
-    current_assertions = (_assertion("current", 1), _assertion("current", 2))
+    from lemmamind.candidate_reduction import CandidateFactualReductionService
+
+    seeded = seed_path_pipeline(
+        store,
+        source_id=SOURCE_ID,
+        previous_revision_id=PREVIOUS_REVISION_ID,
+        current_revision_id=CURRENT_REVISION_ID,
+        diff_run_id=DIFF_RUN_ID,
+        segmentation_run_id=SEGMENTATION_RUN_ID,
+        planner_run_id=PLANNER_RUN_ID,
+        tracking_assignment_id="tracking:grouping",
+        now=NOW,
+        path_specs=(
+            {
+                "path": "src/mechanism_1.py",
+                "previous_object_sha": "3" * 40,
+                "current_object_sha": "5" * 40,
+                "previous_size": 40,
+                "current_size": 41,
+            },
+            {
+                "path": "src/mechanism_2.py",
+                "previous_object_sha": "4" * 40,
+                "current_object_sha": "6" * 40,
+                "previous_size": 40,
+                "current_size": 41,
+            },
+        ),
+        max_paths_per_candidate=1,
+    )
+    candidates = seeded.candidates
+    plans = seeded.plans
     previous_manifest = CaptureManifest(
         capture_id=PREVIOUS_CAPTURE_ID,
         source_revision_id=PREVIOUS_REVISION_ID,
@@ -317,29 +345,39 @@ def seed_authenticated_generation(
         captured_at=NOW,
         artifacts=(_artifact("current", 1), _artifact("current", 2)),
     )
-    segmentation_run = PipelineRun(
-        run_id=SEGMENTATION_RUN_ID,
-        run_type=RunType.DIFF,
-        code_version="lemmamind-0.1.0",
-        contract_schema_version=CONTRACT_SCHEMA_VERSION,
-        policy_version="interval-candidate-segmentation.v1",
-        started_at=NOW,
-        finished_at=NOW,
-        inputs_hash=_digest({"fixture": "segmentation"}),
-        outputs_hash=_digest({"fixture": "segmentation"}),
-    )
-    planner_run = PipelineRun(
-        run_id=PLANNER_RUN_ID,
-        run_type=RunType.OTHER,
-        code_version="lemmamind-0.1.0",
-        contract_schema_version=CONTRACT_SCHEMA_VERSION,
-        policy_version="affected-file-plan.v1",
-        started_at=NOW,
-        finished_at=NOW,
-        inputs_hash=_digest({"fixture": "planner"}),
-        outputs_hash=_digest(
-            [item.model_dump(mode="json", by_alias=True) for item in plans]
-        ),
+    previous_assertions = (_assertion("previous", 1), _assertion("previous", 2))
+    current_assertions = (_assertion("current", 1), _assertion("current", 2))
+    artifact_deltas = (artifact_delta(1), artifact_delta(2))
+    plan_by_path = {item.path: item for item in plans}
+    artifact_by_path = {item.source_locator: item for item in artifact_deltas}
+    reductions = tuple(
+        CandidateFactualReduction(
+            candidate_factual_reduction_id=CandidateFactualReductionService._reduction_id(
+                REDUCTION_RUN_ID, item.interval_candidate_segment_id
+            ),
+            interval_candidate_segment_id=item.interval_candidate_segment_id,
+            source_id=SOURCE_ID,
+            previous_source_revision_id=PREVIOUS_REVISION_ID,
+            current_source_revision_id=CURRENT_REVISION_ID,
+            paths=item.paths,
+            affected_file_plan_ids=(plan_by_path[item.paths[0]].affected_file_plan_id,),
+            capture_scoped_paths=item.paths,
+            artifact_delta_ids=(artifact_by_path[item.paths[0]].artifact_delta_id,),
+            artifact_delta_paths=item.paths,
+            assertion_changed_paths=item.paths,
+            signal_kinds=(CandidateSignalKind.AUTHORED_ASSERTION_CHANGE,),
+            disposition=CandidateReductionDisposition.RETAIN,
+            diff_run_id=DIFF_RUN_ID,
+            segmentation_run_id=SEGMENTATION_RUN_ID,
+            planner_run_id=PLANNER_RUN_ID,
+            previous_capture_id=PREVIOUS_CAPTURE_ID,
+            current_capture_id=CURRENT_CAPTURE_ID,
+            previous_extraction_run_id=PREVIOUS_EXTRACTION_RUN_ID,
+            current_extraction_run_id=CURRENT_EXTRACTION_RUN_ID,
+            change_run_id=CHANGE_RUN_ID,
+            reduction_run_id=REDUCTION_RUN_ID,
+        )
+        for item in candidates
     )
     change_run = PipelineRun(
         run_id=CHANGE_RUN_ID,
@@ -368,8 +406,7 @@ def seed_authenticated_generation(
         outputs_hash=_digest(
             {
                 "artifact_deltas": [
-                    item.model_dump(mode="json", by_alias=True)
-                    for item in artifact_deltas
+                    item.model_dump(mode="json", by_alias=True) for item in artifact_deltas
                 ],
                 "structural_deltas": [],
             }
@@ -388,12 +425,8 @@ def seed_authenticated_generation(
                 "diff_run_id": DIFF_RUN_ID,
                 "segmentation_run_id": SEGMENTATION_RUN_ID,
                 "planner_run_id": PLANNER_RUN_ID,
-                "previous_capture": previous_manifest.model_dump(
-                    mode="json", by_alias=True
-                ),
-                "current_capture": current_manifest.model_dump(
-                    mode="json", by_alias=True
-                ),
+                "previous_capture": previous_manifest.model_dump(mode="json", by_alias=True),
+                "current_capture": current_manifest.model_dump(mode="json", by_alias=True),
                 "previous_extraction_run_id": PREVIOUS_EXTRACTION_RUN_ID,
                 "current_extraction_run_id": CURRENT_EXTRACTION_RUN_ID,
                 "artifact_extractors": list(EXTRACTOR_PROFILE),
@@ -413,28 +446,21 @@ def seed_authenticated_generation(
     )
     store.put_many(
         (
-            *candidates,
-            *plans,
             *reductions,
             previous_manifest,
             current_manifest,
             *previous_assertions,
             *current_assertions,
-            _extraction_run(
-                PREVIOUS_EXTRACTION_RUN_ID, previous_assertions, previous_manifest
-            ),
-            _extraction_run(
-                CURRENT_EXTRACTION_RUN_ID, current_assertions, current_manifest
-            ),
+            _extraction_run(PREVIOUS_EXTRACTION_RUN_ID, previous_assertions, previous_manifest),
+            _extraction_run(CURRENT_EXTRACTION_RUN_ID, current_assertions, current_manifest),
             *artifact_deltas,
-            segmentation_run,
-            planner_run,
             change_run,
             reduction_run,
         )
     )
     packets = CandidateEvidencePacketService(
         store,
+        artifact_extractors=EXTRACTOR_PROFILE,
         clock=lambda: NOW,
         id_factory=lambda: "grouping",
     ).build_reduction(REDUCTION_RUN_ID)
@@ -466,8 +492,12 @@ def test_exact_canonical_mechanism_grouping_collapses_duplicate_labels(tmp_path)
     assert item.change_interpretation_ids == tuple(
         sorted(value.change_interpretation_id for value in interpreted.interpretations)
     )
-    assert item.interval_candidate_segment_ids == ("candidate:1", "candidate:2")
-    assert item.candidate_factual_reduction_ids == ("reduction:1", "reduction:2")
+    assert item.interval_candidate_segment_ids == tuple(
+        sorted(value.interval_candidate_segment_id for value in store.list(IntervalCandidateSegment))
+    )
+    assert item.candidate_factual_reduction_ids == tuple(
+        sorted(value.candidate_factual_reduction_id for value in store.list(CandidateFactualReduction))
+    )
     assert len(item.candidate_evidence_packet_ids) == 2
     assert store.get(MechanismReviewItem, item.mechanism_review_item_id) == item
 

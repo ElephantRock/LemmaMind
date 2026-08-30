@@ -42,6 +42,7 @@ class CandidateEvidencePacketGenerationAuthenticator:
 
         service = CandidateEvidencePacketService(
             self.store,
+            artifact_extractors=generation.artifact_extractors,
             policy_version=generation.policy_version,
             max_structural_previews=generation.max_structural_previews,
             max_assertion_previews=generation.max_assertion_previews,
@@ -69,6 +70,7 @@ class CandidateEvidencePacketGenerationAuthenticator:
                 "reduction_run": reduction_run.model_dump(
                     mode="json", by_alias=True
                 ),
+                "artifact_extractors": list(service._profile_payload()),
                 "policy_version": service.policy_version,
                 "max_structural_previews": service.max_structural_previews,
                 "max_assertion_previews": service.max_assertion_previews,
