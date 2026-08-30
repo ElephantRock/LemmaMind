@@ -178,8 +178,11 @@ jobs:
         run: |
           set -euo pipefail
           cp state/artifact-sha256.txt inference/input-artifact-sha256.txt
-          sha256sum inference/inference.json > inference/inference-sha256.txt
-          sha256sum --check --strict inference/inference-sha256.txt
+          (
+            cd inference
+            sha256sum inference.json > inference-sha256.txt
+            sha256sum --check --strict inference-sha256.txt
+          )
 
       - name: Upload provider output
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
