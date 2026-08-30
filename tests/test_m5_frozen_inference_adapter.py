@@ -1,6 +1,17 @@
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+
 import pytest
 
-from scripts.run_m5_frozen_inference import SYSTEM_RULES, normalize, parse_json_object
+
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_m5_frozen_inference.py"
+SPEC = spec_from_file_location("m5_frozen_inference_adapter", SCRIPT_PATH)
+assert SPEC is not None and SPEC.loader is not None
+MODULE = module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
+SYSTEM_RULES = MODULE.SYSTEM_RULES
+normalize = MODULE.normalize
+parse_json_object = MODULE.parse_json_object
 
 
 def packet(*, gaps=()):
