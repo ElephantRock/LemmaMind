@@ -2,25 +2,6 @@ name: M5 BYOK semantic provider preflight
 
 on:
   workflow_dispatch:
-    inputs:
-      provider_type:
-        description: BYOK provider type
-        required: true
-        default: openai
-        type: choice
-        options:
-          - openai
-          - anthropic
-          - azure
-      provider_base_url:
-        description: Provider API base URL
-        required: true
-        default: https://api.openai.com/v1
-        type: string
-      model:
-        description: Provider model identifier
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -30,10 +11,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      COPILOT_PROVIDER_TYPE: ${{ inputs.provider_type }}
-      COPILOT_PROVIDER_BASE_URL: ${{ inputs.provider_base_url }}
+      COPILOT_PROVIDER_TYPE: ${{ vars.M5_BYOK_PROVIDER_TYPE }}
+      COPILOT_PROVIDER_BASE_URL: ${{ vars.M5_BYOK_BASE_URL }}
       COPILOT_PROVIDER_API_KEY: ${{ secrets.M5_BYOK_API_KEY }}
-      COPILOT_MODEL: ${{ inputs.model }}
+      COPILOT_MODEL: ${{ vars.M5_BYOK_MODEL }}
       COPILOT_OFFLINE: "true"
       GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS: "false"
       GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "false"
@@ -44,13 +25,39 @@ jobs:
         with:
           node-version: 22
 
-      - name: Require BYOK secret
+      - name: Require fixed BYOK configuration
         shell: bash
         run: |
+          if [[ -z "${COPILOT_PROVIDER_TYPE}" ]]; then
+            echo "::error::Repository Actions variable M5_BYOK_PROVIDER_TYPE is not configured."
+            exit 1
+          fi
+          if [[ -z "${COPILOT_PROVIDER_BASE_URL}" ]]; then
+            echo "::error::Repository Actions variable M5_BYOK_BASE_URL is not configured."
+            exit 1
+          fi
+          if [[ -z "${COPILOT_MODEL}" ]]; then
+            echo "::error::Repository Actions variable M5_BYOK_MODEL is not configured."
+            exit 1
+          fi
           if [[ -z "${COPILOT_PROVIDER_API_KEY}" ]]; then
             echo "::error::Repository Actions secret M5_BYOK_API_KEY is not configured."
             exit 1
           fi
+          case "${COPILOT_PROVIDER_TYPE}" in
+            openai|anthropic|azure) ;;
+            *)
+              echo "::error::M5_BYOK_PROVIDER_TYPE must be openai, anthropic, or azure."
+              exit 1
+              ;;
+          esac
+          case "${COPILOT_PROVIDER_BASE_URL}" in
+            https://*) ;;
+            *)
+              echo "::error::M5_BYOK_BASE_URL must use HTTPS for the hosted replay provider."
+              exit 1
+              ;;
+          esac
 
       - name: Install GitHub Copilot CLI
         shell: bash
