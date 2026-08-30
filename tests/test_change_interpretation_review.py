@@ -1,5 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+import pytest
+
+from lemmamind.change_interpretation import ChangeInterpretationService
 from lemmamind.change_interpretation_contracts import (
     ChangeInterpretation,
     ChangeInterpretationSupportRef,
@@ -7,8 +10,14 @@ from lemmamind.change_interpretation_contracts import (
     ChangeInterpretationType,
 )
 from lemmamind.contracts import ReviewDecisionType, ValidationState
-from lemmamind.review import ReviewFeedbackService
+from lemmamind.review import ReviewCaptureError, ReviewFeedbackService
 from lemmamind.storage import SQLiteContractStore
+from tests.test_change_interpretation import (
+    FixedClock,
+    Ids as InterpretationIds,
+    SupportedInterpreter,
+    prepare_packet_run,
+)
 
 
 NOW = datetime(2026, 8, 29, 16, 20, tzinfo=timezone.utc)
@@ -58,14 +67,41 @@ def interpretation() -> ChangeInterpretation:
     )
 
 
-def test_change_interpretation_is_reviewable_without_mutating_candidate_state(tmp_path) -> None:
+def test_synthetic_change_interpretation_cannot_receive_review_feedback(tmp_path) -> None:
     store = SQLiteContractStore(tmp_path / "lemmamind.db")
     subject = interpretation()
     store.put(subject)
 
+    with pytest.raises(
+        ReviewCaptureError,
+        match="semantic provenance does not authenticate",
+    ):
+        ReviewFeedbackService(
+            store,
+            clock=lambda: NOW,
+            id_factory=Ids(),
+        ).record(
+            subject_type="ChangeInterpretation",
+            subject_id=subject.change_interpretation_id,
+            decision=ReviewDecisionType.ACCEPT,
+            reviewer_id="reviewer:human",
+            notes="Synthetic semantic records must fail closed.",
+        )
+
+
+def test_authenticated_change_interpretation_is_reviewable_without_mutation(tmp_path) -> None:
+    store, packets = prepare_packet_run(tmp_path)
+    interpreted = ChangeInterpretationService(
+        store,
+        clock=FixedClock(NOW + timedelta(seconds=30)),
+        id_factory=InterpretationIds("review-interpretation"),
+    ).produce_packet_run(packets.run.run_id, SupportedInterpreter())
+    assert len(interpreted.interpretations) == 1
+    subject = interpreted.interpretations[0]
+
     result = ReviewFeedbackService(
         store,
-        clock=lambda: NOW,
+        clock=lambda: NOW + timedelta(seconds=40),
         id_factory=Ids(),
     ).record(
         subject_type="ChangeInterpretation",
