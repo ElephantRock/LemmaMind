@@ -82,6 +82,7 @@ jobs:
             | sha256sum --check --strict
           python -m pip install \
             --disable-pip-version-check \
+            --force-reinstall \
             --only-binary=:all: \
             --no-deps \
             --require-hashes \
@@ -293,6 +294,7 @@ jobs:
             | sha256sum --check --strict
           python -m pip install \
             --disable-pip-version-check \
+            --force-reinstall \
             --only-binary=:all: \
             --no-deps \
             --require-hashes \
