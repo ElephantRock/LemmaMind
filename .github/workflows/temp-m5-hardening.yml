@@ -23,7 +23,7 @@ jobs:
           set -euo pipefail
           cp src/lemmamind/candidate_evidence_packets.py src/lemmamind/candidate_evidence_packets_v1.py
           base64 -d .github/temp/m5-hardening.b64 > /tmp/m5-hardening.tar.gz
-          printf '%s  %s\n' '403647063de23fd07b3638274e131ff79ddcf5f175ed564f68ae6a23d2f98b7c' '/tmp/m5-hardening.tar.gz' | sha256sum -c -
+          printf '%s  %s\n' '620c47fa2dd0e56f30e1b95e8000e5833d8c7977ce0b1ee3d4085c5053a1710e' '/tmp/m5-hardening.tar.gz' | sha256sum -c -
           tar -xzf /tmp/m5-hardening.tar.gz
           python tools/apply_m5_hardening.py
           python -m py_compile src/lemmamind/candidate_evidence_packets.py src/lemmamind/candidate_evidence_packet_auth.py tests/m5_packet_fixture.py
