@@ -10,6 +10,10 @@ from .candidate_reduction_contracts import (
     CandidateReductionDisposition,
     CandidateSignalKind,
 )
+from .candidate_reduction_generation_contracts import (
+    CandidateFactualReductionGeneration,
+    ExtractorDescriptor,
+)
 from .capture_planning_contracts import (
     AffectedFileCapturePlan,
     CapturePlanDisposition,
@@ -60,6 +64,7 @@ __all__ = [
     "CandidateEvidencePacketGeneration",
     "CandidateExtractionGapSignal",
     "CandidateFactualReduction",
+    "CandidateFactualReductionGeneration",
     "CandidateReductionDisposition",
     "CandidateSignalKind",
     "CapturePlanDisposition",
@@ -76,6 +81,7 @@ __all__ = [
     "CommitRangeSummary",
     "CONTRACT_SCHEMA_VERSION",
     "ExtractionDiagnostic",
+    "ExtractorDescriptor",
     "GitPathDelta",
     "GitPathDeltaType",
     "IntervalCandidateSegment",
