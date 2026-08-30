@@ -38,6 +38,7 @@ from .interval_segmentation_contracts import (
     CommitPathSnapshot,
     CommitRangeStatus,
     CommitRangeSummary,
+    IntervalSegmentationGeneration,
     IntervalCandidateSegment,
 )
 from .mechanism_review_contracts import MechanismReviewItem
@@ -79,6 +80,7 @@ __all__ = [
     "ExtractionDiagnostic",
     "GitPathDelta",
     "GitPathDeltaType",
+    "IntervalSegmentationGeneration",
     "IntervalCandidateSegment",
     "MechanismReviewItem",
     "PacketExtractorDescriptor",

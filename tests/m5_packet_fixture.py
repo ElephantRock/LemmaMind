@@ -23,6 +23,7 @@ from lemmamind.interval_segmentation_contracts import (
     CommitPathSnapshot,
     CommitRangeStatus,
     CommitRangeSummary,
+    IntervalSegmentationGeneration,
 )
 from lemmamind.path_change_contracts import (
     GitPathDelta,
@@ -285,6 +286,16 @@ def seed_path_pipeline(
         ),
     )
 
+    segmentation_generation = IntervalSegmentationGeneration(
+        interval_segmentation_generation_id=segmentation_service._stable_id(
+            "interval-segmentation-generation", segmentation_run_id
+        ),
+        segmentation_run_id=segmentation_run_id,
+        diff_run_id=diff_run_id,
+        policy_version="interval-candidate-segmentation.v1",
+        max_paths_per_candidate=max_paths_per_candidate,
+    )
+
     planner = AffectedFileCapturePlanner(
         store,
         None,
@@ -342,6 +353,7 @@ def seed_path_pipeline(
             snapshot,
             *candidates,
             segmentation_run,
+            segmentation_generation,
             *plans,
             planner_run,
         )

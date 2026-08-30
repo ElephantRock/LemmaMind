@@ -49,6 +49,7 @@ from .interval_segmentation import (
 from .interval_segmentation_contracts import (
     CommitPathSnapshot,
     CommitRangeSummary,
+    IntervalSegmentationGeneration,
     IntervalCandidateSegment,
 )
 from .path_change_contracts import GitPathDelta, GitPathDiffSummary
@@ -91,9 +92,6 @@ class CandidateEvidencePacketService(_PreviousCandidateEvidencePacketService):
                     version=str(getattr(item, "version", "")),
                 )
             descriptors.append(descriptor)
-        identities = tuple((item.name, item.version) for item in descriptors)
-        if len(identities) != len(set(identities)):
-            raise ValueError("artifact_extractors must contain unique ordered descriptors")
         return tuple(descriptors)
 
     def _profile_payload(self) -> tuple[dict[str, str], ...]:
@@ -552,33 +550,51 @@ class CandidateEvidencePacketService(_PreviousCandidateEvidencePacketService):
                 "interval segmentation requires a persisted tracking assignment"
             )
 
-        matching_bounds: list[int] = []
-        for max_paths in range(1, self._MAX_CANDIDATE_PATHS + 1):
-            expected_inputs = self._digest_json(
-                {
-                    "diff_run_id": diff_summary.diff_run_id,
-                    "diff_summary": diff_summary.model_dump(mode="json", by_alias=True),
-                    "path_deltas": [
-                        item.model_dump(mode="json", by_alias=True) for item in deltas
-                    ],
-                    "tracking_assignment_id": tracking_policy.assignment_id,
-                    "tracking_level": tracking_policy.level.value,
-                    "max_paths_per_candidate": max_paths,
-                    "policy_version": run.policy_version,
-                }
-            )
-            if run.inputs_hash == expected_inputs:
-                matching_bounds.append(max_paths)
-        if len(matching_bounds) != 1:
+        generations = tuple(
+            item
+            for item in self.store.list(IntervalSegmentationGeneration)
+            if item.segmentation_run_id == run.run_id
+        )
+        if len(generations) != 1:
             raise CandidateEvidencePacketError(
-                "interval segmentation input envelope cannot be uniquely authenticated within the 50-path boundary"
+                "interval segmentation requires exactly one durable profile envelope"
+            )
+        generation = generations[0]
+        if (
+            generation.interval_segmentation_generation_id
+            != IntervalCandidateSegmentationService._stable_id(
+                "interval-segmentation-generation", run.run_id
+            )
+            or generation.diff_run_id != diff_summary.diff_run_id
+            or generation.policy_version != run.policy_version
+        ):
+            raise CandidateEvidencePacketError(
+                "interval segmentation durable profile disagrees with authenticated lineage"
+            )
+        max_paths = generation.max_paths_per_candidate
+        expected_inputs = self._digest_json(
+            {
+                "diff_run_id": diff_summary.diff_run_id,
+                "diff_summary": diff_summary.model_dump(mode="json", by_alias=True),
+                "path_deltas": [
+                    item.model_dump(mode="json", by_alias=True) for item in deltas
+                ],
+                "tracking_assignment_id": tracking_policy.assignment_id,
+                "tracking_level": tracking_policy.level.value,
+                "max_paths_per_candidate": max_paths,
+                "policy_version": run.policy_version,
+            }
+        )
+        if run.inputs_hash != expected_inputs:
+            raise CandidateEvidencePacketError(
+                "interval segmentation input envelope does not authenticate against its durable profile"
             )
 
         service = IntervalCandidateSegmentationService(
             None,
             self.store,
             None,
-            max_paths_per_candidate=matching_bounds[0],
+            max_paths_per_candidate=max_paths,
             policy_version=run.policy_version,
         )
         try:

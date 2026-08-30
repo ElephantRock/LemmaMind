@@ -85,6 +85,7 @@ def _seed_retained_git_only_generation(
     store: SQLiteContractStore,
     *,
     extractor_profile=EXTRACTOR_PROFILE,
+    max_paths_per_candidate: int = 50,
 ) -> None:
     from lemmamind.candidate_reduction import CandidateFactualReductionService
 
@@ -98,6 +99,7 @@ def _seed_retained_git_only_generation(
         planner_run_id=PLANNER_RUN_ID,
         tracking_assignment_id="tracking:packet-profile",
         now=NOW,
+        max_paths_per_candidate=max_paths_per_candidate,
         path_specs=(
             {
                 "path": PATH,
@@ -272,6 +274,55 @@ def test_packet_generation_preserves_large_custom_profile_with_silent_extractor(
     generation = store.list(CandidateEvidencePacketGeneration)[0]
     assert tuple((item.name, item.version) for item in generation.artifact_extractors) == tuple(
         (item["name"], item["version"]) for item in custom_profile
+    )
+    authenticated_run, authenticated_packets = (
+        CandidateEvidencePacketGenerationAuthenticator(store).authenticate(built.run.run_id)
+    )
+    assert authenticated_run == built.run
+    assert authenticated_packets == built.packets
+
+
+def test_packet_authenticates_safe_candidate_from_segmentation_bound_above_50(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+    _seed_retained_git_only_generation(store, max_paths_per_candidate=100)
+
+    built = CandidateEvidencePacketService(
+        store,
+        artifact_extractors=EXTRACTOR_PROFILE,
+        clock=lambda: NOW,
+        id_factory=lambda: "segmentation-bound-100",
+    ).build_reduction(REDUCTION_RUN_ID)
+
+    assert len(built.packets) == 1
+    assert built.packets[0].paths == (PATH,)
+    authenticated_run, authenticated_packets = (
+        CandidateEvidencePacketGenerationAuthenticator(store).authenticate(built.run.run_id)
+    )
+    assert authenticated_run == built.run
+    assert authenticated_packets == built.packets
+
+
+def test_packet_preserves_repeated_extractor_descriptors_in_exact_order(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+    repeated_profile = (
+        {"name": "silent-duplicate", "version": "1"},
+        {"name": "silent-duplicate", "version": "1"},
+        {"name": "other-silent", "version": "2"},
+    )
+    _seed_retained_git_only_generation(store, extractor_profile=repeated_profile)
+
+    built = CandidateEvidencePacketService(
+        store,
+        artifact_extractors=repeated_profile,
+        clock=lambda: NOW,
+        id_factory=lambda: "repeated-extractor-profile",
+    ).build_reduction(REDUCTION_RUN_ID)
+
+    generation = store.list(CandidateEvidencePacketGeneration)[0]
+    assert tuple((item.name, item.version) for item in generation.artifact_extractors) == (
+        ("silent-duplicate", "1"),
+        ("silent-duplicate", "1"),
+        ("other-silent", "2"),
     )
     authenticated_run, authenticated_packets = (
         CandidateEvidencePacketGenerationAuthenticator(store).authenticate(built.run.run_id)

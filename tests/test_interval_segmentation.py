@@ -19,6 +19,7 @@ from lemmamind.interval_segmentation import (
 from lemmamind.interval_segmentation_contracts import (
     CommitPathSnapshot,
     CommitRangeSummary,
+    IntervalSegmentationGeneration,
     IntervalCandidateSegment,
 )
 from lemmamind.path_change_contracts import (
@@ -423,3 +424,23 @@ def test_root_group_marker_cannot_collide_with_literal_top_level_directory(tmp_p
     assert groups["README.md"] == "root"
     assert groups["$root/file.py"] == 'top-level:"$root"'
     assert groups["README.md"] != groups["$root/file.py"]
+
+
+def test_persists_exact_segmentation_bound_above_packet_cardinality_limit(tmp_path) -> None:
+    changes = [delta("src/only.py")]
+    reader = FakeIntervalReader(
+        {1: compare_payload([HEAD_SHA])},
+        {(HEAD_SHA, 1): commit_payload(HEAD_SHA, [{"filename": "src/only.py"}])},
+    )
+    store, service = prepare(
+        tmp_path, changes, reader, max_paths_per_candidate=100
+    )
+
+    result = service.segment_diff(DIFF_RUN_ID)
+
+    assert len(result.candidates) == 1
+    assert result.candidates[0].paths == ("src/only.py",)
+    generations = store.list(IntervalSegmentationGeneration)
+    assert len(generations) == 1
+    assert generations[0].segmentation_run_id == result.run.run_id
+    assert generations[0].max_paths_per_candidate == 100
