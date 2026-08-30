@@ -25,8 +25,9 @@ jobs:
           base64 -d .github/temp/m5-hardening.b64 > /tmp/m5-hardening.tar.gz
           printf '%s  %s\n' '620c47fa2dd0e56f30e1b95e8000e5833d8c7977ce0b1ee3d4085c5053a1710e' '/tmp/m5-hardening.tar.gz' | sha256sum -c -
           tar -xzf /tmp/m5-hardening.tar.gz
+          sed -i "/add_profile_to_services('tests\/test_mechanism_review.py')/d" tools/apply_m5_hardening.py
           python tools/apply_m5_hardening.py
-          python -m py_compile src/lemmamind/candidate_evidence_packets.py src/lemmamind/candidate_evidence_packet_auth.py tests/m5_packet_fixture.py
+          python -m py_compile src/lemmamind/candidate_evidence_packets.py src/lemmamind/candidate_evidence_packet_auth.py tests/m5_packet_fixture.py tests/test_candidate_evidence_packets.py tests/test_candidate_evidence_packet_generation_auth.py tests/test_change_interpretation.py tests/test_mechanism_review.py
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
