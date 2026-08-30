@@ -1,7 +1,6 @@
 name: M5 BYOK semantic provider preflight
 
 on:
-  workflow_dispatch:
   issue_comment:
     types: [created]
 
@@ -12,15 +11,11 @@ jobs:
   preflight:
     if: >-
       ${{
-        github.event_name == 'workflow_dispatch' ||
+        github.event.issue.number == 35 &&
+        github.event.comment.body == '/m5-byok-preflight' &&
         (
-          github.event_name == 'issue_comment' &&
-          github.event.issue.number == 35 &&
-          github.event.comment.body == '/m5-byok-preflight' &&
-          (
-            github.event.comment.author_association == 'OWNER' ||
-            github.event.comment.author_association == 'MEMBER'
-          )
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER'
         )
       }}
     runs-on: ubuntu-24.04
