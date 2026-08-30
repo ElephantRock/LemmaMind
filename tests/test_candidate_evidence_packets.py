@@ -3,8 +3,12 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from pydantic import ValidationError
 
-from lemmamind.candidate_evidence_packet_contracts import CandidateEvidencePacket
+from lemmamind.candidate_evidence_packet_contracts import (
+    AssertionSnapshotSide,
+    CandidateEvidencePacket,
+)
 from lemmamind.candidate_evidence_packets import (
     CandidateEvidencePacketError,
     CandidateEvidencePacketService,
@@ -13,6 +17,12 @@ from lemmamind.candidate_reduction_contracts import (
     CandidateFactualReduction,
     CandidateReductionDisposition,
     CandidateSignalKind,
+)
+from lemmamind.capture_planning_contracts import (
+    AffectedFileCapturePlan,
+    CapturePlanDisposition,
+    CapturePlanReason,
+    CapturePlanSide,
 )
 from lemmamind.change_contracts import (
     ArtifactDelta,
@@ -32,6 +42,7 @@ from lemmamind.contracts import (
     SourceAssertion,
 )
 from lemmamind.interval_segmentation_contracts import IntervalCandidateSegment
+from lemmamind.path_change_contracts import ChangeSurface
 from lemmamind.storage import SQLiteContractStore
 
 
@@ -44,7 +55,9 @@ CURRENT_CAPTURE_ID = "capture:packet:current"
 PREVIOUS_EXTRACTION_RUN_ID = "run:packet:extract:previous"
 CURRENT_EXTRACTION_RUN_ID = "run:packet:extract:current"
 CHANGE_RUN_ID = "run:packet:change"
+DIFF_RUN_ID = "run:packet:diff"
 SEGMENTATION_RUN_ID = "run:packet:segmentation"
+PLANNER_RUN_ID = "run:packet:planner"
 REDUCTION_RUN_ID = "run:packet:reduction"
 PATH = "src/core.py"
 PREVIOUS_ARTIFACT_ID = "artifact:packet:previous"
@@ -55,6 +68,10 @@ PREVIOUS_EVIDENCE_ID = "fact:packet:previous"
 CURRENT_EVIDENCE_ID = "fact:packet:current"
 PREVIOUS_ASSERTION_ID = "assertion:packet:previous"
 CURRENT_ASSERTION_ID = "assertion:packet:current"
+EXTRACTOR_PROFILE = (
+    {"name": "content", "version": "1"},
+    {"name": "authored", "version": "1"},
+)
 
 
 class FixedClock:
@@ -86,7 +103,20 @@ def digest_json(value):
     return f"sha256:{hashlib.sha256(encoded.encode('utf-8')).hexdigest()}"
 
 
-def extraction_run(run_id, facts, assertions, offset):
+def artifact_inputs(manifest):
+    return [
+        {
+            "artifact_id": item.artifact_id,
+            "source_locator": item.source_locator,
+            "retrieval_status": item.retrieval_status.value,
+            "content_hash": item.content_hash,
+            "media_type": item.media_type,
+        }
+        for item in manifest.artifacts
+    ]
+
+
+def extraction_run(run_id, facts, assertions, offset, manifest):
     payload = DeterministicChangeService._extraction_output_payload(
         tuple(facts),
         tuple(assertions),
@@ -99,7 +129,13 @@ def extraction_run(run_id, facts, assertions, offset):
         policy_version="deterministic-evidence.v1",
         started_at=NOW + timedelta(seconds=offset),
         finished_at=NOW + timedelta(seconds=offset + 1),
-        inputs_hash="sha256:" + "0" * 64,
+        inputs_hash=digest_json(
+            {
+                "capture_manifest": manifest.model_dump(mode="json", by_alias=True),
+                "artifact_extractors": list(EXTRACTOR_PROFILE),
+                "policy_version": "deterministic-evidence.v1",
+            }
+        ),
         outputs_hash=digest_json(payload),
     )
 
@@ -181,12 +217,14 @@ def prepare(tmp_path):
         (previous_fact,),
         (previous_assertion,),
         2,
+        previous_manifest,
     )
     current_run = extraction_run(
         CURRENT_EXTRACTION_RUN_ID,
         (current_fact,),
         (current_assertion,),
         4,
+        current_manifest,
     )
 
     artifact_delta = ArtifactDelta(
@@ -242,6 +280,35 @@ def prepare(tmp_path):
         paths=(PATH,),
         segmentation_run_id=SEGMENTATION_RUN_ID,
     )
+    plan = AffectedFileCapturePlan(
+        affected_file_plan_id="plan:packet",
+        git_path_delta_id="git-delta:packet",
+        source_id=SOURCE_ID,
+        previous_source_revision_id=PREVIOUS_REVISION_ID,
+        current_source_revision_id=CURRENT_REVISION_ID,
+        path=PATH,
+        surface=ChangeSurface.SOURCE,
+        previous=CapturePlanSide(
+            source_revision_id=PREVIOUS_REVISION_ID,
+            disposition=CapturePlanDisposition.CAPTURE,
+            reason=CapturePlanReason.ELIGIBLE_BLOB,
+            entry_type="blob",
+            object_sha="1" * 40,
+            size=3,
+        ),
+        current=CapturePlanSide(
+            source_revision_id=CURRENT_REVISION_ID,
+            disposition=CapturePlanDisposition.CAPTURE,
+            reason=CapturePlanReason.ELIGIBLE_BLOB,
+            entry_type="blob",
+            object_sha="2" * 40,
+            size=3,
+        ),
+        tracking_assignment_id="tracking:packet",
+        tracking_level="3",
+        diff_run_id=DIFF_RUN_ID,
+        planner_run_id=PLANNER_RUN_ID,
+    )
     reduction = CandidateFactualReduction(
         candidate_factual_reduction_id="reduction:packet",
         interval_candidate_segment_id=candidate.interval_candidate_segment_id,
@@ -249,7 +316,7 @@ def prepare(tmp_path):
         previous_source_revision_id=PREVIOUS_REVISION_ID,
         current_source_revision_id=CURRENT_REVISION_ID,
         paths=(PATH,),
-        affected_file_plan_ids=("plan:packet",),
+        affected_file_plan_ids=(plan.affected_file_plan_id,),
         capture_scoped_paths=(PATH,),
         artifact_delta_ids=(ARTIFACT_DELTA_ID,),
         artifact_delta_paths=(PATH,),
@@ -261,9 +328,9 @@ def prepare(tmp_path):
             CandidateSignalKind.STRUCTURAL_DELTA,
         ),
         disposition=CandidateReductionDisposition.RETAIN,
-        diff_run_id="run:packet:diff",
+        diff_run_id=DIFF_RUN_ID,
         segmentation_run_id=SEGMENTATION_RUN_ID,
-        planner_run_id="run:packet:planner",
+        planner_run_id=PLANNER_RUN_ID,
         previous_capture_id=PREVIOUS_CAPTURE_ID,
         current_capture_id=CURRENT_CAPTURE_ID,
         previous_extraction_run_id=PREVIOUS_EXTRACTION_RUN_ID,
@@ -271,15 +338,94 @@ def prepare(tmp_path):
         change_run_id=CHANGE_RUN_ID,
         reduction_run_id=REDUCTION_RUN_ID,
     )
+
+    segmentation_run = PipelineRun(
+        run_id=SEGMENTATION_RUN_ID,
+        run_type=RunType.DIFF,
+        code_version="lemmamind-0.1.0",
+        contract_schema_version=CONTRACT_SCHEMA_VERSION,
+        policy_version="interval-candidate-segmentation.v1",
+        started_at=NOW + timedelta(seconds=6),
+        finished_at=NOW + timedelta(seconds=7),
+        inputs_hash=digest_json({"fixture": "segmentation"}),
+        outputs_hash=digest_json({"fixture": "segmentation"}),
+    )
+    planner_run = PipelineRun(
+        run_id=PLANNER_RUN_ID,
+        run_type=RunType.OTHER,
+        code_version="lemmamind-0.1.0",
+        contract_schema_version=CONTRACT_SCHEMA_VERSION,
+        policy_version="affected-file-plan.v1",
+        started_at=NOW + timedelta(seconds=8),
+        finished_at=NOW + timedelta(seconds=9),
+        inputs_hash=digest_json({"fixture": "planner"}),
+        outputs_hash=digest_json([plan.model_dump(mode="json", by_alias=True)]),
+    )
+    change_run = PipelineRun(
+        run_id=CHANGE_RUN_ID,
+        run_type=RunType.DIFF,
+        code_version="lemmamind-0.1.0",
+        contract_schema_version=CONTRACT_SCHEMA_VERSION,
+        policy_version="candidate-factual-change.v1",
+        started_at=NOW + timedelta(seconds=10),
+        finished_at=NOW + timedelta(seconds=11),
+        inputs_hash=digest_json(
+            {
+                "previous_capture_id": PREVIOUS_CAPTURE_ID,
+                "current_capture_id": CURRENT_CAPTURE_ID,
+                "previous_source_revision_id": PREVIOUS_REVISION_ID,
+                "current_source_revision_id": CURRENT_REVISION_ID,
+                "previous_extraction_run_id": PREVIOUS_EXTRACTION_RUN_ID,
+                "current_extraction_run_id": CURRENT_EXTRACTION_RUN_ID,
+                "artifact_extractors": list(EXTRACTOR_PROFILE),
+                "policy_version": "candidate-factual-change.v1",
+                "artifact_inputs": {
+                    "previous": artifact_inputs(previous_manifest),
+                    "current": artifact_inputs(current_manifest),
+                },
+            }
+        ),
+        outputs_hash=digest_json(
+            {
+                "artifact_deltas": [
+                    artifact_delta.model_dump(mode="json", by_alias=True)
+                ],
+                "structural_deltas": [
+                    structural_delta.model_dump(mode="json", by_alias=True)
+                ],
+            }
+        ),
+    )
     reduction_run = PipelineRun(
         run_id=REDUCTION_RUN_ID,
         run_type=RunType.OTHER,
         code_version="lemmamind-0.1.0",
         contract_schema_version=CONTRACT_SCHEMA_VERSION,
         policy_version="candidate-factual-reduction.v1",
-        started_at=NOW + timedelta(seconds=6),
-        finished_at=NOW + timedelta(seconds=7),
-        inputs_hash="sha256:" + "0" * 64,
+        started_at=NOW + timedelta(seconds=12),
+        finished_at=NOW + timedelta(seconds=13),
+        inputs_hash=digest_json(
+            {
+                "diff_run_id": DIFF_RUN_ID,
+                "segmentation_run_id": SEGMENTATION_RUN_ID,
+                "planner_run_id": PLANNER_RUN_ID,
+                "previous_capture": previous_manifest.model_dump(
+                    mode="json", by_alias=True
+                ),
+                "current_capture": current_manifest.model_dump(
+                    mode="json", by_alias=True
+                ),
+                "previous_extraction_run_id": PREVIOUS_EXTRACTION_RUN_ID,
+                "current_extraction_run_id": CURRENT_EXTRACTION_RUN_ID,
+                "artifact_extractors": list(EXTRACTOR_PROFILE),
+                "change_run_id": CHANGE_RUN_ID,
+                "candidates": [candidate.model_dump(mode="json", by_alias=True)],
+                "affected_file_plans": [
+                    plan.model_dump(mode="json", by_alias=True)
+                ],
+                "policy_version": "candidate-factual-reduction.v1",
+            }
+        ),
         outputs_hash=digest_json(
             [reduction.model_dump(mode="json", by_alias=True)]
         ),
@@ -298,6 +444,10 @@ def prepare(tmp_path):
             artifact_delta,
             structural_delta,
             candidate,
+            plan,
+            segmentation_run,
+            planner_run,
+            change_run,
             reduction,
             reduction_run,
         )
@@ -366,3 +516,78 @@ def test_packet_builder_rejects_post_run_extraction_tampering(tmp_path) -> None:
         match="output envelope does not authenticate",
     ):
         CandidateEvidencePacketService(store).build_reduction(REDUCTION_RUN_ID)
+
+
+def test_packet_builder_rejects_self_hashed_reduction_that_omits_structural_evidence(
+    tmp_path,
+) -> None:
+    store = prepare(tmp_path)
+    original = store.get(CandidateFactualReduction, "reduction:packet")
+    original_run = store.get(PipelineRun, REDUCTION_RUN_ID)
+    assert original is not None and original_run is not None
+
+    forged_run_id = "run:packet:reduction:forged"
+    forged = original.model_copy(
+        update={
+            "candidate_factual_reduction_id": "reduction:packet:forged",
+            "structural_delta_ids": (),
+            "structural_delta_paths": (),
+            "signal_kinds": (CandidateSignalKind.AUTHORED_ASSERTION_CHANGE,),
+            "reduction_run_id": forged_run_id,
+        }
+    )
+    forged_run = original_run.model_copy(
+        update={
+            "run_id": forged_run_id,
+            "outputs_hash": digest_json(
+                [forged.model_dump(mode="json", by_alias=True)]
+            ),
+        }
+    )
+    store.put_many((forged, forged_run))
+
+    with pytest.raises(
+        CandidateEvidencePacketError,
+        match="disagrees with reconstructed upstream evidence",
+    ):
+        CandidateEvidencePacketService(store).build_reduction(forged_run_id)
+
+
+def test_assertion_preview_budget_reserves_both_snapshot_sides(tmp_path) -> None:
+    store = prepare(tmp_path)
+    previous = store.get(SourceAssertion, PREVIOUS_ASSERTION_ID)
+    current = store.get(SourceAssertion, CURRENT_ASSERTION_ID)
+    assert previous is not None and current is not None
+    current_other = current.model_copy(
+        update={
+            "assertion_id": "assertion:current:other",
+            "artifact_id": CURRENT_ARTIFACT_ID,
+            "locator": f"{PATH}:L2-L2",
+        }
+    )
+    items = (
+        (AssertionSnapshotSide.CURRENT, "a.py", current),
+        (AssertionSnapshotSide.CURRENT, "b.py", current_other),
+        (AssertionSnapshotSide.PREVIOUS, "b.py", previous),
+    )
+    selected = CandidateEvidencePacketService(store)._round_robin_by_path(
+        items,
+        2,
+        path_of=lambda item: item[1],
+        item_key=lambda item: (item[0].value, item[2].assertion_id),
+    )
+    assert {item[0] for item in selected} == {
+        AssertionSnapshotSide.PREVIOUS,
+        AssertionSnapshotSide.CURRENT,
+    }
+
+
+def test_packet_contract_rejects_more_than_fifty_candidate_paths(tmp_path) -> None:
+    store = prepare(tmp_path)
+    packet = CandidateEvidencePacketService(store).build_reduction(
+        REDUCTION_RUN_ID
+    ).packets[0]
+    payload = packet.model_dump(mode="json", by_alias=True)
+    payload["paths"] = [f"src/p{index}.py" for index in range(51)]
+    with pytest.raises(ValidationError):
+        CandidateEvidencePacket.model_validate(payload)
