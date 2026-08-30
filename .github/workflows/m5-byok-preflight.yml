@@ -1,0 +1,82 @@
+name: M5 BYOK semantic provider preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider_type:
+        description: BYOK provider type
+        required: true
+        default: openai
+        type: choice
+        options:
+          - openai
+          - anthropic
+          - azure
+      provider_base_url:
+        description: Provider API base URL
+        required: true
+        default: https://api.openai.com/v1
+        type: string
+      model:
+        description: Provider model identifier
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      COPILOT_PROVIDER_TYPE: ${{ inputs.provider_type }}
+      COPILOT_PROVIDER_BASE_URL: ${{ inputs.provider_base_url }}
+      COPILOT_PROVIDER_API_KEY: ${{ secrets.M5_BYOK_API_KEY }}
+      COPILOT_MODEL: ${{ inputs.model }}
+      COPILOT_OFFLINE: "true"
+      GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS: "false"
+      GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "false"
+
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Require BYOK secret
+        shell: bash
+        run: |
+          if [[ -z "${COPILOT_PROVIDER_API_KEY}" ]]; then
+            echo "::error::Repository Actions secret M5_BYOK_API_KEY is not configured."
+            exit 1
+          fi
+
+      - name: Install GitHub Copilot CLI
+        shell: bash
+        run: npm install -g @github/copilot
+
+      - name: Verify bounded BYOK inference
+        shell: bash
+        run: |
+          unset GITHUB_TOKEN GH_TOKEN COPILOT_GITHUB_TOKEN
+          mkdir -p "${RUNNER_TEMP}/lemmamind-byok-preflight"
+          cd "${RUNNER_TEMP}/lemmamind-byok-preflight"
+
+          output="$(
+            copilot \
+              -p 'Return only this JSON object and no other text: {"status":"ok"}' \
+              -s \
+              --no-ask-user \
+              --deny-tool='read,write,shell,url,memory'
+          )"
+          printf '%s\n' "$output"
+
+          COPILOT_OUTPUT="$output" python - <<'PY'
+          import json
+          import os
+
+          value = json.loads(os.environ["COPILOT_OUTPUT"])
+          assert value == {"status": "ok"}, value
+          print("M5_BYOK_PREFLIGHT=ok")
+          PY
