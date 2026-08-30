@@ -20,6 +20,7 @@ from .mechanism_review_base import (
     MechanismReviewGroupingResult,
     MechanismReviewGroupingService as _BaseMechanismReviewGroupingService,
 )
+from .mechanism_review_contracts import MechanismReviewItem
 
 
 class MechanismReviewGroupingService(_BaseMechanismReviewGroupingService):
@@ -169,6 +170,116 @@ class MechanismReviewGroupingService(_BaseMechanismReviewGroupingService):
                 "ChangeInterpretation output envelope does not authenticate"
             )
         return run, ordered_interpretations
+
+    def authenticate_interpretation_run(
+        self,
+        interpretation_run_id: str,
+    ) -> tuple[PipelineRun, tuple[ChangeInterpretation, ...]]:
+        """Authenticate one semantic generation without creating review projections."""
+
+        return self._authenticated_interpretations(interpretation_run_id)
+
+    def authenticate_grouping_run(
+        self,
+        grouping_run_id: str,
+    ) -> tuple[PipelineRun, tuple[MechanismReviewItem, ...]]:
+        """Reconstruct one non-empty grouping generation before review feedback."""
+
+        run = self._completed_run(
+            grouping_run_id,
+            RunType.OTHER,
+            "mechanism review grouping",
+        )
+        if run.policy_version != self.policy_version:
+            raise MechanismReviewGroupingError(
+                "mechanism review grouping requires the known grouping policy"
+            )
+
+        persisted = tuple(
+            item
+            for item in self.store.list(MechanismReviewItem)
+            if item.grouping_run_id == grouping_run_id
+        )
+        if not persisted:
+            raise MechanismReviewGroupingError(
+                "reviewable mechanism grouping generation cannot be empty"
+            )
+        interpretation_run_ids = {
+            item.interpretation_run_id for item in persisted
+        }
+        if len(interpretation_run_ids) != 1:
+            raise MechanismReviewGroupingError(
+                "one mechanism grouping run must consume one interpretation generation"
+            )
+        interpretation_run_id = next(iter(interpretation_run_ids))
+        interpretation_run, interpretations = self._authenticated_interpretations(
+            interpretation_run_id
+        )
+
+        expected_inputs = self._digest_json(
+            {
+                "interpretation_run": interpretation_run.model_dump(
+                    mode="json", by_alias=True
+                ),
+                "interpretations": [
+                    ChangeInterpretationService._stable_interpretation_payload(item)
+                    for item in interpretations
+                ],
+                "policy_version": run.policy_version,
+            }
+        )
+        if run.inputs_hash != expected_inputs:
+            raise MechanismReviewGroupingError(
+                "mechanism review grouping input envelope does not authenticate"
+            )
+
+        grouped: dict[tuple, list[ChangeInterpretation]] = {}
+        for item in interpretations:
+            key = (
+                item.source_id,
+                item.previous_source_revision_id,
+                item.current_source_revision_id,
+                tuple(kind.value for kind in item.interpretation_types),
+                self._canonical_mechanism(item.mechanism),
+            )
+            grouped.setdefault(key, []).append(item)
+        reconstructed = tuple(
+            self._materialize_group(key, tuple(members), grouping_run_id)
+            for key, members in sorted(grouped.items(), key=lambda pair: pair[0])
+        )
+
+        persisted_by_id: dict[str, MechanismReviewItem] = {}
+        for item in persisted:
+            if item.mechanism_review_item_id in persisted_by_id:
+                raise MechanismReviewGroupingError(
+                    "mechanism grouping contains duplicate review item identities"
+                )
+            persisted_by_id[item.mechanism_review_item_id] = item
+        expected_ids = {
+            item.mechanism_review_item_id for item in reconstructed
+        }
+        if set(persisted_by_id) != expected_ids:
+            raise MechanismReviewGroupingError(
+                "mechanism grouping does not exactly cover reconstructed review items"
+            )
+        ordered = tuple(
+            persisted_by_id[item.mechanism_review_item_id]
+            for item in reconstructed
+        )
+        for actual, expected in zip(ordered, reconstructed, strict=True):
+            if actual != expected:
+                raise MechanismReviewGroupingError(
+                    "persisted mechanism review item disagrees with reconstruction"
+                )
+
+        expected_outputs = self._digest_json(
+            [self._stable_item_payload(item) for item in reconstructed]
+        )
+        if run.outputs_hash != expected_outputs:
+            raise MechanismReviewGroupingError(
+                "mechanism review grouping output envelope does not authenticate"
+            )
+        return run, ordered
 
 
 __all__ = [
