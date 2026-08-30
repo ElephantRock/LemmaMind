@@ -210,10 +210,13 @@ class _PythonFactVisitor(ast.NodeVisitor):
             and isinstance(first.value.value, str)
         ):
             return
+        statement = first.value.value.strip()
+        if not statement:
+            return
         self.records.append(
             AssertionSpec(
                 locator=self._line_locator(first),
-                statement=first.value.value,
+                statement=statement,
                 extractor_name="python-docstring",
                 extractor_version="1",
             )
