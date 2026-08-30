@@ -1,0 +1,419 @@
+name: M5 frozen semantic replay
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m5-frozen-semantic-replay
+  cancel-in-progress: false
+
+env:
+  M5_PR34_SHA: "77e7bb503a8db03134b6bcb9973360543aada45e"
+  M5_RUNTIME_PYTHON_VERSION: "3.11.16"
+  M5_RUNTIME_PIP_VERSION: "26.2.1"
+  M5_RUNTIME_LOCK_SHA256: "74dc0ecbffe8440748a1af31a014412bac083712039816767674e0ed9aff7452"
+  M5_COPILOT_VERSION: "1.0.81"
+  M5_COPILOT_LINUX_X64_SHA256: "3082c4a27aa683def52e48397c02606dc7f8267dcef1c93949f3f58de4a5cde3"
+  COPILOT_PROVIDER_TYPE: "openai"
+  COPILOT_PROVIDER_BASE_URL: "https://api.z.ai/api/coding/paas/v4"
+  COPILOT_MODEL: "GLM-5.3"
+  COPILOT_OFFLINE: "true"
+  GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS: "false"
+  GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP: "false"
+
+jobs:
+  build:
+    if: >-
+      ${{
+        github.event.issue.number == 35 &&
+        github.event.comment.body == '/m5-frozen-replay' &&
+        (
+          github.event.comment.author_association == 'OWNER' ||
+          github.event.comment.author_association == 'MEMBER'
+        )
+      }}
+    strategy:
+      fail-fast: false
+      matrix:
+        repo_key: [openbot, openclaw, hermes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Check out trusted replay control plane
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+
+      - name: Check out exact reviewed PR 34 runtime
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.M5_PR34_SHA }}
+          path: runtime
+          persist-credentials: false
+
+      - name: Set up exact Python runtime
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.16"
+
+      - name: Install hash-locked runtime dependency closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          observed_python="$(python -c 'import platform; print(platform.python_version())')"
+          if [[ "${observed_python}" != "${M5_RUNTIME_PYTHON_VERSION}" ]]; then
+            echo "::error::Expected Python ${M5_RUNTIME_PYTHON_VERSION}; observed ${observed_python}."
+            exit 1
+          fi
+          observed_pip="$(python -m pip --version)"
+          if [[ "${observed_pip}" != "pip ${M5_RUNTIME_PIP_VERSION} "* ]]; then
+            echo "::error::Expected bundled pip ${M5_RUNTIME_PIP_VERSION}; observed ${observed_pip}."
+            exit 1
+          fi
+          printf '%s  %s\n' \
+            "${M5_RUNTIME_LOCK_SHA256}" \
+            'control/evaluation/m5-frozen-runtime-requirements.txt' \
+            | sha256sum --check --strict
+          python -m pip install \
+            --disable-pip-version-check \
+            --force-reinstall \
+            --only-binary=:all: \
+            --no-deps \
+            --require-hashes \
+            -r control/evaluation/m5-frozen-runtime-requirements.txt
+          python - <<'PY'
+          from importlib.metadata import version
+          expected = {
+              "pydantic": "2.13.5",
+              "pydantic-core": "2.46.5",
+              "annotated-types": "0.8.0",
+              "typing-extensions": "4.16.0",
+              "typing-inspection": "0.4.4",
+              "PyYAML": "6.0.3",
+              "tree-sitter": "0.24.0",
+              "tree-sitter-typescript": "0.23.2",
+          }
+          observed = {name: version(name) for name in expected}
+          if observed != expected:
+              raise SystemExit(f"runtime dependency closure mismatch: expected={expected} observed={observed}")
+          print("M5_RUNTIME_CLOSURE=" + repr(observed))
+          PY
+
+      - name: Build authenticated frozen packet generation
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PYTHONPATH: ${{ github.workspace }}/runtime/src
+        run: |
+          set -euo pipefail
+          python control/scripts/run_m5_frozen_semantic_replay.py build \
+            --repo-key '${{ matrix.repo_key }}' \
+            --state-dir state
+          rm -rf state/objects
+          (
+            cd state
+            sha256sum lemmamind.db packets.json build_meta.json > artifact-sha256.txt
+            sha256sum --check --strict artifact-sha256.txt
+          )
+
+      - name: Upload authenticated state
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: state-${{ matrix.repo_key }}
+          path: |
+            state/lemmamind.db
+            state/packets.json
+            state/build_meta.json
+            state/artifact-sha256.txt
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
+
+  inference:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        repo_key: [openbot, openclaw, hermes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - name: Check out trusted replay control plane only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+
+      - name: Set up exact Python runtime
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.16"
+
+      - name: Verify inference Python runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          observed_python="$(python -c 'import platform; print(platform.python_version())')"
+          if [[ "${observed_python}" != "${M5_RUNTIME_PYTHON_VERSION}" ]]; then
+            echo "::error::Expected Python ${M5_RUNTIME_PYTHON_VERSION}; observed ${observed_python}."
+            exit 1
+          fi
+
+      - name: Download authenticated packet state
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: state-${{ matrix.repo_key }}
+          path: state
+
+      - name: Verify packet artifact integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd state && sha256sum --check --strict artifact-sha256.txt)
+
+      - name: Install checksum-pinned GitHub Copilot CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          download_dir="${RUNNER_TEMP}/lemmamind-copilot-download"
+          bin_dir="${RUNNER_TEMP}/lemmamind-byok-bin"
+          archive="${download_dir}/copilot-linux-x64.tar.gz"
+          url="https://github.com/github/copilot-cli/releases/download/v${M5_COPILOT_VERSION}/copilot-linux-x64.tar.gz"
+          mkdir -p "${download_dir}" "${bin_dir}"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --tlsv1.2 \
+            "${url}" \
+            --output "${archive}"
+          printf '%s  %s\n' "${M5_COPILOT_LINUX_X64_SHA256}" "${archive}" | sha256sum --check --strict
+          tar -xzf "${archive}" -C "${bin_dir}"
+          if [[ ! -f "${bin_dir}/copilot" || -L "${bin_dir}/copilot" ]]; then
+            echo "::error::Verified Copilot archive did not contain the expected regular copilot executable."
+            exit 1
+          fi
+          chmod 0755 "${bin_dir}/copilot"
+          version_output="$("${bin_dir}/copilot" --version)"
+          printf '%s\n' "${version_output}"
+          if [[ "${version_output}" != *"${M5_COPILOT_VERSION}"* ]]; then
+            echo "::error::Checksum-pinned Copilot binary did not report expected version ${M5_COPILOT_VERSION}."
+            exit 1
+          fi
+          echo "M5_COPILOT_BINARY=${bin_dir}/copilot" >> "${GITHUB_ENV}"
+
+      - name: Run provider-isolated bounded inference
+        shell: bash
+        env:
+          COPILOT_PROVIDER_API_KEY: ${{ secrets.M5_BYOK_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${COPILOT_PROVIDER_API_KEY}" ]]; then
+            echo "::error::Repository Actions secret M5_BYOK_API_KEY is not configured."
+            exit 1
+          fi
+          unset GITHUB_TOKEN GH_TOKEN COPILOT_GITHUB_TOKEN
+          mkdir -p inference
+          python control/scripts/run_m5_frozen_inference.py \
+            --repo-key '${{ matrix.repo_key }}' \
+            --packets state/packets.json \
+            --output inference/inference.json
+
+      - name: Bind inference output to authenticated packet artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp state/artifact-sha256.txt inference/input-artifact-sha256.txt
+          (
+            cd inference
+            sha256sum inference.json > inference-sha256.txt
+            sha256sum --check --strict inference-sha256.txt
+          )
+
+      - name: Upload provider output
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: inference-${{ matrix.repo_key }}
+          path: |
+            inference/inference.json
+            inference/inference-sha256.txt
+            inference/input-artifact-sha256.txt
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
+
+  validate:
+    needs: inference
+    strategy:
+      fail-fast: false
+      matrix:
+        repo_key: [openbot, openclaw, hermes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out trusted replay control plane
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+
+      - name: Check out exact reviewed PR 34 runtime
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ env.M5_PR34_SHA }}
+          path: runtime
+          persist-credentials: false
+
+      - name: Set up exact Python runtime
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.16"
+
+      - name: Install hash-locked runtime dependency closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          observed_python="$(python -c 'import platform; print(platform.python_version())')"
+          if [[ "${observed_python}" != "${M5_RUNTIME_PYTHON_VERSION}" ]]; then
+            echo "::error::Expected Python ${M5_RUNTIME_PYTHON_VERSION}; observed ${observed_python}."
+            exit 1
+          fi
+          observed_pip="$(python -m pip --version)"
+          if [[ "${observed_pip}" != "pip ${M5_RUNTIME_PIP_VERSION} "* ]]; then
+            echo "::error::Expected bundled pip ${M5_RUNTIME_PIP_VERSION}; observed ${observed_pip}."
+            exit 1
+          fi
+          printf '%s  %s\n' \
+            "${M5_RUNTIME_LOCK_SHA256}" \
+            'control/evaluation/m5-frozen-runtime-requirements.txt' \
+            | sha256sum --check --strict
+          python -m pip install \
+            --disable-pip-version-check \
+            --force-reinstall \
+            --only-binary=:all: \
+            --no-deps \
+            --require-hashes \
+            -r control/evaluation/m5-frozen-runtime-requirements.txt
+          python - <<'PY'
+          from importlib.metadata import version
+          expected = {
+              "pydantic": "2.13.5",
+              "pydantic-core": "2.46.5",
+              "annotated-types": "0.8.0",
+              "typing-extensions": "4.16.0",
+              "typing-inspection": "0.4.4",
+              "PyYAML": "6.0.3",
+              "tree-sitter": "0.24.0",
+              "tree-sitter-typescript": "0.23.2",
+          }
+          observed = {name: version(name) for name in expected}
+          if observed != expected:
+              raise SystemExit(f"runtime dependency closure mismatch: expected={expected} observed={observed}")
+          print("M5_RUNTIME_CLOSURE=" + repr(observed))
+          PY
+
+      - name: Download authenticated state
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: state-${{ matrix.repo_key }}
+          path: state
+
+      - name: Download provider output
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: inference-${{ matrix.repo_key }}
+          path: inference
+
+      - name: Verify cross-stage artifact integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd state && sha256sum --check --strict artifact-sha256.txt)
+          cmp --silent state/artifact-sha256.txt inference/input-artifact-sha256.txt
+          (cd inference && sha256sum --check --strict inference-sha256.txt)
+
+      - name: Validate semantic proposals and group review surface
+        shell: bash
+        env:
+          PYTHONPATH: ${{ github.workspace }}/runtime/src
+        run: |
+          set -euo pipefail
+          mkdir -p validated
+          python control/scripts/run_m5_frozen_semantic_replay.py validate \
+            --repo-key '${{ matrix.repo_key }}' \
+            --state-dir state \
+            --inference-file inference/inference.json \
+            --output-dir validated
+
+      - name: Upload validated review surface
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validated-${{ matrix.repo_key }}
+          path: validated
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
+
+  aggregate:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out trusted replay control plane
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+
+      - name: Set up exact Python runtime
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11.16"
+
+      - name: Download OpenBot validation
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validated-openbot
+          path: validated/openbot
+
+      - name: Download OpenClaw validation
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validated-openclaw
+          path: validated/openclaw
+
+      - name: Download Hermes validation
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validated-hermes
+          path: validated/hermes
+
+      - name: Aggregate frozen product-gate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          observed_python="$(python -c 'import platform; print(platform.python_version())')"
+          if [[ "${observed_python}" != "${M5_RUNTIME_PYTHON_VERSION}" ]]; then
+            echo "::error::Expected Python ${M5_RUNTIME_PYTHON_VERSION}; observed ${observed_python}."
+            exit 1
+          fi
+          mkdir -p report
+          python control/scripts/run_m5_frozen_semantic_replay.py aggregate \
+            --inputs-dir validated \
+            --output-dir report
+          cat report/m5-frozen-replay-report.json
+
+      - name: Upload frozen replay report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m5-frozen-semantic-replay-report
+          path: report
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 6
