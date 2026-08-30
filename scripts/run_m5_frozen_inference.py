@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
@@ -86,21 +87,27 @@ def invoke(binary: str, prompt: str) -> str:
     env.pop("GITHUB_TOKEN", None)
     env.pop("GH_TOKEN", None)
     env.pop("COPILOT_GITHUB_TOKEN", None)
-    completed = subprocess.run(
-        [
-            binary,
-            "-p",
-            prompt,
-            "-s",
-            "--no-ask-user",
-            "--deny-tool=read,write,shell,url,memory",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=300,
-    )
+    runner_temp = env.get("RUNNER_TEMP") or None
+    with tempfile.TemporaryDirectory(
+        prefix="lemmamind-frozen-inference-",
+        dir=runner_temp,
+    ) as directory:
+        completed = subprocess.run(
+            [
+                binary,
+                "-p",
+                prompt,
+                "-s",
+                "--no-ask-user",
+                "--deny-tool=read,write,shell,url,memory",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=directory,
+            timeout=300,
+        )
     if completed.returncode != 0:
         stderr = completed.stderr.strip()
         stdout = completed.stdout.strip()
