@@ -49,7 +49,7 @@ def test_structural_projection_reuses_maps_only_after_full_authentication(tmp_pa
     assert service._projection_ready is True
 
 
-def test_cached_projection_preserves_packet_payload(tmp_path) -> None:
+def test_cached_projection_preserves_packet_payload_and_discards_cache(tmp_path) -> None:
     store = prepare(tmp_path)
     service = CandidateEvidencePacketService(store, artifact_extractors=EXTRACTOR_PROFILE)
     reduction_run, pairs = service._authenticated_reduction_generation(REDUCTION_RUN_ID)
@@ -58,7 +58,7 @@ def test_cached_projection_preserves_packet_payload(tmp_path) -> None:
 
     cached = service._build_packet(reduction, candidate, "run:packet:cached")
 
-    service._reset_projection_cache()
+    assert service._projection_ready is False
     uncached = service._build_packet(reduction, candidate, "run:packet:cached")
 
     assert service._stable_packet_payload(cached) == service._stable_packet_payload(uncached)
@@ -91,3 +91,4 @@ def test_final_projection_reauth_rejects_post_auth_extraction_tampering(tmp_path
             candidate,
             "run:packet:post-auth-tamper",
         )
+    assert service._projection_ready is False
