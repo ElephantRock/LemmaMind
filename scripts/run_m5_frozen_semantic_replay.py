@@ -9,7 +9,7 @@ import shutil
 from collections import Counter
 from pathlib import Path
 
-PR34_SHA = os.environ.get("M5_PR34_SHA", "").strip()
+PR34_SHA = os.environ.get("M5_PR34_SHA", "")
 if re.fullmatch(r"[0-9a-f]{40}", PR34_SHA) is None:
     raise RuntimeError("M5_PR34_SHA must be an exact 40-character lowercase Git SHA")
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
@@ -373,6 +373,10 @@ def aggregate(inputs_dir: Path, output_dir: Path) -> int:
         root = inputs_dir / key
         metas[key] = read_json(root / "validation_meta.json")
         review_items[key] = read_json(root / "review_items.json")
+
+    for key, meta in metas.items():
+        if meta.get("runtime_sha") != PR34_SHA:
+            raise AssertionError(f"aggregate validation runtime mismatch for {key}")
 
     if any(meta["status"] == "INCONCLUSIVE_PROVIDER_OUTPUT" for meta in metas.values()):
         status = "INCONCLUSIVE"
