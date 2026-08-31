@@ -142,6 +142,35 @@ def test_non_finite_retry_after_falls_through_to_one_minute_backoff(
     assert sleeps == [60.0]
 
 
+@pytest.mark.parametrize(
+    ("status_code", "message", "expected_delay"),
+    [
+        (429, "secondary rate limit", 60.0),
+        (503, "Service Unavailable", 1.0),
+    ],
+)
+def test_fractional_retry_after_falls_through_to_protocol_backoff(
+    monkeypatch,
+    status_code: int,
+    message: str,
+    expected_delay: float,
+) -> None:
+    sleeps: list[float] = []
+    outcomes = [
+        make_http_error(
+            status_code,
+            message,
+            headers={"Retry-After": "0.1"},
+        ),
+        FakeResponse({"ok": True}),
+    ]
+    install_outcomes(monkeypatch, outcomes)
+    reader = GitHubRESTReader(sleep=sleeps.append, wall_clock=lambda: 1000.0)
+
+    assert reader._get_json("/example") == {"ok": True}
+    assert sleeps == [expected_delay]
+
+
 def test_primary_rate_limit_waits_until_reset(monkeypatch) -> None:
     sleeps: list[float] = []
     outcomes = [
