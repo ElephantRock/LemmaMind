@@ -83,6 +83,65 @@ def test_rate_limit_honors_retry_after_header(monkeypatch) -> None:
     assert sleeps == [17.0]
 
 
+def test_rate_limit_honors_retry_after_http_date(monkeypatch) -> None:
+    sleeps: list[float] = []
+    outcomes = [
+        make_http_error(
+            429,
+            "secondary rate limit",
+            headers={"Retry-After": "Thu, 01 Jan 1970 00:18:20 GMT"},
+        ),
+        FakeResponse({"ok": True}),
+    ]
+    install_outcomes(monkeypatch, outcomes)
+    reader = GitHubRESTReader(sleep=sleeps.append, wall_clock=lambda: 1000.0)
+
+    assert reader._get_json("/example") == {"ok": True}
+    assert sleeps == [100.0]
+
+
+def test_negative_retry_after_falls_through_to_primary_reset(monkeypatch) -> None:
+    sleeps: list[float] = []
+    outcomes = [
+        make_http_error(
+            429,
+            "API rate limit exceeded",
+            headers={
+                "Retry-After": "-5",
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": "1100",
+            },
+        ),
+        FakeResponse({"ok": True}),
+    ]
+    install_outcomes(monkeypatch, outcomes)
+    reader = GitHubRESTReader(sleep=sleeps.append, wall_clock=lambda: 1000.0)
+
+    assert reader._get_json("/example") == {"ok": True}
+    assert sleeps == [101.0]
+
+
+@pytest.mark.parametrize("retry_after", ["nan", "inf", "-inf"])
+def test_non_finite_retry_after_falls_through_to_one_minute_backoff(
+    monkeypatch,
+    retry_after: str,
+) -> None:
+    sleeps: list[float] = []
+    outcomes = [
+        make_http_error(
+            429,
+            "secondary rate limit",
+            headers={"Retry-After": retry_after},
+        ),
+        FakeResponse({"ok": True}),
+    ]
+    install_outcomes(monkeypatch, outcomes)
+    reader = GitHubRESTReader(sleep=sleeps.append, wall_clock=lambda: 1000.0)
+
+    assert reader._get_json("/example") == {"ok": True}
+    assert sleeps == [60.0]
+
+
 def test_primary_rate_limit_waits_until_reset(monkeypatch) -> None:
     sleeps: list[float] = []
     outcomes = [
