@@ -8,10 +8,16 @@ from lemmamind.candidate_evidence_packet_generation_contracts import (
 from lemmamind.candidate_evidence_packets import (
     CandidateEvidencePacketError,
     CandidateEvidencePacketService,
+    _AuthenticatedCandidateEvidencePacketService,
 )
-from lemmamind.candidate_reduction_contracts import CandidateFactualReduction
+from lemmamind.candidate_reduction_contracts import (
+    CandidateFactualReduction,
+    CandidateReductionDisposition,
+    CandidateSignalKind,
+)
 from lemmamind.change_contracts import StructuralDelta
-from lemmamind.contracts import SourceAssertion
+from lemmamind.contracts import PipelineRun, SourceAssertion
+from lemmamind.interval_segmentation_contracts import IntervalCandidateSegment
 from lemmamind.storage import SQLiteContractStore
 from tests.test_candidate_evidence_packets import (
     CURRENT_ARTIFACT_ID,
@@ -142,3 +148,38 @@ def test_atomic_persistence_reauth_rejects_tamper_after_projection(tmp_path) -> 
 
     assert store.get(SourceAssertion, tamper.assertion_id) == tamper
     assert store.list(CandidateEvidencePacketGeneration) == []
+
+
+def test_zero_retained_generation_discards_projection_cache(tmp_path, monkeypatch) -> None:
+    store = prepare(tmp_path)
+    candidate = store.list(IntervalCandidateSegment)[0]
+    reduction = store.list(CandidateFactualReduction)[0].model_copy(
+        update={
+            "policy_suppressed_paths": (PATH,),
+            "signal_kinds": (CandidateSignalKind.POLICY_SUPPRESSED,),
+            "disposition": CandidateReductionDisposition.SUPPRESS,
+        }
+    )
+    reduction_run = store.get(PipelineRun, REDUCTION_RUN_ID)
+    assert reduction_run is not None
+
+    def authenticated_zero_retained(_service, reduction_run_id):
+        assert reduction_run_id == REDUCTION_RUN_ID
+        return reduction_run, ((candidate, reduction),)
+
+    monkeypatch.setattr(
+        _AuthenticatedCandidateEvidencePacketService,
+        "_authenticated_reduction_generation",
+        authenticated_zero_retained,
+    )
+    service = CandidateEvidencePacketService(
+        store,
+        artifact_extractors=EXTRACTOR_PROFILE,
+        id_factory=lambda: "zero-retained",
+    )
+
+    result = service.build_reduction(REDUCTION_RUN_ID)
+
+    assert result.packets == ()
+    assert service._projection_ready is False
+    assert service._persistence_reauth_run_ids == ()
