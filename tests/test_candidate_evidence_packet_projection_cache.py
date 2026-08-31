@@ -43,14 +43,14 @@ class ManifestCountingPacketService(CandidateEvidencePacketService):
 class TamperBeforeTransactionStore(SQLiteContractStore):
     def __init__(self, path) -> None:
         super().__init__(path)
-        self.pending_tamper: SourceAssertion | None = None
+        self.pending_record = None
 
     @contextmanager
     def transaction(self):
-        if self.pending_tamper is not None:
-            tamper = self.pending_tamper
-            self.pending_tamper = None
-            self.put(tamper)
+        if self.pending_record is not None:
+            record = self.pending_record
+            self.pending_record = None
+            self.put(record)
         with super().transaction() as transaction:
             yield transaction
 
@@ -121,7 +121,7 @@ def test_final_projection_reauth_rejects_post_auth_extraction_tampering(tmp_path
     assert service._projection_ready is False
 
 
-def test_atomic_persistence_reauth_rejects_tamper_after_projection(tmp_path) -> None:
+def test_atomic_persistence_reauth_rejects_extraction_tamper_after_projection(tmp_path) -> None:
     prepared = prepare(tmp_path)
     store = TamperBeforeTransactionStore(prepared.path)
     tamper = SourceAssertion(
@@ -133,7 +133,7 @@ def test_atomic_persistence_reauth_rejects_tamper_after_projection(tmp_path) -> 
         extractor_version="1",
         run_id=CURRENT_EXTRACTION_RUN_ID,
     )
-    store.pending_tamper = tamper
+    store.pending_record = tamper
     service = CandidateEvidencePacketService(
         store,
         artifact_extractors=EXTRACTOR_PROFILE,
@@ -147,6 +147,38 @@ def test_atomic_persistence_reauth_rejects_tamper_after_projection(tmp_path) -> 
         service.build_reduction(REDUCTION_RUN_ID)
 
     assert store.get(SourceAssertion, tamper.assertion_id) == tamper
+    assert store.list(CandidateEvidencePacketGeneration) == []
+
+
+def test_atomic_persistence_reauth_rejects_non_extraction_lineage_tamper(tmp_path) -> None:
+    prepared = prepare(tmp_path)
+    store = TamperBeforeTransactionStore(prepared.path)
+    original = store.list(CandidateFactualReduction)[0]
+    tamper = original.model_copy(
+        update={
+            "candidate_factual_reduction_id": "reduction:projection:pre-transaction-tamper",
+        }
+    )
+    store.pending_record = tamper
+    service = CandidateEvidencePacketService(
+        store,
+        artifact_extractors=EXTRACTOR_PROFILE,
+        id_factory=lambda: "atomic-full-lineage",
+    )
+
+    with pytest.raises(
+        CandidateEvidencePacketError,
+        match="duplicate candidates",
+    ):
+        service.build_reduction(REDUCTION_RUN_ID)
+
+    assert (
+        store.get(
+            CandidateFactualReduction,
+            tamper.candidate_factual_reduction_id,
+        )
+        == tamper
+    )
     assert store.list(CandidateEvidencePacketGeneration) == []
 
 
@@ -182,4 +214,3 @@ def test_zero_retained_generation_discards_projection_cache(tmp_path, monkeypatc
 
     assert result.packets == ()
     assert service._projection_ready is False
-    assert service._persistence_reauth_run_ids == ()
