@@ -10,6 +10,7 @@ from lemmamind.candidate_evidence_packets import (
     CandidateEvidencePacketService,
     _AuthenticatedCandidateEvidencePacketService,
 )
+from lemmamind.candidate_extraction_gap_contracts import CandidateExtractionGapSignal
 from lemmamind.candidate_reduction_contracts import (
     CandidateFactualReduction,
     CandidateReductionDisposition,
@@ -17,6 +18,7 @@ from lemmamind.candidate_reduction_contracts import (
 )
 from lemmamind.change_contracts import StructuralDelta
 from lemmamind.contracts import PipelineRun, SourceAssertion
+from lemmamind.extraction_diagnostic_contracts import ExtractionDiagnostic
 from lemmamind.interval_segmentation_contracts import IntervalCandidateSegment
 from lemmamind.storage import SQLiteContractStore
 from tests.test_candidate_evidence_packets import (
@@ -44,13 +46,19 @@ class TamperBeforeTransactionStore(SQLiteContractStore):
     def __init__(self, path) -> None:
         super().__init__(path)
         self.pending_record = None
+        self.pending_records = ()
 
     @contextmanager
     def transaction(self):
+        records = []
         if self.pending_record is not None:
-            record = self.pending_record
+            records.append(self.pending_record)
             self.pending_record = None
-            self.put(record)
+        if self.pending_records:
+            records.extend(self.pending_records)
+            self.pending_records = ()
+        if records:
+            self.put_many(records)
         with super().transaction() as transaction:
             yield transaction
 
@@ -178,6 +186,74 @@ def test_atomic_persistence_reauth_rejects_non_extraction_lineage_tamper(tmp_pat
             tamper.candidate_factual_reduction_id,
         )
         == tamper
+    )
+    assert store.list(CandidateEvidencePacketGeneration) == []
+
+
+def test_atomic_persistence_revalidates_packet_local_gap_signals(tmp_path, monkeypatch) -> None:
+    prepared = prepare(tmp_path)
+    store = TamperBeforeTransactionStore(prepared.path)
+    candidate = store.list(IntervalCandidateSegment)[0]
+    reduction = store.list(CandidateFactualReduction)[0]
+    reduction_run = store.get(PipelineRun, REDUCTION_RUN_ID)
+    assert reduction_run is not None
+
+    def authenticated_fixture(_service, reduction_run_id):
+        assert reduction_run_id == REDUCTION_RUN_ID
+        return reduction_run, ((candidate, reduction),)
+
+    monkeypatch.setattr(
+        _AuthenticatedCandidateEvidencePacketService,
+        "_authenticated_reduction_generation",
+        authenticated_fixture,
+    )
+
+    diagnostic = ExtractionDiagnostic(
+        extraction_diagnostic_id="diagnostic:projection:pre-transaction",
+        capture_id=reduction.current_capture_id,
+        source_revision_id=reduction.current_source_revision_id,
+        artifact_id=CURRENT_ARTIFACT_ID,
+        source_locator=PATH,
+        extractor_name="authored",
+        extractor_version="1",
+        error_type="ParseError",
+        error_message="inserted after initial packet projection",
+        run_id=reduction.current_extraction_run_id,
+    )
+    gap_signal = CandidateExtractionGapSignal(
+        candidate_extraction_gap_signal_id="gap:projection:pre-transaction",
+        interval_candidate_segment_id=candidate.interval_candidate_segment_id,
+        source_id=reduction.source_id,
+        previous_source_revision_id=reduction.previous_source_revision_id,
+        current_source_revision_id=reduction.current_source_revision_id,
+        previous_capture_id=reduction.previous_capture_id,
+        current_capture_id=reduction.current_capture_id,
+        paths=(PATH,),
+        current_diagnostic_ids=(diagnostic.extraction_diagnostic_id,),
+        segmentation_run_id=reduction.segmentation_run_id,
+        previous_extraction_run_id=reduction.previous_extraction_run_id,
+        current_extraction_run_id=reduction.current_extraction_run_id,
+        reduction_run_id=reduction.reduction_run_id,
+    )
+    store.pending_records = (diagnostic, gap_signal)
+    service = CandidateEvidencePacketService(
+        store,
+        artifact_extractors=EXTRACTOR_PROFILE,
+        id_factory=lambda: "atomic-gap-signal",
+    )
+
+    with pytest.raises(
+        CandidateEvidencePacketError,
+        match="extraction-gap signals changed",
+    ):
+        service.build_reduction(REDUCTION_RUN_ID)
+
+    assert (
+        store.get(
+            CandidateExtractionGapSignal,
+            gap_signal.candidate_extraction_gap_signal_id,
+        )
+        == gap_signal
     )
     assert store.list(CandidateEvidencePacketGeneration) == []
 
