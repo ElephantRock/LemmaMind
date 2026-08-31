@@ -1,111 +1,59 @@
-"""Final fail-closed public surface for full-M5 candidate evidence packets.
+"""Public candidate-evidence packet surface with authenticated projection caching.
 
-This layer authenticates the complete deterministic lineage that feeds semantic
-change interpretation.  The previous review-hardened implementation is retained
-in ``candidate_evidence_packets_v1``; this module tightens upstream generation
-authentication and persists the exact ordered extractor profile needed for later
-semantic replay.
+The complete reviewed provenance implementation is preserved byte-for-byte in
+``candidate_evidence_packets_impl``. This thin subclass only reuses immutable
+projection inputs after that implementation has authenticated the full factual
+lineage successfully.
 """
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-
-from .affected_file_planning import (
-    MAX_CAPTURE_BLOB_BYTES_V1,
-    _SUPPRESSED_SURFACES_V1,
-    AffectedFileCapturePlanner,
-)
 from .candidate_evidence_packet_contracts import AssertionSnapshotSide
 from .candidate_evidence_packet_generation_contracts import (
     CandidateEvidencePacketGeneration,
-    PacketExtractorDescriptor,
 )
-from .candidate_evidence_packets_base import (
-    CandidateEvidencePacketService as _BaseCandidateEvidencePacketService,
-)
-from .candidate_evidence_packets_v1 import (
+from .candidate_evidence_packets_impl import (
     CandidateEvidencePacketError,
     CandidateEvidencePacketResult,
-    CandidateEvidencePacketService as _PreviousCandidateEvidencePacketService,
+    CandidateEvidencePacketService as _AuthenticatedCandidateEvidencePacketService,
     ContractStore,
 )
-from .candidate_reduction import CandidateFactualReductionService
 from .candidate_reduction_contracts import (
     CandidateFactualReduction,
     CandidateReductionDisposition,
 )
-from .capture_planning_contracts import AffectedFileCapturePlan
+from .change_contracts import StructuralDelta
 from .contracts import (
     CONTRACT_SCHEMA_VERSION,
-    CaptureManifest,
+    EvidenceFact,
     PipelineRun,
+    RetrievalStatus,
     RunType,
-    SourceRevision,
+    SourceAssertion,
 )
-from .interval_segmentation import (
-    IntervalCandidateSegmentationService,
-    IntervalSegmentationError,
-)
-from .interval_segmentation_contracts import (
-    CommitPathSnapshot,
-    CommitRangeSummary,
-    IntervalSegmentationGeneration,
-    IntervalCandidateSegment,
-)
-from .path_change_contracts import GitPathDelta, GitPathDiffSummary
-from .recursive_tree import RecursiveGitTreeDiffService, classify_change_surface
-from .tracking import CaptureDepth, RepositoryTrackingService, TrackingPolicyError
 
 
-class CandidateEvidencePacketService(_PreviousCandidateEvidencePacketService):
-    """Build bounded packets only from a fully authenticated deterministic lineage."""
+class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketService):
+    """Reuse authenticated projection state without weakening provenance checks."""
 
-    _PATH_DIFF_POLICY = "recursive-git-path-diff.v1"
-
-    def __init__(
-        self,
-        *args,
-        artifact_extractors: Iterable[object] | None = None,
-        **kwargs,
-    ) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.artifact_extractors = self._normalize_extractor_profile(artifact_extractors)
+        self._reset_projection_cache()
 
-    @staticmethod
-    def _normalize_extractor_profile(
-        artifact_extractors: Iterable[object] | None,
-    ) -> tuple[PacketExtractorDescriptor, ...]:
-        if artifact_extractors is None:
-            return ()
-        descriptors: list[PacketExtractorDescriptor] = []
-        for item in artifact_extractors:
-            if isinstance(item, PacketExtractorDescriptor):
-                descriptor = item
-            elif isinstance(item, Mapping):
-                descriptor = PacketExtractorDescriptor(
-                    name=str(item.get("name", "")),
-                    version=str(item.get("version", "")),
-                )
-            else:
-                descriptor = PacketExtractorDescriptor(
-                    name=str(getattr(item, "name", "")),
-                    version=str(getattr(item, "version", "")),
-                )
-            descriptors.append(descriptor)
-        return tuple(descriptors)
-
-    def _profile_payload(self) -> tuple[dict[str, str], ...]:
-        if not self.artifact_extractors:
-            raise CandidateEvidencePacketError(
-                "candidate evidence packet generation requires the exact ordered artifact extractor profile"
-            )
-        return tuple(
-            {"name": item.name, "version": item.version}
-            for item in self.artifact_extractors
-        )
+    def _reset_projection_cache(self) -> None:
+        self._projection_ready = False
+        self._projection_reduction_run_id: str | None = None
+        self._projection_packets_remaining = 0
+        self._projection_extraction_run_ids: frozenset[str] = frozenset()
+        self._projection_final_reauth_run_ids: tuple[str, ...] = ()
+        self._projection_artifact_paths: dict[
+            tuple[str, str], dict[str, str]
+        ] = {}
+        self._projection_assertions_by_run: dict[
+            str, tuple[SourceAssertion, ...]
+        ] = {}
 
     def build_reduction(self, reduction_run_id: str) -> CandidateEvidencePacketResult:
-        """Persist packets and the exact authenticated profile used to reconstruct them."""
+        """Build packets, then reauthenticate full lineage and persist atomically."""
 
         profile = self._profile_payload()
         started_at = self._aware_now()
@@ -157,641 +105,288 @@ class CandidateEvidencePacketService(_PreviousCandidateEvidencePacketService):
             ),
         )
         result = CandidateEvidencePacketResult(reduction_run_id, packets, run)
-        self.store.put_many((*packets, run, generation))
+        records = (*packets, run, generation)
+
+        transaction_factory = getattr(self.store, "transaction", None)
+        if not callable(transaction_factory):
+            raise CandidateEvidencePacketError(
+                "candidate evidence packet persistence requires an atomic transaction-capable store"
+            )
+        original_store = self.store
+        try:
+            with transaction_factory() as transaction_store:
+                self.store = transaction_store
+                try:
+                    # Never permit projection caches to participate in the final
+                    # validation. Re-run the complete reviewed path-diff ->
+                    # segmentation -> planner -> extraction/change -> reduction
+                    # authentication against the same write-locked snapshot that
+                    # will receive the packet generation.
+                    self._reset_projection_cache()
+                    transaction_run, transaction_pairs = (
+                        _AuthenticatedCandidateEvidencePacketService._authenticated_reduction_generation(
+                            self, reduction_run_id
+                        )
+                    )
+                    if transaction_run != reduction_run or transaction_pairs != pairs:
+                        raise CandidateEvidencePacketError(
+                            "candidate factual lineage changed between projection and atomic persistence"
+                        )
+                    self._validate_packet_gap_signals(transaction_pairs, packets)
+                    transaction_store.put_many(records)
+                finally:
+                    self.store = original_store
+        finally:
+            self._reset_projection_cache()
         return result
 
-    def _authenticated_reduction_generation(self, reduction_run_id: str):
-        """Authenticate path diff -> segmentation -> planner -> factual reduction."""
+    def _validate_packet_gap_signals(self, pairs, packets) -> None:
+        """Revalidate packet-local extraction gaps on the write-locked snapshot."""
 
-        profile = self._profile_payload()
-        run, pairs = _BaseCandidateEvidencePacketService._authenticated_reduction_generation(
-            self, reduction_run_id
-        )
+        packet_by_candidate = {
+            item.interval_candidate_segment_id: item for item in packets
+        }
+        retained_ids = {
+            candidate.interval_candidate_segment_id
+            for candidate, reduction in pairs
+            if reduction.disposition is CandidateReductionDisposition.RETAIN
+        }
+        if set(packet_by_candidate) != retained_ids:
+            raise CandidateEvidencePacketError(
+                "candidate packet coverage changed before atomic persistence"
+            )
+
+        for candidate, reduction in pairs:
+            if reduction.disposition is not CandidateReductionDisposition.RETAIN:
+                continue
+            packet = packet_by_candidate[candidate.interval_candidate_segment_id]
+            gap_signals = self._gap_signals(reduction)
+            observed_ids = tuple(
+                sorted(
+                    item.candidate_extraction_gap_signal_id
+                    for item in gap_signals
+                )
+            )
+            observed_paths = tuple(
+                sorted({path for item in gap_signals for path in item.paths})
+            )
+            if (
+                observed_ids != packet.extraction_gap_signal_ids
+                or observed_paths != packet.extraction_gap_paths
+            ):
+                raise CandidateEvidencePacketError(
+                    "candidate extraction-gap signals changed between projection and atomic persistence"
+                )
+
+    def _authenticated_reduction_generation(self, reduction_run_id: str):
+        """Authenticate first, then snapshot immutable packet-projection indexes."""
+
+        self._reset_projection_cache()
+        run, pairs = super()._authenticated_reduction_generation(reduction_run_id)
         if not pairs:
-            raise CandidateEvidencePacketError(
-                "candidate factual-reduction generation is empty"
-            )
-        if any(
-            len(candidate.paths) > self._MAX_CANDIDATE_PATHS
-            for candidate, _ in pairs
-        ):
-            raise CandidateEvidencePacketError(
-                "candidate factual-reduction generation exceeds the 50-path packet boundary"
-            )
+            return run, pairs
 
         first = pairs[0][1]
-        lineage = self._reduction_lineage(first)
-        for _, reduction in pairs[1:]:
-            if self._reduction_lineage(reduction) != lineage:
-                raise CandidateEvidencePacketError(
-                    "candidate factual reductions do not share one input generation"
-                )
-
-        expected_change_policy = self._REDUCTION_CHANGE_POLICIES.get(run.policy_version)
-        expected_extraction_policy = self._REDUCTION_EXTRACTION_POLICIES.get(
-            run.policy_version
-        )
-        if expected_change_policy is None or expected_extraction_policy is None:
-            raise CandidateEvidencePacketError(
-                "candidate evidence packets require a known factual-reduction policy"
-            )
-
-        diff_run, diff_summary, deltas = self._authenticate_path_diff_generation(
-            first.diff_run_id
-        )
-        expected_interval = (
-            first.source_id,
-            first.previous_source_revision_id,
-            first.current_source_revision_id,
-        )
-        observed_interval = (
-            diff_summary.source_id,
-            diff_summary.previous_source_revision_id,
-            diff_summary.current_source_revision_id,
-        )
-        if observed_interval != expected_interval:
-            raise CandidateEvidencePacketError(
-                "candidate factual reduction disagrees with authenticated path-diff interval"
-            )
-
-        segmentation_run = self._completed_run(
-            first.segmentation_run_id, RunType.DIFF, "interval segmentation"
-        )
-        if segmentation_run.policy_version != self._SEGMENTATION_POLICY:
-            raise CandidateEvidencePacketError(
-                "candidate factual reduction references an unrecognized segmentation policy"
-            )
-        candidates = tuple(candidate for candidate, _ in pairs)
-        self._authenticate_segmentation_generation(
-            segmentation_run,
-            diff_summary,
-            deltas,
-            candidates,
-        )
-
-        planner_run = self._completed_run(
-            first.planner_run_id, RunType.OTHER, "affected-file planner"
-        )
-        if planner_run.policy_version != self._PLANNER_POLICY:
-            raise CandidateEvidencePacketError(
-                "candidate factual reduction references an unrecognized planner policy"
-            )
-        plans = tuple(
-            sorted(
-                (
-                    item
-                    for item in self.store.list(AffectedFileCapturePlan)
-                    if item.planner_run_id == first.planner_run_id
-                ),
-                key=lambda item: item.path,
-            )
-        )
-
         previous_manifest = self._manifest(
-            first.previous_capture_id, first.previous_source_revision_id
+            first.previous_capture_id,
+            first.previous_source_revision_id,
         )
         current_manifest = self._manifest(
-            first.current_capture_id, first.current_source_revision_id
+            first.current_capture_id,
+            first.current_source_revision_id,
         )
-        self._authenticate_plan_generation(
-            planner_run,
-            diff_summary,
-            deltas,
-            plans,
-            previous_manifest,
-            current_manifest,
+        self._projection_artifact_paths = {
+            (
+                first.previous_capture_id,
+                first.previous_source_revision_id,
+            ): {
+                reference.artifact_id: reference.source_locator
+                for reference in previous_manifest.artifacts
+                if reference.retrieval_status is RetrievalStatus.CAPTURED
+            },
+            (
+                first.current_capture_id,
+                first.current_source_revision_id,
+            ): {
+                reference.artifact_id: reference.source_locator
+                for reference in current_manifest.artifacts
+                if reference.retrieval_status is RetrievalStatus.CAPTURED
+            },
+        }
+        final_reauth_run_ids = (
+            first.previous_extraction_run_id,
+            first.current_extraction_run_id,
         )
-
-        change_run = self._completed_run(
-            first.change_run_id, RunType.DIFF, "candidate factual change"
+        extraction_run_ids = frozenset(final_reauth_run_ids)
+        assertions = tuple(
+            item
+            for item in self.store.list(SourceAssertion)
+            if item.run_id in extraction_run_ids
         )
-        if change_run.policy_version != expected_change_policy:
-            raise CandidateEvidencePacketError(
-                "candidate factual reduction references an incompatible change policy"
-            )
-        previous_extraction = self._completed_run(
-            first.previous_extraction_run_id, RunType.EXTRACTION, "previous extraction"
+        self._projection_assertions_by_run = {
+            run_id: tuple(item for item in assertions if item.run_id == run_id)
+            for run_id in extraction_run_ids
+        }
+        self._projection_reduction_run_id = run.run_id
+        self._projection_packets_remaining = sum(
+            1
+            for _, reduction in pairs
+            if reduction.disposition is CandidateReductionDisposition.RETAIN
         )
-        current_extraction = self._completed_run(
-            first.current_extraction_run_id, RunType.EXTRACTION, "current extraction"
-        )
-        if (
-            previous_extraction.policy_version != expected_extraction_policy
-            or current_extraction.policy_version != expected_extraction_policy
-        ):
-            raise CandidateEvidencePacketError(
-                "candidate factual reduction references incompatible extraction policies"
-            )
-        self._authenticate_extraction_run(previous_extraction.run_id)
-        self._authenticate_extraction_run(current_extraction.run_id)
-
-        gap_paths = self._gap_paths_for_reduction(
-            run.policy_version,
-            previous_extraction.run_id,
-            current_extraction.run_id,
-        )
-        if not self._profile_matches_input_envelopes(
-            descriptors=profile,
-            run=run,
-            change_run=change_run,
-            previous_extraction=previous_extraction,
-            current_extraction=current_extraction,
-            previous_manifest=previous_manifest,
-            current_manifest=current_manifest,
-            candidates=candidates,
-            plans=plans,
-            gap_paths=gap_paths,
-        ):
-            raise CandidateEvidencePacketError(
-                "supplied artifact extractor profile does not authenticate factual lineage"
-            )
-
-        artifact_deltas, structural_deltas = self._authenticate_change_outputs(
-            change_run, candidates
-        )
-        self._reconstruct_candidate_reductions(
-            run=run,
-            pairs=pairs,
-            plans=plans,
-            previous_manifest=previous_manifest,
-            current_manifest=current_manifest,
-            artifact_deltas=artifact_deltas,
-            structural_deltas=structural_deltas,
-            gap_paths=gap_paths,
-        )
-        # Keep the diff run live in this scope to make the authenticated root explicit.
-        if diff_run.run_id != first.diff_run_id:
-            raise CandidateEvidencePacketError("authenticated path-diff run identity changed")
+        self._projection_extraction_run_ids = extraction_run_ids
+        self._projection_final_reauth_run_ids = final_reauth_run_ids
+        self._projection_ready = True
         return run, pairs
 
-    def _authenticate_path_diff_generation(
-        self,
-        diff_run_id: str,
-    ) -> tuple[PipelineRun, GitPathDiffSummary, tuple[GitPathDelta, ...]]:
-        run = self._completed_run(diff_run_id, RunType.DIFF, "recursive path diff")
-        if run.policy_version != self._PATH_DIFF_POLICY:
-            raise CandidateEvidencePacketError(
-                "candidate factual reduction references an unrecognized path-diff policy"
-            )
-        summaries = tuple(
-            item
-            for item in self.store.list(GitPathDiffSummary)
-            if item.diff_run_id == diff_run_id
-        )
-        if len(summaries) != 1:
-            raise CandidateEvidencePacketError(
-                "recursive path diff requires exactly one GitPathDiffSummary"
-            )
-        summary = summaries[0]
-        deltas = tuple(
-            sorted(
-                (
-                    item
-                    for item in self.store.list(GitPathDelta)
-                    if item.diff_run_id == diff_run_id
-                ),
-                key=lambda item: item.path,
-            )
-        )
-        if len(deltas) != summary.delta_count:
-            raise CandidateEvidencePacketError(
-                "authenticated path-diff delta_count disagrees with persisted deltas"
-            )
-        try:
-            IntervalCandidateSegmentationService._validate_delta_generation(
-                summary, deltas
-            )
-        except IntervalSegmentationError as exc:
-            raise CandidateEvidencePacketError(
-                "recursive path-diff delta provenance does not authenticate"
-            ) from exc
-        if len({item.path for item in deltas}) != len(deltas):
-            raise CandidateEvidencePacketError(
-                "recursive path-diff generation contains duplicate Git paths"
-            )
-
-        if summary.git_path_diff_summary_id != RecursiveGitTreeDiffService._summary_id(
-            diff_run_id
-        ):
-            raise CandidateEvidencePacketError(
-                "recursive path-diff summary identity does not authenticate"
-            )
-        for delta in deltas:
-            expected_id = RecursiveGitTreeDiffService._delta_id(
-                diff_run_id,
-                summary.previous_source_revision_id,
-                summary.current_source_revision_id,
-                delta.path,
-                delta.change_type,
-            )
-            if delta.git_path_delta_id != expected_id:
-                raise CandidateEvidencePacketError(
-                    "recursive path-diff delta identity does not authenticate"
-                )
-            if delta.surface is not classify_change_surface(delta.path):
-                raise CandidateEvidencePacketError(
-                    "recursive path-diff surface classification does not authenticate"
-                )
-
-        previous_revision = self.store.get(
-            SourceRevision, summary.previous_source_revision_id
-        )
-        current_revision = self.store.get(
-            SourceRevision, summary.current_source_revision_id
-        )
-        if previous_revision is None or current_revision is None:
-            raise CandidateEvidencePacketError(
-                "recursive path diff references missing SourceRevision"
-            )
+    def _build_packet(self, reduction, candidate, packet_run_id):
+        packet = super()._build_packet(reduction, candidate, packet_run_id)
         if (
-            previous_revision.source_id != summary.source_id
-            or current_revision.source_id != summary.source_id
-            or previous_revision.observed_at > current_revision.observed_at
+            self._projection_ready
+            and reduction.reduction_run_id == self._projection_reduction_run_id
         ):
-            raise CandidateEvidencePacketError(
-                "recursive path-diff revision provenance does not authenticate"
-            )
+            if self._projection_packets_remaining < 1:
+                raise CandidateEvidencePacketError(
+                    "authenticated packet projection exceeded retained candidate coverage"
+                )
+            self._projection_packets_remaining -= 1
+            if self._projection_packets_remaining == 0:
+                try:
+                    for run_id in self._projection_final_reauth_run_ids:
+                        _AuthenticatedCandidateEvidencePacketService._authenticate_extraction_run(
+                            self, run_id
+                        )
+                finally:
+                    self._reset_projection_cache()
+        return packet
 
-        expected_inputs = self._digest_json(
-            {
-                "previous_capture_id": summary.previous_capture_id,
-                "current_capture_id": summary.current_capture_id,
-                "previous_source_revision_id": summary.previous_source_revision_id,
-                "current_source_revision_id": summary.current_source_revision_id,
-                "policy_version": run.policy_version,
-            }
-        )
-        if run.inputs_hash != expected_inputs:
-            raise CandidateEvidencePacketError(
-                "recursive path-diff input envelope does not authenticate"
-            )
-        expected_outputs = self._digest_json(
-            {
-                "summary": summary.model_dump(mode="json", by_alias=True),
-                "deltas": [
-                    {
-                        "path": delta.path,
-                        "change_type": delta.change_type.value,
-                        "surface": delta.surface.value,
-                        "previous_entry_type": delta.previous_entry_type,
-                        "current_entry_type": delta.current_entry_type,
-                        "previous_mode": delta.previous_mode,
-                        "current_mode": delta.current_mode,
-                        "previous_object_sha": delta.previous_object_sha,
-                        "current_object_sha": delta.current_object_sha,
-                        "previous_size": delta.previous_size,
-                        "current_size": delta.current_size,
-                    }
-                    for delta in deltas
-                ],
-            }
-        )
-        if run.outputs_hash != expected_outputs:
-            raise CandidateEvidencePacketError(
-                "recursive path-diff output envelope does not authenticate"
-            )
-        return run, summary, deltas
+    def _authenticate_extraction_run(self, run_id: str) -> None:
+        if self._projection_ready and run_id in self._projection_extraction_run_ids:
+            return
+        super()._authenticate_extraction_run(run_id)
 
-    def _tracking_policy(
+    def _validate_structural_evidence(
         self,
-        source_id: str,
-        minimum: CaptureDepth,
-        run: PipelineRun,
-    ):
-        tracking = RepositoryTrackingService(
-            self.store,
-            clock=lambda: run.started_at,
-        )
-        try:
-            return tracking.require_capture_depth(
-                source_id,
-                minimum,
-                as_of=run.started_at,
-            )
-        except TrackingPolicyError as exc:
-            raise CandidateEvidencePacketError(
-                "persisted tracking history cannot authenticate upstream generation"
-            ) from exc
-
-    def _authenticate_segmentation_generation(
-        self,
-        run: PipelineRun,
-        diff_summary: GitPathDiffSummary,
-        deltas: tuple[GitPathDelta, ...],
-        candidates: tuple[IntervalCandidateSegment, ...],
+        item: StructuralDelta,
+        reduction: CandidateFactualReduction,
     ) -> None:
-        ranges = tuple(
-            item
-            for item in self.store.list(CommitRangeSummary)
-            if item.segmentation_run_id == run.run_id
-        )
-        if len(ranges) != 1:
-            raise CandidateEvidencePacketError(
-                "interval segmentation requires exactly one CommitRangeSummary"
-            )
-        commit_range = ranges[0]
-        snapshots = tuple(
-            sorted(
-                (
-                    item
-                    for item in self.store.list(CommitPathSnapshot)
-                    if item.segmentation_run_id == run.run_id
-                ),
-                key=lambda item: item.ordinal,
+        if not self._projection_ready:
+            super()._validate_structural_evidence(item, reduction)
+            return
+
+        previous_artifact_to_path = self._projection_artifact_paths.get(
+            (
+                reduction.previous_capture_id,
+                reduction.previous_source_revision_id,
             )
         )
-        expected_lineage = (
-            diff_summary.source_id,
-            diff_summary.previous_source_revision_id,
-            diff_summary.current_source_revision_id,
-            run.run_id,
-        )
-        if (
-            commit_range.source_id,
-            commit_range.previous_source_revision_id,
-            commit_range.current_source_revision_id,
-            commit_range.segmentation_run_id,
-        ) != expected_lineage:
-            raise CandidateEvidencePacketError(
-                "commit-range lineage disagrees with authenticated path diff"
+        current_artifact_to_path = self._projection_artifact_paths.get(
+            (
+                reduction.current_capture_id,
+                reduction.current_source_revision_id,
             )
-        for ordinal, snapshot in enumerate(snapshots, start=1):
+        )
+        if previous_artifact_to_path is None or current_artifact_to_path is None:
+            super()._validate_structural_evidence(item, reduction)
+            return
+
+        for evidence_id, expected_run_id, expected_locator, expected_value, artifact_paths, label in (
+            (
+                item.previous_evidence_id,
+                reduction.previous_extraction_run_id,
+                item.previous_locator,
+                item.previous_value,
+                previous_artifact_to_path,
+                "previous",
+            ),
+            (
+                item.current_evidence_id,
+                reduction.current_extraction_run_id,
+                item.current_locator,
+                item.current_value,
+                current_artifact_to_path,
+                "current",
+            ),
+        ):
+            if evidence_id is None:
+                continue
+            fact = self.store.get(EvidenceFact, evidence_id)
+            if fact is None:
+                raise CandidateEvidencePacketError(
+                    f"missing {label} EvidenceFact referenced by StructuralDelta: {evidence_id}"
+                )
             if (
-                snapshot.source_id,
-                snapshot.previous_source_revision_id,
-                snapshot.current_source_revision_id,
-                snapshot.segmentation_run_id,
-            ) != expected_lineage or snapshot.ordinal != ordinal:
-                raise CandidateEvidencePacketError(
-                    "commit snapshot lineage disagrees with authenticated segmentation"
-                )
-        if tuple(item.commit_sha for item in snapshots) != commit_range.commit_shas:
-            raise CandidateEvidencePacketError(
-                "commit snapshots do not exactly cover the authenticated commit frontier"
-            )
-
-        previous_revision = self.store.get(
-            SourceRevision, diff_summary.previous_source_revision_id
-        )
-        current_revision = self.store.get(
-            SourceRevision, diff_summary.current_source_revision_id
-        )
-        if previous_revision is None or current_revision is None:
-            raise CandidateEvidencePacketError(
-                "interval segmentation references missing SourceRevision"
-            )
-        tracking_policy = self._tracking_policy(
-            diff_summary.source_id,
-            CaptureDepth.STRUCTURAL,
-            run,
-        )
-        if tracking_policy.assignment_id is None:
-            raise CandidateEvidencePacketError(
-                "interval segmentation requires a persisted tracking assignment"
-            )
-
-        generations = tuple(
-            item
-            for item in self.store.list(IntervalSegmentationGeneration)
-            if item.segmentation_run_id == run.run_id
-        )
-        if len(generations) != 1:
-            raise CandidateEvidencePacketError(
-                "interval segmentation requires exactly one durable profile envelope"
-            )
-        generation = generations[0]
-        if (
-            generation.interval_segmentation_generation_id
-            != IntervalCandidateSegmentationService._stable_id(
-                "interval-segmentation-generation", run.run_id
-            )
-            or generation.diff_run_id != diff_summary.diff_run_id
-            or generation.policy_version != run.policy_version
-        ):
-            raise CandidateEvidencePacketError(
-                "interval segmentation durable profile disagrees with authenticated lineage"
-            )
-        max_paths = generation.max_paths_per_candidate
-        expected_inputs = self._digest_json(
-            {
-                "diff_run_id": diff_summary.diff_run_id,
-                "diff_summary": diff_summary.model_dump(mode="json", by_alias=True),
-                "path_deltas": [
-                    item.model_dump(mode="json", by_alias=True) for item in deltas
-                ],
-                "tracking_assignment_id": tracking_policy.assignment_id,
-                "tracking_level": tracking_policy.level.value,
-                "max_paths_per_candidate": max_paths,
-                "policy_version": run.policy_version,
-            }
-        )
-        if run.inputs_hash != expected_inputs:
-            raise CandidateEvidencePacketError(
-                "interval segmentation input envelope does not authenticate against its durable profile"
-            )
-
-        service = IntervalCandidateSegmentationService(
-            None,
-            self.store,
-            None,
-            max_paths_per_candidate=max_paths,
-            policy_version=run.policy_version,
-        )
-        try:
-            integration = service._first_parent_integration_chain(
-                previous_revision.commit_sha,
-                current_revision.commit_sha,
-                snapshots,
-            )
-            latest_touch = service._assign_latest_touch(deltas, integration)
-            reconstructed = service._build_candidates(
-                deltas,
-                latest_touch,
-                run_id=run.run_id,
-                source_id=diff_summary.source_id,
-                previous_source_revision_id=diff_summary.previous_source_revision_id,
-                current_source_revision_id=diff_summary.current_source_revision_id,
-            )
-        except IntervalSegmentationError as exc:
-            raise CandidateEvidencePacketError(
-                "interval segmentation cannot be reconstructed from authenticated inputs"
-            ) from exc
-        if reconstructed != candidates:
-            raise CandidateEvidencePacketError(
-                "persisted interval candidates disagree with deterministic segmentation reconstruction"
-            )
-
-        expected_outputs = self._digest_json(
-            {
-                "commit_range": commit_range.model_dump(mode="json", by_alias=True),
-                "commit_snapshots": [
-                    item.model_dump(mode="json", by_alias=True) for item in snapshots
-                ],
-                "integration_commit_shas": [item.commit_sha for item in integration],
-                "candidates": [
-                    item.model_dump(mode="json", by_alias=True)
-                    for item in reconstructed
-                ],
-            }
-        )
-        if run.outputs_hash != expected_outputs:
-            raise CandidateEvidencePacketError(
-                "interval segmentation output envelope does not authenticate"
-            )
-
-    def _authenticate_plan_generation(
-        self,
-        run: PipelineRun,
-        diff_summary: GitPathDiffSummary,
-        deltas: tuple[GitPathDelta, ...],
-        plans: tuple[AffectedFileCapturePlan, ...],
-        previous_manifest: CaptureManifest,
-        current_manifest: CaptureManifest,
-    ) -> None:
-        tracking_policy = self._tracking_policy(
-            diff_summary.source_id,
-            CaptureDepth.SHALLOW,
-            run,
-        )
-        if tracking_policy.assignment_id is None:
-            raise CandidateEvidencePacketError(
-                "affected-file planning requires a persisted tracking assignment"
-            )
-        expected_inputs = self._digest_json(
-            {
-                "diff_run_id": diff_summary.diff_run_id,
-                "diff_summary": diff_summary.model_dump(mode="json", by_alias=True),
-                "path_deltas": [
-                    item.model_dump(mode="json", by_alias=True) for item in deltas
-                ],
-                "tracking_assignment_id": tracking_policy.assignment_id,
-                "tracking_level": tracking_policy.level.value,
-                "max_capture_blob_bytes": MAX_CAPTURE_BLOB_BYTES_V1,
-                "suppressed_surfaces": sorted(
-                    surface.value for surface in _SUPPRESSED_SURFACES_V1
-                ),
-                "policy_version": run.policy_version,
-            }
-        )
-        if run.inputs_hash != expected_inputs:
-            raise CandidateEvidencePacketError(
-                "affected-file planner input envelope does not authenticate against path diff and tracking policy"
-            )
-
-        planner = AffectedFileCapturePlanner(
-            self.store,
-            None,
-            policy_version=run.policy_version,
-        )
-        reconstructed = tuple(
-            planner._plan_delta(
-                delta,
-                run_id=run.run_id,
-                tracking_assignment_id=tracking_policy.assignment_id,
-                tracking_level=tracking_policy.level.value,
-            )
-            for delta in deltas
-        )
-        if reconstructed != plans:
-            raise CandidateEvidencePacketError(
-                "persisted affected-file plans disagree with deterministic path-diff reconstruction"
-            )
-        expected_outputs = self._digest_json(
-            [item.model_dump(mode="json", by_alias=True) for item in reconstructed]
-        )
-        if run.outputs_hash != expected_outputs:
-            raise CandidateEvidencePacketError(
-                "affected-file planner output envelope does not authenticate"
-            )
-
-        validator = CandidateFactualReductionService(self.store, None)
-        try:
-            validator._validate_capture_scope(previous_manifest, plans, previous=True)
-            validator._validate_capture_scope(current_manifest, plans, previous=False)
-        except Exception as exc:
-            raise CandidateEvidencePacketError(
-                "candidate capture scope does not authenticate against affected-file plans"
-            ) from exc
-
-    @staticmethod
-    def _plain_round_robin_by_path(
-        items: tuple,
-        *,
-        path_of,
-        item_key,
-    ) -> tuple:
-        groups: dict[str, list] = {}
-        for item in items:
-            groups.setdefault(path_of(item), []).append(item)
-        for values in groups.values():
-            values.sort(key=item_key)
-        selected: list = []
-        depth = 0
-        paths = sorted(groups)
-        while True:
-            added = False
-            for path in paths:
-                values = groups[path]
-                if depth < len(values):
-                    selected.append(values[depth])
-                    added = True
-            if not added:
-                break
-            depth += 1
-        return tuple(selected)
-
-    @staticmethod
-    def _round_robin_by_path(
-        items: tuple,
-        limit: int,
-        *,
-        path_of,
-        item_key,
-    ) -> tuple:
-        """Round-robin paths and alternate previous/current assertion sides."""
-
-        is_assertion_snapshot = bool(items) and all(
-            isinstance(item, tuple)
-            and len(item) == 3
-            and isinstance(item[0], AssertionSnapshotSide)
-            for item in items
-        )
-        if not is_assertion_snapshot:
-            return CandidateEvidencePacketService._plain_round_robin_by_path(
-                items,
-                path_of=path_of,
-                item_key=item_key,
-            )[:limit]
-
-        by_side = {
-            side: CandidateEvidencePacketService._plain_round_robin_by_path(
-                tuple(item for item in items if item[0] is side),
-                path_of=path_of,
-                item_key=item_key,
-            )
-            for side in (
-                AssertionSnapshotSide.PREVIOUS,
-                AssertionSnapshotSide.CURRENT,
-            )
-        }
-        selected: list = []
-        depth = 0
-        while len(selected) < limit:
-            added = False
-            for side in (
-                AssertionSnapshotSide.PREVIOUS,
-                AssertionSnapshotSide.CURRENT,
+                fact.run_id != expected_run_id
+                or artifact_paths.get(fact.artifact_id) != item.source_locator
+                or fact.locator != expected_locator
+                or fact.normalized_value != expected_value
+                or fact.extractor_name != item.extractor_name
+                or fact.extractor_version != item.extractor_version
             ):
-                values = by_side[side]
-                if depth < len(values):
-                    selected.append(values[depth])
-                    added = True
-                    if len(selected) == limit:
-                        break
-            if not added:
-                break
-            depth += 1
-        return tuple(selected)
+                raise CandidateEvidencePacketError(
+                    f"{label} StructuralDelta evidence disagrees with exact extraction generation"
+                )
+
+    def _assertion_snapshots(
+        self,
+        reduction: CandidateFactualReduction,
+    ) -> tuple[tuple[AssertionSnapshotSide, str, SourceAssertion], ...]:
+        if not self._projection_ready:
+            return super()._assertion_snapshots(reduction)
+
+        snapshots: list[tuple[AssertionSnapshotSide, str, SourceAssertion]] = []
+        for side, capture_id, revision_id, run_id in (
+            (
+                AssertionSnapshotSide.PREVIOUS,
+                reduction.previous_capture_id,
+                reduction.previous_source_revision_id,
+                reduction.previous_extraction_run_id,
+            ),
+            (
+                AssertionSnapshotSide.CURRENT,
+                reduction.current_capture_id,
+                reduction.current_source_revision_id,
+                reduction.current_extraction_run_id,
+            ),
+        ):
+            artifact_to_path = self._projection_artifact_paths.get(
+                (capture_id, revision_id)
+            )
+            assertions = self._projection_assertions_by_run.get(run_id)
+            if artifact_to_path is None or assertions is None:
+                return super()._assertion_snapshots(reduction)
+            for assertion in assertions:
+                path = artifact_to_path.get(assertion.artifact_id)
+                if path is None:
+                    raise CandidateEvidencePacketError(
+                        "SourceAssertion extraction provenance is outside candidate capture"
+                    )
+                if not assertion.locator.startswith(path):
+                    raise CandidateEvidencePacketError(
+                        "SourceAssertion locator is not anchored to candidate artifact path"
+                    )
+                if path in reduction.assertion_changed_paths:
+                    snapshots.append((side, path, assertion))
+
+        result = tuple(
+            sorted(
+                snapshots,
+                key=lambda entry: (
+                    entry[1],
+                    entry[0].value,
+                    entry[2].locator,
+                    entry[2].assertion_id,
+                ),
+            )
+        )
+        for _, path, assertion in result:
+            if not (
+                assertion.locator.startswith(path + ":")
+                or assertion.locator.startswith(path + "#")
+            ):
+                raise CandidateEvidencePacketError(
+                    "SourceAssertion locator must use an exact artifact-path namespace boundary"
+                )
+        return result
 
 
 __all__ = [
