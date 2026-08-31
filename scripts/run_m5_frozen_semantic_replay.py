@@ -4,11 +4,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 from collections import Counter
 from pathlib import Path
 
-PR34_SHA = "77e7bb503a8db03134b6bcb9973360543aada45e"
+PR34_SHA = os.environ.get("M5_PR34_SHA", "").strip()
+if re.fullmatch(r"[0-9a-f]{40}", PR34_SHA) is None:
+    raise RuntimeError("M5_PR34_SHA must be an exact 40-character lowercase Git SHA")
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
 
 SPECS = {
