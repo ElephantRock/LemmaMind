@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import math
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -39,6 +40,22 @@ _MEDIA_TYPES = {
     ".rs": "text/x-rust",
     ".go": "text/x-go",
 }
+
+_HTTP_DAY_SHORT = r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)"
+_HTTP_DAY_LONG = r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"
+_HTTP_MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+_IMF_FIXDATE_RE = re.compile(
+    rf"{_HTTP_DAY_SHORT}, [0-9]{{2}} {_HTTP_MONTH} [0-9]{{4}} "
+    r"[0-9]{2}:[0-9]{2}:[0-9]{2} GMT"
+)
+_RFC850_DATE_RE = re.compile(
+    rf"{_HTTP_DAY_LONG}, [0-9]{{2}}-{_HTTP_MONTH}-[0-9]{{2}} "
+    r"[0-9]{2}:[0-9]{2}:[0-9]{2} GMT"
+)
+_ASCTIME_DATE_RE = re.compile(
+    rf"{_HTTP_DAY_SHORT} {_HTTP_MONTH} (?:[0-9]{{2}}| [0-9]) "
+    r"[0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}"
+)
 
 
 class GitHubAPIError(RuntimeError):
@@ -184,12 +201,24 @@ class GitHubRESTReader:
                 return delay
             return None
 
+        http_date = value.strip()
+        is_asctime = _ASCTIME_DATE_RE.fullmatch(http_date) is not None
+        if not (
+            _IMF_FIXDATE_RE.fullmatch(http_date)
+            or _RFC850_DATE_RE.fullmatch(http_date)
+            or is_asctime
+        ):
+            return None
         try:
-            retry_at = parsedate_to_datetime(value)
+            retry_at = parsedate_to_datetime(http_date)
         except (TypeError, ValueError, OverflowError):
             return None
         if retry_at.tzinfo is None or retry_at.utcoffset() is None:
+            if not is_asctime:
+                return None
             retry_at = retry_at.replace(tzinfo=timezone.utc)
+        elif retry_at.utcoffset().total_seconds() != 0.0:
+            return None
         try:
             delay = retry_at.timestamp() - self.wall_clock()
         except (OSError, OverflowError, ValueError):
