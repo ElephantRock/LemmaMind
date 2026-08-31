@@ -8,6 +8,9 @@ lineage successfully.
 from __future__ import annotations
 
 from .candidate_evidence_packet_contracts import AssertionSnapshotSide
+from .candidate_evidence_packet_generation_contracts import (
+    CandidateEvidencePacketGeneration,
+)
 from .candidate_evidence_packets_impl import (
     CandidateEvidencePacketError,
     CandidateEvidencePacketResult,
@@ -19,7 +22,14 @@ from .candidate_reduction_contracts import (
     CandidateReductionDisposition,
 )
 from .change_contracts import StructuralDelta
-from .contracts import EvidenceFact, RetrievalStatus, SourceAssertion
+from .contracts import (
+    CONTRACT_SCHEMA_VERSION,
+    EvidenceFact,
+    PipelineRun,
+    RetrievalStatus,
+    RunType,
+    SourceAssertion,
+)
 
 
 class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketService):
@@ -27,6 +37,7 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self._persistence_reauth_run_ids: tuple[str, ...] = ()
         self._reset_projection_cache()
 
     def _reset_projection_cache(self) -> None:
@@ -42,9 +53,87 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
             str, tuple[SourceAssertion, ...]
         ] = {}
 
+    def build_reduction(self, reduction_run_id: str) -> CandidateEvidencePacketResult:
+        """Build packets, then reauthenticate and persist under one SQLite lock."""
+
+        profile = self._profile_payload()
+        started_at = self._aware_now()
+        reduction_run, pairs = self._authenticated_reduction_generation(reduction_run_id)
+        packet_run_id = f"run:candidate-evidence-packet:{self.id_factory()}"
+        packets = tuple(
+            self._build_packet(reduction, candidate, packet_run_id)
+            for candidate, reduction in pairs
+            if reduction.disposition is CandidateReductionDisposition.RETAIN
+        )
+
+        inputs_hash = self._digest_json(
+            {
+                "reduction_run": reduction_run.model_dump(mode="json", by_alias=True),
+                "artifact_extractors": list(profile),
+                "policy_version": self.policy_version,
+                "max_structural_previews": self.max_structural_previews,
+                "max_assertion_previews": self.max_assertion_previews,
+                "preview_chars": self.preview_chars,
+            }
+        )
+        outputs_hash = self._digest_json(
+            [self._stable_packet_payload(item) for item in packets]
+        )
+        run = PipelineRun(
+            run_id=packet_run_id,
+            run_type=RunType.OTHER,
+            code_version=self.code_version,
+            contract_schema_version=CONTRACT_SCHEMA_VERSION,
+            policy_version=self.policy_version,
+            started_at=started_at,
+            finished_at=self._aware_now(),
+            inputs_hash=inputs_hash,
+            outputs_hash=outputs_hash,
+        )
+        generation = CandidateEvidencePacketGeneration(
+            candidate_evidence_packet_generation_id=(
+                f"candidate-evidence-packet-generation:{packet_run_id}"
+            ),
+            packet_run_id=packet_run_id,
+            reduction_run_id=reduction_run_id,
+            policy_version=self.policy_version,
+            max_structural_previews=self.max_structural_previews,
+            max_assertion_previews=self.max_assertion_previews,
+            preview_chars=self.preview_chars,
+            artifact_extractors=self.artifact_extractors,
+            candidate_evidence_packet_ids=tuple(
+                sorted(item.candidate_evidence_packet_id for item in packets)
+            ),
+        )
+        result = CandidateEvidencePacketResult(reduction_run_id, packets, run)
+        records = (*packets, run, generation)
+
+        transaction_factory = getattr(self.store, "transaction", None)
+        if not callable(transaction_factory):
+            raise CandidateEvidencePacketError(
+                "candidate evidence packet persistence requires an atomic transaction-capable store"
+            )
+        original_store = self.store
+        try:
+            with transaction_factory() as transaction_store:
+                self.store = transaction_store
+                try:
+                    for extraction_run_id in self._persistence_reauth_run_ids:
+                        _AuthenticatedCandidateEvidencePacketService._authenticate_extraction_run(
+                            self, extraction_run_id
+                        )
+                    transaction_store.put_many(records)
+                finally:
+                    self.store = original_store
+        finally:
+            self._persistence_reauth_run_ids = ()
+            self._reset_projection_cache()
+        return result
+
     def _authenticated_reduction_generation(self, reduction_run_id: str):
         """Authenticate first, then snapshot immutable packet-projection indexes."""
 
+        self._persistence_reauth_run_ids = ()
         self._reset_projection_cache()
         run, pairs = super()._authenticated_reduction_generation(reduction_run_id)
         if not pairs:
@@ -99,6 +188,7 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
         )
         self._projection_extraction_run_ids = extraction_run_ids
         self._projection_final_reauth_run_ids = final_reauth_run_ids
+        self._persistence_reauth_run_ids = final_reauth_run_ids
         self._projection_ready = True
         return run, pairs
 
