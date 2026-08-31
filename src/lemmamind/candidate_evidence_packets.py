@@ -37,7 +37,6 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._persistence_reauth_run_ids: tuple[str, ...] = ()
         self._reset_projection_cache()
 
     def _reset_projection_cache(self) -> None:
@@ -54,7 +53,7 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
         ] = {}
 
     def build_reduction(self, reduction_run_id: str) -> CandidateEvidencePacketResult:
-        """Build packets, then reauthenticate and persist under one SQLite lock."""
+        """Build packets, then reauthenticate full lineage and persist atomically."""
 
         profile = self._profile_payload()
         started_at = self._aware_now()
@@ -118,22 +117,31 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
             with transaction_factory() as transaction_store:
                 self.store = transaction_store
                 try:
-                    for extraction_run_id in self._persistence_reauth_run_ids:
-                        _AuthenticatedCandidateEvidencePacketService._authenticate_extraction_run(
-                            self, extraction_run_id
+                    # Never permit projection caches to participate in the final
+                    # validation. Re-run the complete reviewed path-diff ->
+                    # segmentation -> planner -> extraction/change -> reduction
+                    # authentication against the same write-locked snapshot that
+                    # will receive the packet generation.
+                    self._reset_projection_cache()
+                    transaction_run, transaction_pairs = (
+                        _AuthenticatedCandidateEvidencePacketService._authenticated_reduction_generation(
+                            self, reduction_run_id
+                        )
+                    )
+                    if transaction_run != reduction_run or transaction_pairs != pairs:
+                        raise CandidateEvidencePacketError(
+                            "candidate factual lineage changed between projection and atomic persistence"
                         )
                     transaction_store.put_many(records)
                 finally:
                     self.store = original_store
         finally:
-            self._persistence_reauth_run_ids = ()
             self._reset_projection_cache()
         return result
 
     def _authenticated_reduction_generation(self, reduction_run_id: str):
         """Authenticate first, then snapshot immutable packet-projection indexes."""
 
-        self._persistence_reauth_run_ids = ()
         self._reset_projection_cache()
         run, pairs = super()._authenticated_reduction_generation(reduction_run_id)
         if not pairs:
@@ -188,7 +196,6 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
         )
         self._projection_extraction_run_ids = extraction_run_ids
         self._projection_final_reauth_run_ids = final_reauth_run_ids
-        self._persistence_reauth_run_ids = final_reauth_run_ids
         self._projection_ready = True
         return run, pairs
 
