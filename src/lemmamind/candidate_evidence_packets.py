@@ -132,12 +132,51 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
                         raise CandidateEvidencePacketError(
                             "candidate factual lineage changed between projection and atomic persistence"
                         )
+                    self._validate_packet_gap_signals(transaction_pairs, packets)
                     transaction_store.put_many(records)
                 finally:
                     self.store = original_store
         finally:
             self._reset_projection_cache()
         return result
+
+    def _validate_packet_gap_signals(self, pairs, packets) -> None:
+        """Revalidate packet-local extraction gaps on the write-locked snapshot."""
+
+        packet_by_candidate = {
+            item.interval_candidate_segment_id: item for item in packets
+        }
+        retained_ids = {
+            candidate.interval_candidate_segment_id
+            for candidate, reduction in pairs
+            if reduction.disposition is CandidateReductionDisposition.RETAIN
+        }
+        if set(packet_by_candidate) != retained_ids:
+            raise CandidateEvidencePacketError(
+                "candidate packet coverage changed before atomic persistence"
+            )
+
+        for candidate, reduction in pairs:
+            if reduction.disposition is not CandidateReductionDisposition.RETAIN:
+                continue
+            packet = packet_by_candidate[candidate.interval_candidate_segment_id]
+            gap_signals = self._gap_signals(reduction)
+            observed_ids = tuple(
+                sorted(
+                    item.candidate_extraction_gap_signal_id
+                    for item in gap_signals
+                )
+            )
+            observed_paths = tuple(
+                sorted({path for item in gap_signals for path in item.paths})
+            )
+            if (
+                observed_ids != packet.extraction_gap_signal_ids
+                or observed_paths != packet.extraction_gap_paths
+            ):
+                raise CandidateEvidencePacketError(
+                    "candidate extraction-gap signals changed between projection and atomic persistence"
+                )
 
     def _authenticated_reduction_generation(self, reduction_run_id: str):
         """Authenticate first, then snapshot immutable packet-projection indexes."""
