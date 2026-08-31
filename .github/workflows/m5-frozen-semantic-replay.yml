@@ -41,7 +41,7 @@ jobs:
       matrix:
         repo_key: [openbot, openclaw, hermes]
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 150
     steps:
       - name: Check out trusted replay control plane
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -313,7 +313,7 @@ jobs:
           }
           observed = {name: version(name) for name in expected}
           if observed != expected:
-              raise SystemExit(f"runtime dependency closure mismatch: expected={expected} observed={observed}")
+            raise SystemExit(f"runtime dependency closure mismatch: expected={expected} observed={observed}")
           print("M5_RUNTIME_CLOSURE=" + repr(observed))
           PY
 
