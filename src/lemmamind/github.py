@@ -167,6 +167,11 @@ class GitHubRESTReader:
                     pass
             return 60.0 * (2 ** retry_index)
 
+        if exc.code == 503 and retry_after is not None:
+            retry_after_delay = self._parse_retry_after(retry_after)
+            if retry_after_delay is not None:
+                return retry_after_delay
+
         if exc.code in {500, 502, 503, 504}:
             return 1.0 * (2 ** retry_index)
         return None
