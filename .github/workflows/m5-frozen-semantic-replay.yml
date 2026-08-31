@@ -313,7 +313,7 @@ jobs:
           }
           observed = {name: version(name) for name in expected}
           if observed != expected:
-            raise SystemExit(f"runtime dependency closure mismatch: expected={expected} observed={observed}")
+              raise SystemExit(f"runtime dependency closure mismatch: expected={expected} observed={observed}")
           print("M5_RUNTIME_CLOSURE=" + repr(observed))
           PY
 
