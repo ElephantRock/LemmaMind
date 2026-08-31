@@ -147,8 +147,7 @@ class GitHubRESTReader:
             or (
                 exc.code == 403
                 and (
-                    retry_after is not None
-                    or rate_remaining == "0"
+                    rate_remaining == "0"
                     or "rate limit" in detail_lower
                 )
             )
@@ -159,12 +158,13 @@ class GitHubRESTReader:
                 if retry_after_delay is not None:
                     return retry_after_delay
             if rate_remaining == "0" and rate_reset is not None:
-                try:
-                    reset_delay = float(rate_reset) - self.wall_clock() + 1.0
-                    if math.isfinite(reset_delay):
-                        return max(1.0, reset_delay)
-                except ValueError:
-                    pass
+                reset = rate_reset.strip()
+                if reset.isascii() and reset.isdigit():
+                    reset_at = float(reset)
+                    if math.isfinite(reset_at):
+                        reset_delay = reset_at - self.wall_clock() + 1.0
+                        if math.isfinite(reset_delay):
+                            return max(1.0, reset_delay)
             return 60.0 * (2 ** retry_index)
 
         if exc.code == 503 and retry_after is not None:
@@ -190,7 +190,10 @@ class GitHubRESTReader:
             return None
         if retry_at.tzinfo is None or retry_at.utcoffset() is None:
             retry_at = retry_at.replace(tzinfo=timezone.utc)
-        delay = retry_at.timestamp() - self.wall_clock()
+        try:
+            delay = retry_at.timestamp() - self.wall_clock()
+        except (OSError, OverflowError, ValueError):
+            return None
         if not math.isfinite(delay):
             return None
         return max(0.0, delay)
