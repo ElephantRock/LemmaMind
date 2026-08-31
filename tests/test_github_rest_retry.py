@@ -100,6 +100,50 @@ def test_rate_limit_honors_retry_after_http_date(monkeypatch) -> None:
     assert sleeps == [100.0]
 
 
+@pytest.mark.parametrize(
+    "retry_after",
+    [
+        "Sunday, 06-Nov-94 08:49:37 GMT",
+        "Sun Nov  6 08:49:37 1994",
+    ],
+)
+def test_rate_limit_accepts_obsolete_http_date_forms(monkeypatch, retry_after: str) -> None:
+    sleeps: list[float] = []
+    outcomes = [
+        make_http_error(429, "secondary rate limit", headers={"Retry-After": retry_after}),
+        FakeResponse({"ok": True}),
+    ]
+    install_outcomes(monkeypatch, outcomes)
+    reader = GitHubRESTReader(sleep=sleeps.append, wall_clock=lambda: 784111700.0)
+
+    assert reader._get_json("/example") == {"ok": True}
+    assert sleeps == [77.0]
+
+
+@pytest.mark.parametrize(
+    "retry_after",
+    [
+        "Mon, 31 Aug 2026 23:59:59",
+        "Mon, 31 Aug 2026 23:59:59 UTC",
+        "Mon, 31 Aug 2026 23:59:59 GMT trailing",
+    ],
+)
+def test_malformed_http_date_falls_through_to_rate_limit_backoff(
+    monkeypatch,
+    retry_after: str,
+) -> None:
+    sleeps: list[float] = []
+    outcomes = [
+        make_http_error(429, "secondary rate limit", headers={"Retry-After": retry_after}),
+        FakeResponse({"ok": True}),
+    ]
+    install_outcomes(monkeypatch, outcomes)
+    reader = GitHubRESTReader(sleep=sleeps.append, wall_clock=lambda: 1000.0)
+
+    assert reader._get_json("/example") == {"ok": True}
+    assert sleeps == [60.0]
+
+
 def test_negative_retry_after_falls_through_to_primary_reset(monkeypatch) -> None:
     sleeps: list[float] = []
     outcomes = [
