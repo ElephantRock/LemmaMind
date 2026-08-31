@@ -191,6 +191,28 @@ def test_primary_rate_limit_waits_until_reset(monkeypatch) -> None:
     assert sleeps == [101.0]
 
 
+def test_fractional_primary_rate_reset_falls_through_to_rate_limit_backoff(
+    monkeypatch,
+) -> None:
+    sleeps: list[float] = []
+    outcomes = [
+        make_http_error(
+            429,
+            "API rate limit exceeded",
+            headers={
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": "1000.1",
+            },
+        ),
+        FakeResponse({"ok": True}),
+    ]
+    install_outcomes(monkeypatch, outcomes)
+    reader = GitHubRESTReader(sleep=sleeps.append, wall_clock=lambda: 1000.0)
+
+    assert reader._get_json("/example") == {"ok": True}
+    assert sleeps == [60.0]
+
+
 def test_repeated_rate_limit_exhausts_bounded_retry_budget(monkeypatch) -> None:
     sleeps: list[float] = []
     outcomes = [
@@ -231,6 +253,28 @@ def test_ordinary_forbidden_response_is_never_retried(monkeypatch) -> None:
     calls = install_outcomes(
         monkeypatch,
         [make_http_error(403, "Access denied by policy settings")],
+    )
+    reader = GitHubRESTReader(sleep=sleeps.append)
+
+    with pytest.raises(GitHubAPIError) as exc_info:
+        reader._get_json("/example")
+
+    assert exc_info.value.status_code == 403
+    assert sleeps == []
+    assert len(calls) == 1
+
+
+def test_policy_forbidden_with_retry_after_is_never_retried(monkeypatch) -> None:
+    sleeps: list[float] = []
+    calls = install_outcomes(
+        monkeypatch,
+        [
+            make_http_error(
+                403,
+                "Access denied by policy settings",
+                headers={"Retry-After": "60"},
+            )
+        ],
     )
     reader = GitHubRESTReader(sleep=sleeps.append)
 
