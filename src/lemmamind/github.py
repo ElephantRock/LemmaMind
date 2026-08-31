@@ -177,12 +177,10 @@ class GitHubRESTReader:
         return None
 
     def _parse_retry_after(self, value: str) -> float | None:
-        try:
-            delay = float(value)
-        except ValueError:
-            delay = None
-        if delay is not None:
-            if math.isfinite(delay) and delay >= 0.0:
+        numeric = value.strip()
+        if numeric.isascii() and numeric.isdigit():
+            delay = float(numeric)
+            if math.isfinite(delay):
                 return delay
             return None
 
