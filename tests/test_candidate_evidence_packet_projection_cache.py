@@ -1,8 +1,17 @@
-from lemmamind.candidate_evidence_packets import CandidateEvidencePacketService
+import pytest
+
+from lemmamind.candidate_evidence_packets import (
+    CandidateEvidencePacketError,
+    CandidateEvidencePacketService,
+)
 from lemmamind.candidate_reduction_contracts import CandidateFactualReduction
 from lemmamind.change_contracts import StructuralDelta
+from lemmamind.contracts import SourceAssertion
 from tests.test_candidate_evidence_packets import (
+    CURRENT_ARTIFACT_ID,
+    CURRENT_EXTRACTION_RUN_ID,
     EXTRACTOR_PROFILE,
+    PATH,
     REDUCTION_RUN_ID,
     STRUCTURAL_DELTA_ID,
     prepare,
@@ -53,3 +62,32 @@ def test_cached_projection_preserves_packet_payload(tmp_path) -> None:
     uncached = service._build_packet(reduction, candidate, "run:packet:cached")
 
     assert service._stable_packet_payload(cached) == service._stable_packet_payload(uncached)
+
+
+def test_final_projection_reauth_rejects_post_auth_extraction_tampering(tmp_path) -> None:
+    store = prepare(tmp_path)
+    service = CandidateEvidencePacketService(store, artifact_extractors=EXTRACTOR_PROFILE)
+    _, pairs = service._authenticated_reduction_generation(REDUCTION_RUN_ID)
+    candidate, reduction = pairs[0]
+
+    store.put(
+        SourceAssertion(
+            assertion_id="assertion:projection:post-auth-tamper",
+            artifact_id=CURRENT_ARTIFACT_ID,
+            locator=f"{PATH}:L9-L9",
+            statement="appended after packet lineage authentication",
+            extractor_name="authored",
+            extractor_version="1",
+            run_id=CURRENT_EXTRACTION_RUN_ID,
+        )
+    )
+
+    with pytest.raises(
+        CandidateEvidencePacketError,
+        match="output envelope does not authenticate",
+    ):
+        service._build_packet(
+            reduction,
+            candidate,
+            "run:packet:post-auth-tamper",
+        )
