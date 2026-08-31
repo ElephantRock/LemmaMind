@@ -14,7 +14,10 @@ from .candidate_evidence_packets_impl import (
     CandidateEvidencePacketService as _AuthenticatedCandidateEvidencePacketService,
     ContractStore,
 )
-from .candidate_reduction_contracts import CandidateFactualReduction
+from .candidate_reduction_contracts import (
+    CandidateFactualReduction,
+    CandidateReductionDisposition,
+)
 from .change_contracts import StructuralDelta
 from .contracts import EvidenceFact, RetrievalStatus, SourceAssertion
 
@@ -28,7 +31,10 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
 
     def _reset_projection_cache(self) -> None:
         self._projection_ready = False
+        self._projection_reduction_run_id: str | None = None
+        self._projection_packets_remaining = 0
         self._projection_extraction_run_ids: frozenset[str] = frozenset()
+        self._projection_final_reauth_run_ids: tuple[str, ...] = ()
         self._projection_artifact_paths: dict[
             tuple[str, str], dict[str, str]
         ] = {}
@@ -71,12 +77,11 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
                 if reference.retrieval_status is RetrievalStatus.CAPTURED
             },
         }
-        extraction_run_ids = frozenset(
-            (
-                first.previous_extraction_run_id,
-                first.current_extraction_run_id,
-            )
+        final_reauth_run_ids = (
+            first.previous_extraction_run_id,
+            first.current_extraction_run_id,
         )
+        extraction_run_ids = frozenset(final_reauth_run_ids)
         assertions = tuple(
             item
             for item in self.store.list(SourceAssertion)
@@ -86,9 +91,34 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
             run_id: tuple(item for item in assertions if item.run_id == run_id)
             for run_id in extraction_run_ids
         }
+        self._projection_reduction_run_id = run.run_id
+        self._projection_packets_remaining = sum(
+            1
+            for _, reduction in pairs
+            if reduction.disposition is CandidateReductionDisposition.RETAIN
+        )
         self._projection_extraction_run_ids = extraction_run_ids
+        self._projection_final_reauth_run_ids = final_reauth_run_ids
         self._projection_ready = True
         return run, pairs
+
+    def _build_packet(self, reduction, candidate, packet_run_id):
+        packet = super()._build_packet(reduction, candidate, packet_run_id)
+        if (
+            self._projection_ready
+            and reduction.reduction_run_id == self._projection_reduction_run_id
+        ):
+            if self._projection_packets_remaining < 1:
+                raise CandidateEvidencePacketError(
+                    "authenticated packet projection exceeded retained candidate coverage"
+                )
+            self._projection_packets_remaining -= 1
+            if self._projection_packets_remaining == 0:
+                for run_id in self._projection_final_reauth_run_ids:
+                    _AuthenticatedCandidateEvidencePacketService._authenticate_extraction_run(
+                        self, run_id
+                    )
+        return packet
 
     def _authenticate_extraction_run(self, run_id: str) -> None:
         if self._projection_ready and run_id in self._projection_extraction_run_ids:
