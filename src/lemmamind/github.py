@@ -4,10 +4,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import PurePosixPath
 from typing import Any, Callable, Mapping, Protocol
 from urllib.error import HTTPError
@@ -153,13 +155,14 @@ class GitHubRESTReader:
         )
         if is_rate_limited:
             if retry_after is not None:
-                try:
-                    return max(0.0, float(retry_after))
-                except ValueError:
-                    pass
+                retry_after_delay = self._parse_retry_after(retry_after)
+                if retry_after_delay is not None:
+                    return retry_after_delay
             if rate_remaining == "0" and rate_reset is not None:
                 try:
-                    return max(1.0, float(rate_reset) - self.wall_clock() + 1.0)
+                    reset_delay = float(rate_reset) - self.wall_clock() + 1.0
+                    if math.isfinite(reset_delay):
+                        return max(1.0, reset_delay)
                 except ValueError:
                     pass
             return 60.0 * (2 ** retry_index)
@@ -167,6 +170,27 @@ class GitHubRESTReader:
         if exc.code in {500, 502, 503, 504}:
             return 1.0 * (2 ** retry_index)
         return None
+
+    def _parse_retry_after(self, value: str) -> float | None:
+        try:
+            delay = float(value)
+        except ValueError:
+            delay = None
+        if delay is not None:
+            if math.isfinite(delay) and delay >= 0.0:
+                return delay
+            return None
+
+        try:
+            retry_at = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if retry_at.tzinfo is None or retry_at.utcoffset() is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        delay = retry_at.timestamp() - self.wall_clock()
+        if not math.isfinite(delay):
+            return None
+        return max(0.0, delay)
 
     def get_repository(self, owner: str, repo: str) -> Mapping[str, Any]:
         return self._get_json(f"/repos/{quote(owner, safe='')}/{quote(repo, safe='')}")
