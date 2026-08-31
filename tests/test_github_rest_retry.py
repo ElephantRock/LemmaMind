@@ -239,6 +239,23 @@ def test_transient_server_failure_uses_short_bounded_backoff(monkeypatch) -> Non
     assert sleeps == [1.0]
 
 
+def test_transient_service_unavailable_honors_retry_after(monkeypatch) -> None:
+    sleeps: list[float] = []
+    outcomes = [
+        make_http_error(
+            503,
+            "Service Unavailable",
+            headers={"Retry-After": "17"},
+        ),
+        FakeResponse({"ok": True}),
+    ]
+    install_outcomes(monkeypatch, outcomes)
+    reader = GitHubRESTReader(sleep=sleeps.append)
+
+    assert reader._get_json("/example") == {"ok": True}
+    assert sleeps == [17.0]
+
+
 def test_negative_retry_budget_is_rejected() -> None:
     with pytest.raises(ValueError, match="max_retries"):
         GitHubRESTReader(max_retries=-1)
