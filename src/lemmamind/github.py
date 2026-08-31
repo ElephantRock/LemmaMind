@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -84,11 +85,19 @@ class GitHubRESTReader:
         base_url: str = "https://api.github.com",
         user_agent: str = "LemmaMind/0.1",
         timeout: float = 30.0,
+        max_retries: int = 3,
+        sleep: Callable[[float], None] | None = None,
+        wall_clock: Callable[[], float] | None = None,
     ) -> None:
+        if max_retries < 0:
+            raise ValueError("max_retries must be non-negative")
         self.token = token
         self.base_url = base_url.rstrip("/")
         self.user_agent = user_agent
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.sleep = sleep or time.sleep
+        self.wall_clock = wall_clock or time.time
 
     def _get_json(self, path: str, query: Mapping[str, str] | None = None) -> Any:
         url = f"{self.base_url}{path}" + (f"?{urlencode(query)}" if query else "")
@@ -99,18 +108,65 @@ class GitHubRESTReader:
         }
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        request = Request(url, headers=headers, method="GET")
-        try:
-            with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
-                return json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
+
+        retry_index = 0
+        while True:
+            request = Request(url, headers=headers, method="GET")
             try:
-                payload = json.loads(exc.read().decode("utf-8"))
-                detail = str(payload.get("message", exc.reason))
-            except Exception:
-                detail = str(exc.reason)
-            error_type = GitHubNotFound if exc.code == 404 else GitHubAPIError
-            raise error_type(f"GitHub API {exc.code}: {detail}", status_code=exc.code) from exc
+                with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+                    return json.loads(response.read().decode("utf-8"))
+            except HTTPError as exc:
+                try:
+                    payload = json.loads(exc.read().decode("utf-8"))
+                    detail = str(payload.get("message", exc.reason))
+                except Exception:
+                    detail = str(exc.reason)
+
+                delay = self._retry_delay(exc, detail, retry_index)
+                if delay is not None and retry_index < self.max_retries:
+                    self.sleep(delay)
+                    retry_index += 1
+                    continue
+
+                error_type = GitHubNotFound if exc.code == 404 else GitHubAPIError
+                raise error_type(
+                    f"GitHub API {exc.code}: {detail}",
+                    status_code=exc.code,
+                ) from exc
+
+    def _retry_delay(self, exc: HTTPError, detail: str, retry_index: int) -> float | None:
+        headers = exc.headers
+        retry_after = headers.get("Retry-After") if headers is not None else None
+        rate_remaining = headers.get("X-RateLimit-Remaining") if headers is not None else None
+        rate_reset = headers.get("X-RateLimit-Reset") if headers is not None else None
+        detail_lower = detail.lower()
+        is_rate_limited = (
+            exc.code == 429
+            or (
+                exc.code == 403
+                and (
+                    retry_after is not None
+                    or rate_remaining == "0"
+                    or "rate limit" in detail_lower
+                )
+            )
+        )
+        if is_rate_limited:
+            if retry_after is not None:
+                try:
+                    return max(0.0, float(retry_after))
+                except ValueError:
+                    pass
+            if rate_remaining == "0" and rate_reset is not None:
+                try:
+                    return max(1.0, float(rate_reset) - self.wall_clock() + 1.0)
+                except ValueError:
+                    pass
+            return 60.0 * (2 ** retry_index)
+
+        if exc.code in {500, 502, 503, 504}:
+            return 1.0 * (2 ** retry_index)
+        return None
 
     def get_repository(self, owner: str, repo: str) -> Mapping[str, Any]:
         return self._get_json(f"/repos/{quote(owner, safe='')}/{quote(repo, safe='')}")
