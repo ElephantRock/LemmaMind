@@ -114,10 +114,13 @@ class CandidateEvidencePacketService(_AuthenticatedCandidateEvidencePacketServic
                 )
             self._projection_packets_remaining -= 1
             if self._projection_packets_remaining == 0:
-                for run_id in self._projection_final_reauth_run_ids:
-                    _AuthenticatedCandidateEvidencePacketService._authenticate_extraction_run(
-                        self, run_id
-                    )
+                try:
+                    for run_id in self._projection_final_reauth_run_ids:
+                        _AuthenticatedCandidateEvidencePacketService._authenticate_extraction_run(
+                            self, run_id
+                        )
+                finally:
+                    self._reset_projection_cache()
         return packet
 
     def _authenticate_extraction_run(self, run_id: str) -> None:
