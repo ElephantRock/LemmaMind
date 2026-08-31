@@ -1,5 +1,10 @@
+from contextlib import contextmanager
+
 import pytest
 
+from lemmamind.candidate_evidence_packet_generation_contracts import (
+    CandidateEvidencePacketGeneration,
+)
 from lemmamind.candidate_evidence_packets import (
     CandidateEvidencePacketError,
     CandidateEvidencePacketService,
@@ -7,6 +12,7 @@ from lemmamind.candidate_evidence_packets import (
 from lemmamind.candidate_reduction_contracts import CandidateFactualReduction
 from lemmamind.change_contracts import StructuralDelta
 from lemmamind.contracts import SourceAssertion
+from lemmamind.storage import SQLiteContractStore
 from tests.test_candidate_evidence_packets import (
     CURRENT_ARTIFACT_ID,
     CURRENT_EXTRACTION_RUN_ID,
@@ -26,6 +32,21 @@ class ManifestCountingPacketService(CandidateEvidencePacketService):
     def _manifest(self, capture_id: str, source_revision_id: str):
         self.manifest_calls += 1
         return super()._manifest(capture_id, source_revision_id)
+
+
+class TamperBeforeTransactionStore(SQLiteContractStore):
+    def __init__(self, path) -> None:
+        super().__init__(path)
+        self.pending_tamper: SourceAssertion | None = None
+
+    @contextmanager
+    def transaction(self):
+        if self.pending_tamper is not None:
+            tamper = self.pending_tamper
+            self.pending_tamper = None
+            self.put(tamper)
+        with super().transaction() as transaction:
+            yield transaction
 
 
 def test_structural_projection_reuses_maps_only_after_full_authentication(tmp_path) -> None:
@@ -92,3 +113,32 @@ def test_final_projection_reauth_rejects_post_auth_extraction_tampering(tmp_path
             "run:packet:post-auth-tamper",
         )
     assert service._projection_ready is False
+
+
+def test_atomic_persistence_reauth_rejects_tamper_after_projection(tmp_path) -> None:
+    prepared = prepare(tmp_path)
+    store = TamperBeforeTransactionStore(prepared.path)
+    tamper = SourceAssertion(
+        assertion_id="assertion:projection:pre-transaction-tamper",
+        artifact_id=CURRENT_ARTIFACT_ID,
+        locator=f"{PATH}:L10-L10",
+        statement="appended after final packet projection",
+        extractor_name="authored",
+        extractor_version="1",
+        run_id=CURRENT_EXTRACTION_RUN_ID,
+    )
+    store.pending_tamper = tamper
+    service = CandidateEvidencePacketService(
+        store,
+        artifact_extractors=EXTRACTOR_PROFILE,
+        id_factory=lambda: "atomic-persistence",
+    )
+
+    with pytest.raises(
+        CandidateEvidencePacketError,
+        match="output envelope does not authenticate",
+    ):
+        service.build_reduction(REDUCTION_RUN_ID)
+
+    assert store.get(SourceAssertion, tamper.assertion_id) == tamper
+    assert store.list(CandidateEvidencePacketGeneration) == []
