@@ -10,14 +10,15 @@ assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 SYSTEM_RULES = MODULE.SYSTEM_RULES
+infer_packets = MODULE.infer_packets
 invoke = MODULE.invoke
 normalize = MODULE.normalize
 parse_json_object = MODULE.parse_json_object
 
 
-def packet(*, gaps=()):
+def packet(*, gaps=(), packet_id="packet:test"):
     return {
-        "candidate_evidence_packet_id": "packet:test",
+        "candidate_evidence_packet_id": packet_id,
         "artifact_delta_ids": ["artifact-delta:1"],
         "structural_delta_previews": [
             {"structural_delta_id": "structural-delta:1"}
@@ -144,7 +145,88 @@ def test_invoke_streams_large_prompt_over_stdin_without_argv_expansion(monkeypat
     assert observed["check"] is False
     assert observed["capture_output"] is True
     assert observed["text"] is True
-    assert observed["timeout"] == 300
+    assert observed["timeout"] == MODULE.INVOKE_TIMEOUT_SECONDS == 600
     assert "GITHUB_TOKEN" not in observed["env"]
     assert "GH_TOKEN" not in observed["env"]
     assert "COPILOT_GITHUB_TOKEN" not in observed["env"]
+
+
+def test_infer_packets_uses_bounded_workers_and_preserves_exact_coverage(monkeypatch):
+    observed = {}
+
+    class FakeExecutor:
+        def __init__(self, *, max_workers, thread_name_prefix):
+            observed["max_workers"] = max_workers
+            observed["thread_name_prefix"] = thread_name_prefix
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def map(self, fn, entries):
+            return map(fn, entries)
+
+    def fake_infer_packet(_binary, item):
+        packet_id = item["candidate_evidence_packet_id"]
+        if packet_id == "packet:2":
+            raise RuntimeError("provider timeout")
+        if packet_id == "packet:3":
+            return {
+                "status": "interpret",
+                "proposal": proposal() | {"decision": "interpret"},
+            }
+        return {"status": "decline"}
+
+    monkeypatch.setattr(MODULE, "ThreadPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(MODULE, "infer_packet", fake_infer_packet)
+
+    result = infer_packets(
+        "/tmp/copilot",
+        [
+            packet(packet_id="packet:1"),
+            packet(packet_id="packet:2"),
+            packet(packet_id="packet:3"),
+        ],
+        repo_key="openclaw",
+        workers=2,
+    )
+
+    assert observed == {
+        "max_workers": 2,
+        "thread_name_prefix": "m5-openclaw",
+    }
+    assert result["packet_count"] == 3
+    assert result["worker_count"] == 2
+    assert result["invoke_timeout_seconds"] == 600
+    assert result["interpreted_count"] == 1
+    assert result["declined_count"] == 1
+    assert result["error_count"] == 1
+    assert list(result["results"]) == ["packet:1", "packet:3"]
+    assert result["errors"] == [
+        {
+            "candidate_evidence_packet_id": "packet:2",
+            "error": "provider timeout",
+        }
+    ]
+
+
+def test_infer_packets_rejects_unbounded_or_duplicate_work(monkeypatch):
+    monkeypatch.setattr(MODULE, "infer_packet", lambda *_args: {"status": "decline"})
+
+    with pytest.raises(ValueError, match="workers must be between 1 and 2"):
+        infer_packets(
+            "/tmp/copilot",
+            [packet()],
+            repo_key="openbot",
+            workers=3,
+        )
+
+    with pytest.raises(RuntimeError, match="duplicated"):
+        infer_packets(
+            "/tmp/copilot",
+            [packet(), packet()],
+            repo_key="openbot",
+            workers=1,
+        )
