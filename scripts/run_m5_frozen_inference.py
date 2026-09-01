@@ -6,10 +6,13 @@ import json
 import os
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
-ADAPTER_VERSION = "zai-glm-5.3.packet-v2"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v3"
+INVOKE_TIMEOUT_SECONDS = 600
+MAX_INFERENCE_WORKERS = 2
 ALLOWED_TYPES = {
     "introduction",
     "modification",
@@ -105,7 +108,7 @@ def invoke(binary: str, prompt: str) -> str:
             text=True,
             env=env,
             cwd=directory,
-            timeout=300,
+            timeout=INVOKE_TIMEOUT_SECONDS,
         )
     if completed.returncode != 0:
         stderr = completed.stderr.strip()
@@ -239,11 +242,97 @@ def infer_packet(binary: str, packet: dict) -> dict:
             ) from second_error
 
 
+def infer_packets(
+    binary: str,
+    packets: list[dict],
+    *,
+    repo_key: str,
+    workers: int,
+) -> dict:
+    if workers < 1 or workers > MAX_INFERENCE_WORKERS:
+        raise ValueError(
+            f"workers must be between 1 and {MAX_INFERENCE_WORKERS}"
+        )
+
+    entries: list[tuple[int, str, dict]] = []
+    packet_ids: set[str] = set()
+    for index, packet in enumerate(packets, start=1):
+        packet_id = packet.get("candidate_evidence_packet_id")
+        if not isinstance(packet_id, str) or not packet_id:
+            raise RuntimeError("serialized packet is missing candidate_evidence_packet_id")
+        if packet_id in packet_ids:
+            raise RuntimeError(f"serialized packet ID is duplicated: {packet_id}")
+        packet_ids.add(packet_id)
+        entries.append((index, packet_id, packet))
+
+    def run_entry(entry: tuple[int, str, dict]):
+        index, packet_id, packet = entry
+        print(
+            f"M5_INFERENCE_PACKET_START {repo_key} {index}/{len(packets)} {packet_id}",
+            flush=True,
+        )
+        try:
+            result = infer_packet(binary, packet)
+            print(
+                f"M5_INFERENCE_PACKET_DONE {repo_key} {index}/{len(packets)} {result['status']}",
+                flush=True,
+            )
+            return index, packet_id, result, None
+        except Exception as exc:
+            print(
+                f"M5_INFERENCE_PACKET_ERROR {repo_key} {index}/{len(packets)}",
+                flush=True,
+            )
+            return index, packet_id, None, str(exc)[:5000]
+
+    with ThreadPoolExecutor(
+        max_workers=workers,
+        thread_name_prefix=f"m5-{repo_key}",
+    ) as executor:
+        records = list(executor.map(run_entry, entries))
+
+    results: dict[str, dict] = {}
+    errors: list[dict] = []
+    interpreted_count = 0
+    declined_count = 0
+    for _index, packet_id, result, error in records:
+        if error is not None:
+            errors.append({
+                "candidate_evidence_packet_id": packet_id,
+                "error": error,
+            })
+            continue
+        if result is None:
+            raise RuntimeError("inference worker returned neither result nor error")
+        results[packet_id] = result
+        if result["status"] == "interpret":
+            interpreted_count += 1
+        elif result["status"] == "decline":
+            declined_count += 1
+        else:
+            raise RuntimeError(f"unexpected normalized inference status: {result['status']!r}")
+
+    if len(results) + len(errors) != len(packets):
+        raise RuntimeError("inference output does not cover every exact input packet")
+
+    return {
+        "packet_count": len(packets),
+        "worker_count": workers,
+        "invoke_timeout_seconds": INVOKE_TIMEOUT_SECONDS,
+        "interpreted_count": interpreted_count,
+        "declined_count": declined_count,
+        "error_count": len(errors),
+        "errors": errors,
+        "results": results,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-key", choices=("openbot", "openclaw", "hermes"), required=True)
     parser.add_argument("--packets", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--workers", type=int, default=1)
     args = parser.parse_args()
 
     binary = os.environ.get("M5_COPILOT_BINARY", "").strip()
@@ -268,33 +357,12 @@ def main() -> int:
     if not isinstance(packets, list) or not packets:
         raise RuntimeError("packets artifact must contain a non-empty JSON list")
 
-    results: dict[str, dict] = {}
-    errors: list[dict] = []
-    interpreted_count = 0
-    declined_count = 0
-    for index, packet in enumerate(packets, start=1):
-        packet_id = packet.get("candidate_evidence_packet_id")
-        if not isinstance(packet_id, str) or not packet_id:
-            raise RuntimeError("serialized packet is missing candidate_evidence_packet_id")
-        print(f"M5_INFERENCE_PACKET_START {args.repo_key} {index}/{len(packets)} {packet_id}", flush=True)
-        try:
-            result = infer_packet(binary, packet)
-            results[packet_id] = result
-            if result["status"] == "interpret":
-                interpreted_count += 1
-            else:
-                declined_count += 1
-            print(
-                f"M5_INFERENCE_PACKET_DONE {args.repo_key} {index}/{len(packets)} {result['status']}",
-                flush=True,
-            )
-        except Exception as exc:
-            errors.append({
-                "candidate_evidence_packet_id": packet_id,
-                "error": str(exc)[:5000],
-            })
-            print(f"M5_INFERENCE_PACKET_ERROR {args.repo_key} {index}/{len(packets)}", flush=True)
-
+    inference = infer_packets(
+        binary,
+        packets,
+        repo_key=args.repo_key,
+        workers=args.workers,
+    )
     artifact = {
         "schema_version": SCHEMA_VERSION,
         "repo_key": args.repo_key,
@@ -302,12 +370,7 @@ def main() -> int:
         "provider_base_url": provider_base_url,
         "model": model,
         "adapter_version": ADAPTER_VERSION,
-        "packet_count": len(packets),
-        "interpreted_count": interpreted_count,
-        "declined_count": declined_count,
-        "error_count": len(errors),
-        "errors": errors,
-        "results": results,
+        **inference,
     }
     write_json(args.output, artifact)
     print(
