@@ -29,7 +29,7 @@ class PythonAstExtractor:
     """Emit source-addressed Python AST facts and authored docstrings."""
 
     name = "python-ast"
-    version = "1"
+    version = "2"
 
     def supports(self, artifact: Artifact) -> bool:
         return PurePosixPath(artifact.source_locator).suffix.lower() == ".py"
@@ -48,14 +48,15 @@ class PythonAstExtractor:
                 f"invalid Python syntax: {artifact.source_locator}:{exc.lineno}:{exc.offset}"
             ) from exc
 
-        visitor = _PythonFactVisitor(artifact.source_locator)
+        visitor = _PythonFactVisitor(artifact.source_locator, extractor_version=self.version)
         visitor.visit(tree)
         return tuple(visitor.records)
 
 
 class _PythonFactVisitor(ast.NodeVisitor):
-    def __init__(self, source_locator: str) -> None:
+    def __init__(self, source_locator: str, *, extractor_version: str) -> None:
         self.source_locator = source_locator
+        self.extractor_version = extractor_version
         self.scope: list[str] = []
         self.records: list[FactSpec | AssertionSpec] = []
 
@@ -218,7 +219,7 @@ class _PythonFactVisitor(ast.NodeVisitor):
                 locator=self._line_locator(first),
                 statement=statement,
                 extractor_name="python-docstring",
-                extractor_version="1",
+                extractor_version=self.extractor_version,
             )
         )
 
@@ -236,7 +237,7 @@ class _PythonFactVisitor(ast.NodeVisitor):
                 raw_value=value,
                 normalized_value=value,
                 extractor_name="python-ast",
-                extractor_version="1",
+                extractor_version=self.extractor_version,
             )
         )
 
