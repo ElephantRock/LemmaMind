@@ -226,22 +226,28 @@ class GitHubRESTReader:
                 now = datetime.fromtimestamp(self.wall_clock(), tz=timezone.utc)
                 year_suffix = int(rfc850_match.group("year"))
                 candidate_year = (now.year // 100) * 100 + year_suffix
+                candidate_fields = (
+                    retry_at.month,
+                    retry_at.day,
+                    retry_at.hour,
+                    retry_at.minute,
+                    retry_at.second,
+                )
+                now_fields = (
+                    now.month,
+                    now.day,
+                    now.hour,
+                    now.minute,
+                    now.second,
+                )
+                if candidate_year < now.year - 50 or (
+                    candidate_year == now.year - 50
+                    and candidate_fields < now_fields
+                ):
+                    candidate_year += 100
                 if candidate_year > now.year + 50 or (
                     candidate_year == now.year + 50
-                    and (
-                        retry_at.month,
-                        retry_at.day,
-                        retry_at.hour,
-                        retry_at.minute,
-                        retry_at.second,
-                    )
-                    > (
-                        now.month,
-                        now.day,
-                        now.hour,
-                        now.minute,
-                        now.second,
-                    )
+                    and candidate_fields > now_fields
                 ):
                     candidate_year -= 100
                 retry_at = retry_at.replace(year=candidate_year)
