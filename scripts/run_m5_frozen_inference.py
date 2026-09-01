@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
-ADAPTER_VERSION = "zai-glm-5.3.packet-v1"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v2"
 ALLOWED_TYPES = {
     "introduction",
     "modification",
@@ -95,12 +95,11 @@ def invoke(binary: str, prompt: str) -> str:
         completed = subprocess.run(
             [
                 binary,
-                "-p",
-                prompt,
                 "-s",
                 "--no-ask-user",
                 "--deny-tool=read,write,shell,url,memory",
             ],
+            input=prompt,
             check=False,
             capture_output=True,
             text=True,
