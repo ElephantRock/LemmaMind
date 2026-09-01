@@ -4,9 +4,13 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
+import re
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import PurePosixPath
 from typing import Any, Callable, Mapping, Protocol
 from urllib.error import HTTPError
@@ -36,6 +40,22 @@ _MEDIA_TYPES = {
     ".rs": "text/x-rust",
     ".go": "text/x-go",
 }
+
+_HTTP_DAY_SHORT = r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)"
+_HTTP_DAY_LONG = r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"
+_HTTP_MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+_IMF_FIXDATE_RE = re.compile(
+    rf"{_HTTP_DAY_SHORT}, [0-9]{{2}} {_HTTP_MONTH} [0-9]{{4}} "
+    r"[0-9]{2}:[0-9]{2}:[0-9]{2} GMT"
+)
+_RFC850_DATE_RE = re.compile(
+    rf"{_HTTP_DAY_LONG}, [0-9]{{2}}-{_HTTP_MONTH}-(?P<year>[0-9]{{2}}) "
+    r"[0-9]{2}:[0-9]{2}:[0-9]{2} GMT"
+)
+_ASCTIME_DATE_RE = re.compile(
+    rf"{_HTTP_DAY_SHORT} {_HTTP_MONTH} (?:[0-9]{{2}}| [0-9]) "
+    r"[0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}"
+)
 
 
 class GitHubAPIError(RuntimeError):
@@ -84,11 +104,19 @@ class GitHubRESTReader:
         base_url: str = "https://api.github.com",
         user_agent: str = "LemmaMind/0.1",
         timeout: float = 30.0,
+        max_retries: int = 3,
+        sleep: Callable[[float], None] | None = None,
+        wall_clock: Callable[[], float] | None = None,
     ) -> None:
+        if max_retries < 0:
+            raise ValueError("max_retries must be non-negative")
         self.token = token
         self.base_url = base_url.rstrip("/")
         self.user_agent = user_agent
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.sleep = sleep or time.sleep
+        self.wall_clock = wall_clock or time.time
 
     def _get_json(self, path: str, query: Mapping[str, str] | None = None) -> Any:
         url = f"{self.base_url}{path}" + (f"?{urlencode(query)}" if query else "")
@@ -99,18 +127,140 @@ class GitHubRESTReader:
         }
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        request = Request(url, headers=headers, method="GET")
-        try:
-            with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
-                return json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
+
+        retry_index = 0
+        while True:
+            request = Request(url, headers=headers, method="GET")
             try:
-                payload = json.loads(exc.read().decode("utf-8"))
-                detail = str(payload.get("message", exc.reason))
-            except Exception:
-                detail = str(exc.reason)
-            error_type = GitHubNotFound if exc.code == 404 else GitHubAPIError
-            raise error_type(f"GitHub API {exc.code}: {detail}", status_code=exc.code) from exc
+                with urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+                    return json.loads(response.read().decode("utf-8"))
+            except HTTPError as exc:
+                try:
+                    payload = json.loads(exc.read().decode("utf-8"))
+                    detail = str(payload.get("message", exc.reason))
+                except Exception:
+                    detail = str(exc.reason)
+
+                delay = self._retry_delay(exc, detail, retry_index)
+                if delay is not None and retry_index < self.max_retries:
+                    self.sleep(delay)
+                    retry_index += 1
+                    continue
+
+                error_type = GitHubNotFound if exc.code == 404 else GitHubAPIError
+                raise error_type(
+                    f"GitHub API {exc.code}: {detail}",
+                    status_code=exc.code,
+                ) from exc
+
+    def _retry_delay(self, exc: HTTPError, detail: str, retry_index: int) -> float | None:
+        headers = exc.headers
+        retry_after = headers.get("Retry-After") if headers is not None else None
+        rate_remaining = headers.get("X-RateLimit-Remaining") if headers is not None else None
+        rate_reset = headers.get("X-RateLimit-Reset") if headers is not None else None
+        detail_lower = detail.lower()
+        is_rate_limited = (
+            exc.code == 429
+            or (
+                exc.code == 403
+                and (
+                    rate_remaining == "0"
+                    or "rate limit" in detail_lower
+                )
+            )
+        )
+        if is_rate_limited:
+            if retry_after is not None:
+                retry_after_delay = self._parse_retry_after(retry_after)
+                if retry_after_delay is not None:
+                    return retry_after_delay
+            if rate_remaining == "0" and rate_reset is not None:
+                reset = rate_reset.strip()
+                if reset.isascii() and reset.isdigit():
+                    reset_at = float(reset)
+                    if math.isfinite(reset_at):
+                        reset_delay = reset_at - self.wall_clock() + 1.0
+                        if math.isfinite(reset_delay):
+                            return max(1.0, reset_delay)
+            return 60.0 * (2 ** retry_index)
+
+        if exc.code == 503 and retry_after is not None:
+            retry_after_delay = self._parse_retry_after(retry_after)
+            if retry_after_delay is not None:
+                return retry_after_delay
+
+        if exc.code in {500, 502, 503, 504}:
+            return 1.0 * (2 ** retry_index)
+        return None
+
+    def _parse_retry_after(self, value: str) -> float | None:
+        numeric = value.strip()
+        if numeric.isascii() and numeric.isdigit():
+            delay = float(numeric)
+            if math.isfinite(delay):
+                return delay
+            return None
+
+        http_date = value.strip()
+        rfc850_match = _RFC850_DATE_RE.fullmatch(http_date)
+        is_asctime = _ASCTIME_DATE_RE.fullmatch(http_date) is not None
+        if not (
+            _IMF_FIXDATE_RE.fullmatch(http_date)
+            or rfc850_match
+            or is_asctime
+        ):
+            return None
+        try:
+            retry_at = parsedate_to_datetime(http_date)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if retry_at.tzinfo is None or retry_at.utcoffset() is None:
+            if not is_asctime:
+                return None
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        elif retry_at.utcoffset().total_seconds() != 0.0:
+            return None
+
+        if rfc850_match is not None:
+            try:
+                now = datetime.fromtimestamp(self.wall_clock(), tz=timezone.utc)
+                year_suffix = int(rfc850_match.group("year"))
+                candidate_year = (now.year // 100) * 100 + year_suffix
+                candidate_fields = (
+                    retry_at.month,
+                    retry_at.day,
+                    retry_at.hour,
+                    retry_at.minute,
+                    retry_at.second,
+                )
+                now_fields = (
+                    now.month,
+                    now.day,
+                    now.hour,
+                    now.minute,
+                    now.second,
+                )
+                if candidate_year < now.year - 50 or (
+                    candidate_year == now.year - 50
+                    and candidate_fields < now_fields
+                ):
+                    candidate_year += 100
+                if candidate_year > now.year + 50 or (
+                    candidate_year == now.year + 50
+                    and candidate_fields > now_fields
+                ):
+                    candidate_year -= 100
+                retry_at = retry_at.replace(year=candidate_year)
+            except (OSError, OverflowError, ValueError):
+                return None
+
+        try:
+            delay = retry_at.timestamp() - self.wall_clock()
+        except (OSError, OverflowError, ValueError):
+            return None
+        if not math.isfinite(delay):
+            return None
+        return max(0.0, delay)
 
     def get_repository(self, owner: str, repo: str) -> Mapping[str, Any]:
         return self._get_json(f"/repos/{quote(owner, safe='')}/{quote(repo, safe='')}")
