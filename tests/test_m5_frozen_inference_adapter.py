@@ -10,6 +10,7 @@ assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 SYSTEM_RULES = MODULE.SYSTEM_RULES
+invoke = MODULE.invoke
 normalize = MODULE.normalize
 parse_json_object = MODULE.parse_json_object
 
@@ -108,3 +109,42 @@ def test_model_rules_do_not_embed_frozen_target_labels():
     assert "update_contract.py" not in lowered
     assert "8/10" not in lowered
     assert "primary anchor" not in lowered
+
+
+def test_invoke_streams_large_prompt_over_stdin_without_argv_expansion(monkeypatch, tmp_path):
+    prompt = "x" * 3_000_000
+    observed = {}
+
+    def fake_run(args, **kwargs):
+        observed["args"] = args
+        observed.update(kwargs)
+        return MODULE.subprocess.CompletedProcess(
+            args,
+            0,
+            stdout='{"decision":"decline"}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr(MODULE.subprocess, "run", fake_run)
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "github-secret")
+    monkeypatch.setenv("GH_TOKEN", "gh-secret")
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "copilot-secret")
+
+    assert invoke("/tmp/copilot", prompt) == '{"decision":"decline"}'
+    assert observed["args"] == [
+        "/tmp/copilot",
+        "-s",
+        "--no-ask-user",
+        "--deny-tool=read,write,shell,url,memory",
+    ]
+    assert prompt not in observed["args"]
+    assert sum(len(item) for item in observed["args"]) < 1024
+    assert observed["input"] == prompt
+    assert observed["check"] is False
+    assert observed["capture_output"] is True
+    assert observed["text"] is True
+    assert observed["timeout"] == 300
+    assert "GITHUB_TOKEN" not in observed["env"]
+    assert "GH_TOKEN" not in observed["env"]
+    assert "COPILOT_GITHUB_TOKEN" not in observed["env"]
