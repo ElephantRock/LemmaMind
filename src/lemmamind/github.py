@@ -49,7 +49,7 @@ _IMF_FIXDATE_RE = re.compile(
     r"[0-9]{2}:[0-9]{2}:[0-9]{2} GMT"
 )
 _RFC850_DATE_RE = re.compile(
-    rf"{_HTTP_DAY_LONG}, [0-9]{{2}}-{_HTTP_MONTH}-[0-9]{{2}} "
+    rf"{_HTTP_DAY_LONG}, [0-9]{{2}}-{_HTTP_MONTH}-(?P<year>[0-9]{{2}}) "
     r"[0-9]{2}:[0-9]{2}:[0-9]{2} GMT"
 )
 _ASCTIME_DATE_RE = re.compile(
@@ -202,10 +202,11 @@ class GitHubRESTReader:
             return None
 
         http_date = value.strip()
+        rfc850_match = _RFC850_DATE_RE.fullmatch(http_date)
         is_asctime = _ASCTIME_DATE_RE.fullmatch(http_date) is not None
         if not (
             _IMF_FIXDATE_RE.fullmatch(http_date)
-            or _RFC850_DATE_RE.fullmatch(http_date)
+            or rfc850_match
             or is_asctime
         ):
             return None
@@ -219,6 +220,34 @@ class GitHubRESTReader:
             retry_at = retry_at.replace(tzinfo=timezone.utc)
         elif retry_at.utcoffset().total_seconds() != 0.0:
             return None
+
+        if rfc850_match is not None:
+            try:
+                now = datetime.fromtimestamp(self.wall_clock(), tz=timezone.utc)
+                year_suffix = int(rfc850_match.group("year"))
+                candidate_year = (now.year // 100) * 100 + year_suffix
+                if candidate_year > now.year + 50 or (
+                    candidate_year == now.year + 50
+                    and (
+                        retry_at.month,
+                        retry_at.day,
+                        retry_at.hour,
+                        retry_at.minute,
+                        retry_at.second,
+                    )
+                    > (
+                        now.month,
+                        now.day,
+                        now.hour,
+                        now.minute,
+                        now.second,
+                    )
+                ):
+                    candidate_year -= 100
+                retry_at = retry_at.replace(year=candidate_year)
+            except (OSError, OverflowError, ValueError):
+                return None
+
         try:
             delay = retry_at.timestamp() - self.wall_clock()
         except (OSError, OverflowError, ValueError):
