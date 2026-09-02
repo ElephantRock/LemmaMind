@@ -13,6 +13,7 @@ PR34_SHA = os.environ.get("M5_PR34_SHA", "")
 if re.fullmatch(r"[0-9a-f]{40}", PR34_SHA) is None:
     raise RuntimeError("M5_PR34_SHA must be an exact 40-character lowercase Git SHA")
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
+CAPTURE_MAX_RETRIES = 5
 
 SPECS = {
     "openbot": {
@@ -85,6 +86,12 @@ def read_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def make_capture_reader(token: str):
+    from lemmamind.interval_segmentation import GitHubIntervalRESTReader
+
+    return GitHubIntervalRESTReader(token=token, max_retries=CAPTURE_MAX_RETRIES)
+
+
 def build(repo_key: str, state_dir: Path) -> int:
     from lemmamind.affected_file_planning import AffectedFileCapturePlanner
     from lemmamind.candidate_evidence_packets import CandidateEvidencePacketService
@@ -94,7 +101,7 @@ def build(repo_key: str, state_dir: Path) -> int:
     from lemmamind.extraction_diagnostics import GapTolerantExtractionPairService
     from lemmamind.gap_aware_candidate_reduction import GapAwareCandidateFactualReductionService
     from lemmamind.github import GitHubCaptureService
-    from lemmamind.interval_segmentation import GitHubIntervalRESTReader, IntervalCandidateSegmentationService
+    from lemmamind.interval_segmentation import IntervalCandidateSegmentationService
     from lemmamind.objects import ContentAddressedFileStore
     from lemmamind.recursive_tree import RecursiveGitTreeDiffService, TrackingAwareGitHubRecursiveTreeCaptureService
     from lemmamind.storage import SQLiteContractStore
@@ -115,7 +122,7 @@ def build(repo_key: str, state_dir: Path) -> int:
 
     store = SQLiteContractStore(state_dir / "lemmamind.db")
     objects = ContentAddressedFileStore(state_dir / "objects")
-    reader = GitHubIntervalRESTReader(token=token)
+    reader = make_capture_reader(token)
 
     seed_capture = GitHubCaptureService(reader, store, objects)
     previous_seed = seed_capture.capture_repository(
@@ -216,6 +223,7 @@ def build(repo_key: str, state_dir: Path) -> int:
     meta = {
         "schema_version": SCHEMA_VERSION,
         "runtime_sha": PR34_SHA,
+        "capture_max_retries": CAPTURE_MAX_RETRIES,
         "repo_key": repo_key,
         "repository": spec["repository"],
         "baseline_revision": spec["baseline"],
