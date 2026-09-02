@@ -142,6 +142,18 @@ def test_repair_prompt_carries_previous_output_and_exact_support_allowlist_only(
     assert "If the packet cannot support the same bounded interpretation" in prompt
 
 
+def test_repair_prompt_preserves_complete_rejection_context():
+    previous = "x" * 20000 + "TAIL-OF-PREVIOUS-OUTPUT"
+    error_text = "y" * 3000 + "TAIL-OF-ADAPTER-ERROR"
+    prompt = repair_prompt(
+        packet(),
+        previous_output=previous,
+        error=ValueError(error_text),
+    )
+    assert "TAIL-OF-PREVIOUS-OUTPUT" in prompt
+    assert "TAIL-OF-ADAPTER-ERROR" in prompt
+
+
 def test_infer_packet_repairs_invalid_support_with_exact_allowlist_and_previous_output(monkeypatch):
     first = proposal(
         supports=[
