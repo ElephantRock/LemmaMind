@@ -10,9 +10,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
-ADAPTER_VERSION = "zai-glm-5.3.packet-v3"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v4"
 INVOKE_TIMEOUT_SECONDS = 600
+MAX_TIMEOUT_RETRIES = 1
 MAX_INFERENCE_WORKERS = 2
+MAX_REPAIR_OUTPUT_CHARS = 12000
 ALLOWED_TYPES = {
     "introduction",
     "modification",
@@ -73,16 +75,42 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def packet_prompt(packet: dict, *, repair: str | None = None) -> str:
+def packet_prompt(packet: dict) -> str:
     payload = json.dumps(packet, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    prompt = SYSTEM_RULES + "\nCandidateEvidencePacket:\n" + payload
-    if repair:
-        prompt += (
-            "\n\nYour previous response was rejected by the deterministic adapter for this reason:\n"
-            + repair
-            + "\nReturn a corrected JSON object only. Do not add new evidence."
-        )
-    return prompt
+    return SYSTEM_RULES + "\nCandidateEvidencePacket:\n" + payload
+
+
+def allowed_ids(packet: dict) -> dict[str, set[str]]:
+    return {
+        "ArtifactDelta": set(packet.get("artifact_delta_ids", [])),
+        "StructuralDelta": {
+            item["structural_delta_id"] for item in packet.get("structural_delta_previews", [])
+        },
+        "SourceAssertion": {
+            item["assertion_id"] for item in packet.get("assertion_previews", [])
+        },
+        "CandidateExtractionGapSignal": set(packet.get("extraction_gap_signal_ids", [])),
+    }
+
+
+def repair_prompt(packet: dict, *, previous_output: str, error: Exception) -> str:
+    support_allowlist = {
+        support_type: sorted(values)
+        for support_type, values in sorted(allowed_ids(packet).items())
+    }
+    repair_context = {
+        "adapter_error": str(error)[:1200],
+        "exact_support_allowlist": support_allowlist,
+        "previous_output": previous_output[:MAX_REPAIR_OUTPUT_CHARS],
+    }
+    return (
+        packet_prompt(packet)
+        + "\n\nDeterministic adapter repair context:\n"
+        + json.dumps(repair_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        + "\nRepair the previous output only. Every support_id must be copied exactly from the exact_support_allowlist for its support_type. "
+        + "Do not add evidence or broaden the mechanism. If the packet cannot support the same bounded interpretation under that allowlist, return {\"decision\":\"decline\"}. "
+        + "Return one corrected JSON object only."
+    )
 
 
 def invoke(binary: str, prompt: str) -> str:
@@ -119,24 +147,25 @@ def invoke(binary: str, prompt: str) -> str:
     return completed.stdout.strip()
 
 
+def invoke_with_timeout_retry(binary: str, prompt: str) -> str:
+    timeout_errors: list[subprocess.TimeoutExpired] = []
+    for attempt in range(MAX_TIMEOUT_RETRIES + 1):
+        try:
+            return invoke(binary, prompt)
+        except subprocess.TimeoutExpired as exc:
+            timeout_errors.append(exc)
+            if attempt >= MAX_TIMEOUT_RETRIES:
+                break
+    raise RuntimeError(
+        f"provider invocation timed out {len(timeout_errors)} times at {INVOKE_TIMEOUT_SECONDS}s each"
+    ) from timeout_errors[-1]
+
+
 def parse_json_object(raw: str) -> dict:
     value = json.loads(raw)
     if not isinstance(value, dict):
         raise ValueError("model output must be one JSON object")
     return value
-
-
-def allowed_ids(packet: dict) -> dict[str, set[str]]:
-    return {
-        "ArtifactDelta": set(packet.get("artifact_delta_ids", [])),
-        "StructuralDelta": {
-            item["structural_delta_id"] for item in packet.get("structural_delta_previews", [])
-        },
-        "SourceAssertion": {
-            item["assertion_id"] for item in packet.get("assertion_previews", [])
-        },
-        "CandidateExtractionGapSignal": set(packet.get("extraction_gap_signal_ids", [])),
-    }
 
 
 def normalize(packet: dict, response: dict) -> dict:
@@ -226,12 +255,14 @@ def normalize(packet: dict, response: dict) -> dict:
 
 
 def infer_packet(binary: str, packet: dict) -> dict:
-    first_raw = invoke(binary, packet_prompt(packet))
+    first_raw = invoke_with_timeout_retry(binary, packet_prompt(packet))
     try:
         return normalize(packet, parse_json_object(first_raw))
     except Exception as first_error:
-        repair_reason = str(first_error)[:1200]
-        second_raw = invoke(binary, packet_prompt(packet, repair=repair_reason))
+        second_raw = invoke_with_timeout_retry(
+            binary,
+            repair_prompt(packet, previous_output=first_raw, error=first_error),
+        )
         try:
             return normalize(packet, parse_json_object(second_raw))
         except Exception as second_error:
@@ -319,6 +350,7 @@ def infer_packets(
         "packet_count": len(packets),
         "worker_count": workers,
         "invoke_timeout_seconds": INVOKE_TIMEOUT_SECONDS,
+        "timeout_retry_limit": MAX_TIMEOUT_RETRIES,
         "interpreted_count": interpreted_count,
         "declined_count": declined_count,
         "error_count": len(errors),
