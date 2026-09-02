@@ -14,7 +14,6 @@ ADAPTER_VERSION = "zai-glm-5.3.packet-v4"
 INVOKE_TIMEOUT_SECONDS = 600
 MAX_TIMEOUT_RETRIES = 1
 MAX_INFERENCE_WORKERS = 2
-MAX_REPAIR_OUTPUT_CHARS = 12000
 ALLOWED_TYPES = {
     "introduction",
     "modification",
@@ -99,9 +98,9 @@ def repair_prompt(packet: dict, *, previous_output: str, error: Exception) -> st
         for support_type, values in sorted(allowed_ids(packet).items())
     }
     repair_context = {
-        "adapter_error": str(error)[:1200],
+        "adapter_error": str(error),
         "exact_support_allowlist": support_allowlist,
-        "previous_output": previous_output[:MAX_REPAIR_OUTPUT_CHARS],
+        "previous_output": previous_output,
     }
     return (
         packet_prompt(packet)
