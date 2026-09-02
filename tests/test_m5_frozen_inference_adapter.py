@@ -10,10 +10,14 @@ assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 SYSTEM_RULES = MODULE.SYSTEM_RULES
+infer_packet = MODULE.infer_packet
 infer_packets = MODULE.infer_packets
 invoke = MODULE.invoke
+invoke_with_timeout_retry = MODULE.invoke_with_timeout_retry
 normalize = MODULE.normalize
+packet_prompt = MODULE.packet_prompt
 parse_json_object = MODULE.parse_json_object
+repair_prompt = MODULE.repair_prompt
 
 
 def packet(*, gaps=(), packet_id="packet:test"):
@@ -112,6 +116,76 @@ def test_model_rules_do_not_embed_frozen_target_labels():
     assert "primary anchor" not in lowered
 
 
+def test_initial_prompt_remains_the_frozen_packet_prompt_without_repair_material():
+    prompt = packet_prompt(packet())
+    assert prompt.startswith(SYSTEM_RULES + "\nCandidateEvidencePacket:\n")
+    assert "Deterministic adapter repair context" not in prompt
+    assert "exact_support_allowlist" not in prompt
+    assert "previous_output" not in prompt
+
+
+def test_repair_prompt_carries_previous_output_and_exact_support_allowlist_only():
+    value = packet(gaps=("gap:1",))
+    previous = '{"decision":"interpret","supports":[{"support_type":"StructuralDelta","support_id":"structural-delta:invented"}]}'
+    prompt = repair_prompt(
+        value,
+        previous_output=previous,
+        error=ValueError("support lies outside exact packet"),
+    )
+    assert MODULE.json.dumps(previous, ensure_ascii=False) in prompt
+    assert '"StructuralDelta":["structural-delta:1"]' in prompt
+    assert '"SourceAssertion":["assertion:1"]' in prompt
+    assert '"ArtifactDelta":["artifact-delta:1"]' in prompt
+    assert '"CandidateExtractionGapSignal":["gap:1"]' in prompt
+    assert "structural-delta:invented" in prompt  # retained only as prior rejected output
+    assert "copied exactly from the exact_support_allowlist" in prompt
+    assert "If the packet cannot support the same bounded interpretation" in prompt
+
+
+def test_infer_packet_repairs_invalid_support_with_exact_allowlist_and_previous_output(monkeypatch):
+    first = proposal(
+        supports=[
+            {
+                "support_type": "StructuralDelta",
+                "support_id": "structural-delta:invented",
+            }
+        ]
+    )
+    second = proposal()
+    prompts = []
+    outputs = [MODULE.json.dumps(first), MODULE.json.dumps(second)]
+
+    def fake_invoke(_binary, prompt):
+        prompts.append(prompt)
+        return outputs.pop(0)
+
+    monkeypatch.setattr(MODULE, "invoke_with_timeout_retry", fake_invoke)
+
+    result = infer_packet("/tmp/copilot", packet())
+    assert result["status"] == "interpret"
+    assert len(prompts) == 2
+    assert "Deterministic adapter repair context" not in prompts[0]
+    assert "Deterministic adapter repair context" in prompts[1]
+    assert MODULE.json.dumps(MODULE.json.dumps(first), ensure_ascii=False) in prompts[1]
+    assert '"StructuralDelta":["structural-delta:1"]' in prompts[1]
+
+
+def test_infer_packet_repairs_malformed_json_from_the_rejected_output(monkeypatch):
+    malformed = '{"decision":"interpret","supports":['
+    prompts = []
+    outputs = [malformed, '{"decision":"decline"}']
+
+    def fake_invoke(_binary, prompt):
+        prompts.append(prompt)
+        return outputs.pop(0)
+
+    monkeypatch.setattr(MODULE, "invoke_with_timeout_retry", fake_invoke)
+
+    assert infer_packet("/tmp/copilot", packet()) == {"status": "decline"}
+    assert MODULE.json.dumps(malformed, ensure_ascii=False) in prompts[1]
+    assert "Expecting" in prompts[1] or "JSON" in prompts[1]
+
+
 def test_invoke_streams_large_prompt_over_stdin_without_argv_expansion(monkeypatch, tmp_path):
     prompt = "x" * 3_000_000
     observed = {}
@@ -149,6 +223,36 @@ def test_invoke_streams_large_prompt_over_stdin_without_argv_expansion(monkeypat
     assert "GITHUB_TOKEN" not in observed["env"]
     assert "GH_TOKEN" not in observed["env"]
     assert "COPILOT_GITHUB_TOKEN" not in observed["env"]
+
+
+def test_timeout_retry_is_exactly_one_retry_of_the_same_prompt(monkeypatch):
+    calls = []
+
+    def fake_invoke(binary, prompt):
+        calls.append((binary, prompt))
+        if len(calls) == 1:
+            raise MODULE.subprocess.TimeoutExpired([binary], MODULE.INVOKE_TIMEOUT_SECONDS)
+        return '{"decision":"decline"}'
+
+    monkeypatch.setattr(MODULE, "invoke", fake_invoke)
+    assert invoke_with_timeout_retry("/tmp/copilot", "same prompt") == '{"decision":"decline"}'
+    assert calls == [
+        ("/tmp/copilot", "same prompt"),
+        ("/tmp/copilot", "same prompt"),
+    ]
+
+
+def test_timeout_retry_fails_closed_after_the_bounded_retry(monkeypatch):
+    calls = []
+
+    def fake_invoke(binary, prompt):
+        calls.append((binary, prompt))
+        raise MODULE.subprocess.TimeoutExpired([binary], MODULE.INVOKE_TIMEOUT_SECONDS)
+
+    monkeypatch.setattr(MODULE, "invoke", fake_invoke)
+    with pytest.raises(RuntimeError, match="timed out 2 times at 600s each"):
+        invoke_with_timeout_retry("/tmp/copilot", "same prompt")
+    assert len(calls) == MODULE.MAX_TIMEOUT_RETRIES + 1 == 2
 
 
 def test_infer_packets_uses_bounded_workers_and_preserves_exact_coverage(monkeypatch):
@@ -200,6 +304,7 @@ def test_infer_packets_uses_bounded_workers_and_preserves_exact_coverage(monkeyp
     assert result["packet_count"] == 3
     assert result["worker_count"] == 2
     assert result["invoke_timeout_seconds"] == 600
+    assert result["timeout_retry_limit"] == 1
     assert result["interpreted_count"] == 1
     assert result["declined_count"] == 1
     assert result["error_count"] == 1
