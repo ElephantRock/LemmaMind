@@ -78,6 +78,31 @@ def test_extracts_scoped_functions_calls_assignments_and_asserts() -> None:
     assert "without claiming" in docstrings[0].statement
 
 
+def test_docstrings_are_canonicalized_before_assertion_hashing() -> None:
+    source = b'''def configured():
+    """
+    Preserve the semantic statement.
+
+    Do not retain incidental outer whitespace.
+    """
+    return True
+
+
+def blank():
+    """   """
+    return False
+'''
+    records = PythonAstExtractor().extract(artifact(), source)
+    docstrings = [item for item in records if isinstance(item, AssertionSpec)]
+
+    assert len(docstrings) == 1
+    assert docstrings[0].statement == (
+        "Preserve the semantic statement.\n\n"
+        "    Do not retain incidental outer whitespace."
+    )
+    assert docstrings[0].statement == docstrings[0].statement.strip()
+
+
 def test_source_ranges_are_exact_and_stable() -> None:
     records = PythonAstExtractor().extract(
         artifact("pkg/sample.py"),

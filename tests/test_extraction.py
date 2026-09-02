@@ -18,6 +18,7 @@ from lemmamind.extraction import (
     ExtractionError,
 )
 from lemmamind.objects import ContentAddressedFileStore
+from lemmamind.python_ast import PythonAstExtractor
 from lemmamind.storage import SQLiteContractStore
 
 NOW = datetime(2026, 8, 25, tzinfo=timezone.utc)
@@ -169,6 +170,60 @@ def test_extracts_manifest_path_facts_and_markdown_source_assertions(tmp_path) -
     assert result.assertions[1].extractor_version == "1"
     assert len(store.list(EvidenceFact)) == len(result.facts)
     assert len(store.list(SourceAssertion)) == 3
+
+
+def test_python_docstring_output_envelope_matches_persisted_contract(tmp_path) -> None:
+    source = b'''def configured():
+    """
+    Preserve the semantic statement.
+
+    Do not retain incidental outer whitespace.
+    """
+    return True
+'''
+    store, objects, manifest, _, _ = build_capture(tmp_path, {"configured.py": source})
+    service = DeterministicExtractionService(
+        store,
+        objects,
+        artifact_extractors=(PythonAstExtractor(),),
+        clock=IncrementingClock(),
+        id_factory=DeterministicIds(),
+    )
+
+    result = service.extract_capture(manifest.capture_id)
+
+    assert result.facts
+    assert len(result.assertions) == 1
+    assertion = result.assertions[0]
+    assert assertion.statement == assertion.statement.strip()
+    persisted = store.get(SourceAssertion, assertion.assertion_id)
+    assert persisted == assertion
+
+    expected_output_hash = service._digest_json(
+        {
+            "facts": [
+                {
+                    "kind": "fact",
+                    "locator": fact.locator,
+                    "raw_value": fact.raw_value,
+                    "normalized_value": fact.normalized_value,
+                    "extractor_name": fact.extractor_name,
+                    "extractor_version": fact.extractor_version,
+                }
+                for fact in result.facts
+            ],
+            "assertions": [
+                {
+                    "kind": "assertion",
+                    "locator": assertion.locator,
+                    "statement": assertion.statement,
+                    "extractor_name": assertion.extractor_name,
+                    "extractor_version": assertion.extractor_version,
+                }
+            ],
+        }
+    )
+    assert result.run.outputs_hash == expected_output_hash
 
 
 def test_extracts_package_json_without_interpreting_dependency_meaning(tmp_path) -> None:

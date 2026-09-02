@@ -28,6 +28,7 @@ from .interval_segmentation_contracts import (
     CommitPathSnapshot,
     CommitRangeStatus,
     CommitRangeSummary,
+    IntervalSegmentationGeneration,
     IntervalCandidateSegment,
 )
 from .path_change_contracts import GitPathDelta, GitPathDiffSummary
@@ -299,6 +300,15 @@ class IntervalCandidateSegmentationService:
             inputs_hash=inputs_hash,
             outputs_hash=outputs_hash,
         )
+        generation = IntervalSegmentationGeneration(
+            interval_segmentation_generation_id=self._stable_id(
+                "interval-segmentation-generation", run_id
+            ),
+            segmentation_run_id=run_id,
+            diff_run_id=diff_run_id,
+            policy_version=self.policy_version,
+            max_paths_per_candidate=self.max_paths_per_candidate,
+        )
         result = IntervalSegmentationResult(
             diff_run_id,
             commit_range,
@@ -306,7 +316,7 @@ class IntervalCandidateSegmentationService:
             candidates,
             run,
         )
-        self.store.put_many(result.records())
+        self.store.put_many((*result.records(), generation))
         return result
 
     @staticmethod

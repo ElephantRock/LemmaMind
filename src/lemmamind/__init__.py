@@ -1,5 +1,10 @@
 """LemmaMind executable contracts and persistence."""
 
+from .candidate_evidence_packet_contracts import CandidateEvidencePacket
+from .candidate_evidence_packet_generation_contracts import (
+    CandidateEvidencePacketGeneration,
+    PacketExtractorDescriptor,
+)
 from .candidate_extraction_gap_contracts import CandidateExtractionGapSignal
 from .candidate_reduction_contracts import (
     CandidateFactualReduction,
@@ -18,14 +23,25 @@ from .change_contracts import (
     StructuralDelta,
     StructuralDeltaType,
 )
+from .change_interpretation_contracts import (
+    ChangeInterpretation,
+    ChangeInterpretationSupportRef,
+    ChangeInterpretationSupportType,
+    ChangeInterpretationType,
+)
+from .change_interpretation_generation_contracts import (
+    ChangeInterpretationGeneration,
+)
 from .contracts import CONTRACT_SCHEMA_VERSION
 from .extraction_diagnostic_contracts import ExtractionDiagnostic
 from .interval_segmentation_contracts import (
     CommitPathSnapshot,
     CommitRangeStatus,
     CommitRangeSummary,
+    IntervalSegmentationGeneration,
     IntervalCandidateSegment,
 )
+from .mechanism_review_contracts import MechanismReviewItem
 from .path_change_contracts import ChangeSurface, GitPathDelta, GitPathDeltaType
 from .profile_contracts import (
     ArchitectureProfile,
@@ -42,6 +58,8 @@ __all__ = [
     "ArchitectureProfile",
     "ArtifactDelta",
     "ArtifactDeltaType",
+    "CandidateEvidencePacket",
+    "CandidateEvidencePacketGeneration",
     "CandidateExtractionGapSignal",
     "CandidateFactualReduction",
     "CandidateReductionDisposition",
@@ -49,6 +67,11 @@ __all__ = [
     "CapturePlanDisposition",
     "CapturePlanReason",
     "CapturePlanSide",
+    "ChangeInterpretation",
+    "ChangeInterpretationGeneration",
+    "ChangeInterpretationSupportRef",
+    "ChangeInterpretationSupportType",
+    "ChangeInterpretationType",
     "ChangeSurface",
     "CommitPathSnapshot",
     "CommitRangeStatus",
@@ -57,7 +80,10 @@ __all__ = [
     "ExtractionDiagnostic",
     "GitPathDelta",
     "GitPathDeltaType",
+    "IntervalSegmentationGeneration",
     "IntervalCandidateSegment",
+    "MechanismReviewItem",
+    "PacketExtractorDescriptor",
     "RepositoryTrackingAssignment",
     "ReviewFeedback",
     "StructuralDelta",
