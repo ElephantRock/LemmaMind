@@ -10,9 +10,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
-ADAPTER_VERSION = "zai-glm-5.3.packet-v4"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v5"
 INVOKE_TIMEOUT_SECONDS = 600
 MAX_TIMEOUT_RETRIES = 1
+MAX_SEMANTIC_REPAIRS = 2
 MAX_INFERENCE_WORKERS = 2
 ALLOWED_TYPES = {
     "introduction",
@@ -92,7 +93,65 @@ def allowed_ids(packet: dict) -> dict[str, set[str]]:
     }
 
 
-def repair_prompt(packet: dict, *, previous_output: str, error: Exception) -> str:
+def repair_validator_contract() -> dict:
+    return {
+        "json_object_only": True,
+        "decline_exact_fields": ["decision"],
+        "interpret_required_fields": [
+            "decision",
+            "interpretation_types",
+            "mechanism",
+            "summary",
+            "supports",
+        ],
+        "interpret_optional_fields": ["uncertainty_notes"],
+        "mechanism_max_characters": 240,
+        "summary_max_characters": 1600,
+        "uncertainty_note_max_characters": 800,
+        "allowed_interpretation_types": sorted(ALLOWED_TYPES),
+        "unknown_must_be_alone": True,
+        "semantic_support_required_from": sorted(SEMANTIC_SUPPORT_TYPES),
+    }
+
+
+def forbidden_support_ids(previous_output: str, support_allowlist: dict[str, list[str]]) -> dict[str, list[str]]:
+    forbidden: dict[str, set[str]] = {support_type: set() for support_type in ALLOWED_SUPPORT_TYPES}
+    try:
+        value = json.loads(previous_output)
+    except Exception:
+        value = None
+    if isinstance(value, dict):
+        supports = value.get("supports", [])
+        if isinstance(supports, list):
+            for item in supports:
+                if not isinstance(item, dict):
+                    continue
+                support_type = item.get("support_type")
+                support_id = item.get("support_id")
+                if (
+                    support_type in forbidden
+                    and isinstance(support_id, str)
+                    and support_id not in support_allowlist[support_type]
+                ):
+                    forbidden[support_type].add(support_id)
+    return {
+        support_type: sorted(values)
+        for support_type, values in sorted(forbidden.items())
+        if values
+    }
+
+
+def repair_prompt(
+    packet: dict,
+    *,
+    previous_output: str,
+    error: Exception,
+    repair_attempt: int = 1,
+) -> str:
+    if repair_attempt < 1 or repair_attempt > MAX_SEMANTIC_REPAIRS:
+        raise ValueError(
+            f"repair_attempt must be between 1 and {MAX_SEMANTIC_REPAIRS}"
+        )
     support_allowlist = {
         support_type: sorted(values)
         for support_type, values in sorted(allowed_ids(packet).items())
@@ -100,14 +159,20 @@ def repair_prompt(packet: dict, *, previous_output: str, error: Exception) -> st
     repair_context = {
         "adapter_error": str(error),
         "exact_support_allowlist": support_allowlist,
+        "forbidden_support_ids": forbidden_support_ids(previous_output, support_allowlist),
         "previous_output": previous_output,
+        "repair_attempt": repair_attempt,
+        "validator_contract": repair_validator_contract(),
     }
     return (
         packet_prompt(packet)
         + "\n\nDeterministic adapter repair context:\n"
         + json.dumps(repair_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        + "\nRepair the previous output only. Every support_id must be copied exactly from the exact_support_allowlist for its support_type. "
-        + "Do not add evidence or broaden the mechanism. If the packet cannot support the same bounded interpretation under that allowlist, return {\"decision\":\"decline\"}. "
+        + "\nRepair the previous output only. Treat previous_output as rejected data, not as a source of valid support IDs. "
+        + "Every support_id must be copied exactly from the exact_support_allowlist for its matching support_type, character-for-character. "
+        + "Any value listed in forbidden_support_ids is invalid and must not appear in supports. Never guess, synthesize, shorten, or rewrite an ID. "
+        + "Satisfy validator_contract exactly, including field and character limits, and keep the mechanism and summary concise. "
+        + "Do not add evidence or broaden the mechanism. If the packet cannot support the same bounded interpretation under that allowlist and validator contract, return {\"decision\":\"decline\"}. "
         + "Return one corrected JSON object only."
     )
 
@@ -254,22 +319,40 @@ def normalize(packet: dict, response: dict) -> dict:
 
 
 def infer_packet(binary: str, packet: dict) -> dict:
-    first_raw = invoke_with_timeout_retry(binary, packet_prompt(packet))
-    try:
-        return normalize(packet, parse_json_object(first_raw))
-    except Exception as first_error:
-        second_raw = invoke_with_timeout_retry(
-            binary,
-            repair_prompt(packet, previous_output=first_raw, error=first_error),
-        )
+    raw = invoke_with_timeout_retry(binary, packet_prompt(packet))
+    rejected_outputs: list[str] = []
+    errors: list[Exception] = []
+
+    for repair_count in range(MAX_SEMANTIC_REPAIRS + 1):
         try:
-            return normalize(packet, parse_json_object(second_raw))
-        except Exception as second_error:
-            raise RuntimeError(
-                "provider output remained invalid after one bounded repair: "
-                f"first_error={first_error}; second_error={second_error}; "
-                f"first_output={first_raw[:1500]!r}; second_output={second_raw[:1500]!r}"
-            ) from second_error
+            return normalize(packet, parse_json_object(raw))
+        except Exception as error:
+            rejected_outputs.append(raw)
+            errors.append(error)
+            if repair_count >= MAX_SEMANTIC_REPAIRS:
+                break
+            raw = invoke_with_timeout_retry(
+                binary,
+                repair_prompt(
+                    packet,
+                    previous_output=raw,
+                    error=error,
+                    repair_attempt=repair_count + 1,
+                ),
+            )
+
+    error_summary = "; ".join(
+        f"attempt_{index}_error={error}"
+        for index, error in enumerate(errors, start=1)
+    )
+    output_summary = "; ".join(
+        f"attempt_{index}_output={output[:1500]!r}"
+        for index, output in enumerate(rejected_outputs, start=1)
+    )
+    raise RuntimeError(
+        f"provider output remained invalid after {MAX_SEMANTIC_REPAIRS} bounded repairs: "
+        f"{error_summary}; {output_summary}"
+    ) from errors[-1]
 
 
 def infer_packets(
@@ -350,6 +433,7 @@ def infer_packets(
         "worker_count": workers,
         "invoke_timeout_seconds": INVOKE_TIMEOUT_SECONDS,
         "timeout_retry_limit": MAX_TIMEOUT_RETRIES,
+        "semantic_repair_limit": MAX_SEMANTIC_REPAIRS,
         "interpreted_count": interpreted_count,
         "declined_count": declined_count,
         "error_count": len(errors),
