@@ -169,7 +169,7 @@ def repair_prompt(
         + "\n\nDeterministic adapter repair context:\n"
         + json.dumps(repair_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         + "\nRepair the previous output only. Treat previous_output as rejected data, not as a source of valid support IDs. "
-        + "Every support_id must be copied exactly, character-for-character, from exact_support_allowlist for its matching support_type. "
+        + "Every support_id must be copied exactly from the exact_support_allowlist for its matching support_type, character-for-character. "
         + "Any value listed in forbidden_support_ids is invalid and must not appear in supports. Never guess, synthesize, shorten, or rewrite an ID. "
         + "Satisfy validator_contract exactly, including field and character limits, and keep the mechanism and summary concise. "
         + "Do not add evidence or broaden the mechanism. If the packet cannot support the same bounded interpretation under that allowlist and validator contract, return {\"decision\":\"decline\"}. "
