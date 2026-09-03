@@ -74,7 +74,7 @@ def test_v6_first_pass_declines_generic_low_signal_surfaces_without_target_leaka
 def test_v6_first_pass_requests_stable_mechanism_names_and_minimal_type_sets():
     rules = MODULE.SYSTEM_RULES
 
-    assert "name the stable runtime contract" in rules
+    assert "describes the stable runtime contract" in rules
     assert "facets of one runtime contract, name the shared contract" in rules
     assert "Choose the smallest interpretation_types set" in rules
     assert "Use one type whenever one is sufficient" in rules
