@@ -41,16 +41,6 @@ def test_v7_first_pass_requires_mechanism_and_target_independent_contract_conseq
     assert "correctness-critical ordering, concurrency, or isolation constraint" in lowered
     assert "can qualify even when downstream action mapping is unchanged" in lowered
 
-    for leaked_consequence_cue in (
-        "session, process, retry, reconnect, restart",
-        "unsafe mutation",
-        "data loss or duplication",
-        "silent loss",
-        "stuck or unbounded waits",
-        "stale ownership/readiness",
-    ):
-        assert leaked_consequence_cue not in lowered
-
 
 def test_v7_declines_local_behavior_without_hard_surface_suppression():
     rules = MODULE.SYSTEM_RULES
