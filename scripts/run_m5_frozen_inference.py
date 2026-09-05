@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
-ADAPTER_VERSION = "zai-glm-5.3.packet-v5"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v6"
 INVOKE_TIMEOUT_SECONDS = 600
 MAX_TIMEOUT_RETRIES = 1
 MAX_SEMANTIC_REPAIRS = 2
@@ -38,13 +38,20 @@ SEMANTIC_SUPPORT_TYPES = {"StructuralDelta", "SourceAssertion"}
 
 SYSTEM_RULES = """You are a bounded technical change interpreter.
 You receive exactly one deterministic CandidateEvidencePacket. Use only evidence contained in that packet.
-Your task is attention reduction, not prose generation. Decline when the packet does not support a specific mechanism-level change.
+Your task is attention reduction, not prose generation. A candidate-level change is not automatically a human review item.
+Interpret only when the packet directly supports a review-worthy mechanism or project-state contract: an authority/admission/ownership/persistence boundary; a durable state lifecycle or invariant; failure, recovery, or fail-closed behavior; temporal or concurrency ordering; externally observable protocol or routing behavior; security or resource isolation; a runtime capability that establishes one of those state/control/failure/temporal contracts; or an explicit governance, configuration, compatibility, deprecation, removal, release, or CI contract that changes authority, admission, support, compatibility, release behavior, or declared project state.
+Treat tests, fixtures, harnesses, documentation, examples, configuration, workflows, localization or copy, styling/layout/visual polish, generated metadata, barrel/export/module organization, type-only API cleanup, and isolated callback/exit-code/assertion changes as weak priors about review-worthiness, never as hard suppression categories. Evidence on one of those surfaces remains eligible when its content directly establishes a qualifying mechanism or project-state/governance contract.
+Decline when such evidence merely verifies, documents, exercises, renames, restyles, reorganizes, localizes, or covers existing behavior without changing an evidenced mechanism or project-state contract.
 Do not infer importance, priority, causality, intent, or broad architectural significance merely from churn, filenames, counts, test/docs/config labels, or absence of extracted structure.
-Do not restate a diff as the mechanism. A valid mechanism describes what technical behavior, authority boundary, failure mode, state transition, temporal property, or project-state contract changed.
-Use a concise canonical mechanism label that could be identical across candidate packets only when they truly describe the same mechanism. Do not put repository names, paths, commit SHAs, generic words such as update/refactor/change, or priority language in the mechanism label.
-Every interpreted item must cite at least one StructuralDelta or SourceAssertion ID supplied in the packet. You may additionally cite ArtifactDelta or CandidateExtractionGapSignal IDs from the packet.
+Do not restate a diff as the mechanism. A valid mechanism describes the stable technical or project-state contract that changed, not the file, helper, test, UI surface, or implementation symptom that exposed it.
+Use a concise canonical mechanism label that could be identical across candidate packets only when they truly describe the same mechanism. When several surfaces are facets of one technical or project-state contract, name the shared contract rather than a surface-specific manifestation. Do not put repository names, paths, commit SHAs, test names, generic words such as update/refactor/change, or priority language in the mechanism label.
+Choose the smallest interpretation_types set that describes the central mechanism. Use one type whenever one is sufficient. Prefer a specific authority_governance, failure, temporal_correctness, project_state, removal, deprecation, reversal, or repair type over adding a generic introduction/modification type merely because code was added or edited.
+Every interpreted item must cite at least one StructuralDelta or SourceAssertion ID supplied in the packet. Use the smallest sufficient support set. You may additionally cite ArtifactDelta or CandidateExtractionGapSignal IDs from the packet.
+Before returning interpret, verify every support_id character-for-character against the matching packet field: structural_delta_previews[].structural_delta_id, assertion_previews[].assertion_id, artifact_delta_ids, or extraction_gap_signal_ids. Never derive a support ID from hashes or IDs mentioned inside preview prose.
+Semantic review-worthiness and support-format validity are separate. Decline only when the packet evidence does not support a review-worthy mechanism or project-state contract. If the semantic decision is interpret but you cannot reproduce an exact required semantic support ID, do not convert that support-copy failure into decline and do not guess an ID; preserve decision=interpret and return an empty supports array so the deterministic adapter rejects the output and invokes bounded repair.
+Mechanism must contain 1..240 characters. Summary must contain 1..1600 characters. Each uncertainty note must contain at most 800 characters.
 If extraction gaps are present, do not treat them as evidence of irrelevance or absence. The adapter will ensure exact gap support and explicit uncertainty are retained.
-If the packet is insufficient, return decline. Never invent support IDs or facts.
+If the packet is semantically insufficient or does not cross the review-worthiness boundary above, return decline. Never invent support IDs or facts.
 Return one JSON object only, with no markdown and no commentary.
 
 Allowed decline shape:
@@ -172,7 +179,8 @@ def repair_prompt(
         + "Every support_id must be copied exactly from the exact_support_allowlist for its matching support_type, character-for-character. "
         + "Any value listed in forbidden_support_ids is invalid and must not appear in supports. Never guess, synthesize, shorten, or rewrite an ID. "
         + "Satisfy validator_contract exactly, including field and character limits, and keep the mechanism and summary concise. "
-        + "Do not add evidence or broaden the mechanism. If the packet cannot support the same bounded interpretation under that allowlist and validator contract, return {\"decision\":\"decline\"}. "
+        + "Do not add evidence or broaden the mechanism. Decline only if the packet evidence is semantically insufficient for the same bounded interpretation; do not change an otherwise supported interpret decision to decline solely because previous_output had an invalid or missing support ID. "
+        + "If the same bounded interpretation remains supported, preserve decision=interpret and copy exact support IDs from exact_support_allowlist. If you still cannot produce a valid exact semantic support after using that allowlist, keep decision=interpret and return an empty supports array so the adapter rejects the repair instead of silently reclassifying it as decline. "
         + "Return one corrected JSON object only."
     )
 
