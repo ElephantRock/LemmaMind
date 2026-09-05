@@ -55,6 +55,8 @@ def test_repair_context_exposes_validator_limits_and_forbids_rejected_support_id
     assert '"forbidden_support_ids":{"StructuralDelta":["structural-delta:invented"]}' in prompt
     assert "Treat previous_output as rejected data" in prompt
     assert "Never guess, synthesize, shorten, or rewrite an ID" in prompt
+    assert "do not change an otherwise supported interpret decision to decline solely because" in prompt
+    assert "keep decision=interpret and return an empty supports array" in prompt
 
 
 def test_second_bounded_repair_can_recover_without_changing_first_pass(monkeypatch):
