@@ -21,7 +21,7 @@ def packet():
     }
 
 
-def test_v7_first_pass_requires_mechanism_and_decision_consequence():
+def test_v7_first_pass_requires_mechanism_and_target_independent_contract_consequence():
     rules = MODULE.SYSTEM_RULES
     lowered = rules.casefold()
 
@@ -29,17 +29,27 @@ def test_v7_first_pass_requires_mechanism_and_decision_consequence():
     assert "candidate-level change" in lowered
     assert "runtime behavior change" in lowered
     assert "externally observable change" in lowered
-    assert "must pass both a mechanism test and a decision-consequence test" in lowered
-    assert "stable technical or project-state contract, boundary, or invariant" in lowered
-    assert "durable decision surfaces" in lowered
-    assert "admitted, authorized, owns, routes, executes, or may persist state" in lowered
-    assert "session, process, retry, reconnect, restart" in lowered
-    assert "unsafe mutation, data loss or duplication, silent loss" in lowered
-    assert "stuck or unbounded waits" in lowered
-    assert "stale ownership/readiness" in lowered
-    assert "protocol, configuration, compatibility, deprecation, removal, release, or ci contract" in lowered
-    assert "security or resource-isolation boundary" in lowered
-    assert "temporal/concurrency ordering preserves correctness" in lowered
+    assert "must pass both a mechanism test and a contract-consequence test" in lowered
+    assert "stable technical or project-state contract, boundary, invariant, or externally consumed classification" in lowered
+    assert "target-independent contract dimension" in lowered
+    assert "authority, eligibility, control assignment, or ownership" in lowered
+    assert "durable state-transition or persistence semantics" in lowered
+    assert "externally consumed interface, protocol, configuration, support, compatibility, release, or ci contract" in lowered
+    assert "externally consumed classification, taxonomy, or reason vocabulary" in lowered
+    assert "used by policy, routing, automation, integration, or operator workflows" in lowered
+    assert "failure-handling or recovery semantics" in lowered
+    assert "correctness-critical ordering, concurrency, or isolation constraint" in lowered
+    assert "can qualify even when downstream action mapping is unchanged" in lowered
+
+    for leaked_consequence_cue in (
+        "session, process, retry, reconnect, restart",
+        "unsafe mutation",
+        "data loss or duplication",
+        "silent loss",
+        "stuck or unbounded waits",
+        "stale ownership/readiness",
+    ):
+        assert leaked_consequence_cue not in lowered
 
 
 def test_v7_declines_local_behavior_without_hard_surface_suppression():
@@ -48,9 +58,10 @@ def test_v7_declines_local_behavior_without_hard_surface_suppression():
 
     assert "decline localized behavior" in lowered
     assert "one helper, callback, ui interaction" in lowered
-    assert "retry-tuning detail" in lowered
+    assert "tuning detail" in lowered
     assert "performance optimization" in lowered
-    assert "does not establish or alter one of the durable decision surfaces" in lowered
+    assert "does not establish or alter one of the contract dimensions" in lowered
+    assert "do not treat a consumer-visible classification or taxonomy contract as merely local diagnostics" in lowered
 
     for expected in (
         "tests, fixtures, harnesses",
@@ -68,7 +79,7 @@ def test_v7_declines_local_behavior_without_hard_surface_suppression():
         assert expected in lowered
 
     assert "documentation, test, configuration, or workflow change" in lowered
-    assert "changes declared support, compatibility, authority, admission, release behavior" in lowered
+    assert "changes declared support, compatibility, authority, admission, release behavior, externally consumed classification" in lowered
 
 
 def test_v7_has_no_frozen_target_or_threshold_leakage():
@@ -103,7 +114,7 @@ def test_v7_requests_shared_contract_labels_and_one_central_contract():
     assert "facets of the same contract" in rules
     assert "shared contract label" in rules
     assert "never merge independent contracts" in rules
-    assert "single central qualifying durable contract" in rules
+    assert "single central qualifying contract" in rules
     assert "Choose the smallest interpretation_types set" in rules
     assert "Use one type whenever one is sufficient" in rules
     assert "Prefer one exact semantic support when one support is sufficient" in rules
