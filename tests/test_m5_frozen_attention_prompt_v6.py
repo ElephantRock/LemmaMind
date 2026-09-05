@@ -21,7 +21,7 @@ def packet():
     }
 
 
-def test_v6_first_pass_encodes_generic_runtime_review_worthiness():
+def test_v6_first_pass_encodes_generic_review_worthiness():
     rules = MODULE.SYSTEM_RULES
 
     assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v6"
@@ -32,23 +32,29 @@ def test_v6_first_pass_encodes_generic_runtime_review_worthiness():
     assert "temporal or concurrency ordering" in rules
     assert "externally observable protocol or routing behavior" in rules
     assert "security or resource isolation" in rules
+    assert "explicit governance, configuration, compatibility, deprecation, removal, release, or CI contract" in rules
 
 
-def test_v6_first_pass_declines_generic_low_signal_surfaces_without_target_leakage():
+def test_v6_first_pass_treats_non_runtime_surfaces_as_weak_priors_without_target_leakage():
     rules = MODULE.SYSTEM_RULES
     lowered = rules.casefold()
 
     for expected in (
         "tests, fixtures, harnesses",
         "documentation, examples",
+        "configuration, workflows",
         "localization or copy",
         "styling/layout/visual polish",
         "generated metadata",
         "barrel/export/module organization",
         "type-only api cleanup",
-        "verification-only or coverage-only changes",
+        "weak priors about review-worthiness",
+        "never as hard suppression categories",
+        "remains eligible",
     ):
         assert expected in lowered
+
+    assert "unless the same packet contains direct runtime implementation evidence" not in lowered
 
     forbidden_target_material = (
         "copilotkit/openbot",
@@ -74,14 +80,14 @@ def test_v6_first_pass_declines_generic_low_signal_surfaces_without_target_leaka
 def test_v6_first_pass_requests_stable_mechanism_names_and_minimal_type_sets():
     rules = MODULE.SYSTEM_RULES
 
-    assert "describes the stable runtime contract" in rules
-    assert "facets of one runtime contract, name the shared contract" in rules
+    assert "stable technical or project-state contract" in rules
+    assert "facets of one technical or project-state contract, name the shared contract" in rules
     assert "Choose the smallest interpretation_types set" in rules
     assert "Use one type whenever one is sufficient" in rules
     assert "smallest sufficient support set" in rules
 
 
-def test_v6_first_pass_makes_exact_support_and_length_contract_explicit():
+def test_v6_first_pass_keeps_support_copy_failure_separate_from_semantic_decline():
     rules = MODULE.SYSTEM_RULES
 
     assert "verify every support_id character-for-character" in rules
@@ -89,7 +95,9 @@ def test_v6_first_pass_makes_exact_support_and_length_contract_explicit():
     assert "assertion_previews[].assertion_id" in rules
     assert "artifact_delta_ids" in rules
     assert "extraction_gap_signal_ids" in rules
-    assert "decline rather than guessing" in rules
+    assert "Semantic review-worthiness and support-format validity are separate" in rules
+    assert "do not convert that support-copy failure into decline" in rules
+    assert "return an empty supports array" in rules
     assert "Mechanism must contain 1..240 characters" in rules
     assert "Summary must contain 1..1600 characters" in rules
     assert "uncertainty note must contain at most 800 characters" in rules
