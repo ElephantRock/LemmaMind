@@ -5,7 +5,7 @@ import pytest
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_m5_frozen_inference.py"
-SPEC = spec_from_file_location("m5_frozen_inference_adapter_v6", SCRIPT_PATH)
+SPEC = spec_from_file_location("m5_frozen_inference_adapter_v7", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
@@ -47,12 +47,16 @@ def test_repair_context_exposes_validator_limits_and_forbids_rejected_support_id
         error=ValueError("support lies outside exact packet"),
     )
 
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v6"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v7"
     assert MODULE.MAX_SEMANTIC_REPAIRS == 2
     assert '"summary_max_characters":1600' in prompt
     assert '"mechanism_max_characters":240' in prompt
     assert '"uncertainty_note_max_characters":800' in prompt
     assert '"forbidden_support_ids":{"StructuralDelta":["structural-delta:invented"]}' in prompt
+    assert '"exact_semantic_support_choices"' in prompt
+    assert '{"support_id":"assertion:1","support_type":"SourceAssertion"}' in prompt
+    assert '{"support_id":"structural-delta:1","support_type":"StructuralDelta"}' in prompt
+    assert "first supports entry must be copied as a literal" in prompt
     assert "Treat previous_output as rejected data" in prompt
     assert "Never guess, synthesize, shorten, or rewrite an ID" in prompt
     assert "do not change an otherwise supported interpret decision to decline solely because" in prompt
@@ -78,6 +82,7 @@ def test_second_bounded_repair_can_recover_without_changing_first_pass(monkeypat
     assert len(prompts) == 3
     assert prompts[0] == MODULE.packet_prompt(packet())
     assert "Deterministic adapter repair context" not in prompts[0]
+    assert "exact_semantic_support_choices" not in prompts[0]
     assert '"repair_attempt":1' in prompts[1]
     assert "structural-delta:first-invalid" in prompts[1]
     assert '"repair_attempt":2' in prompts[2]

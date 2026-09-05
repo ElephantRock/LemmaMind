@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_m5_frozen_inference.py"
-SPEC = spec_from_file_location("m5_frozen_attention_prompt_v6", SCRIPT_PATH)
+SPEC = spec_from_file_location("m5_frozen_attention_prompt_v7", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
@@ -21,23 +21,37 @@ def packet():
     }
 
 
-def test_v6_first_pass_encodes_generic_review_worthiness():
-    rules = MODULE.SYSTEM_RULES
-
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v6"
-    assert "candidate-level change is not automatically a human review item" in rules.casefold()
-    assert "authority/admission/ownership/persistence boundary" in rules
-    assert "durable state lifecycle or invariant" in rules
-    assert "failure, recovery, or fail-closed behavior" in rules
-    assert "temporal or concurrency ordering" in rules
-    assert "externally observable protocol or routing behavior" in rules
-    assert "security or resource isolation" in rules
-    assert "explicit governance, configuration, compatibility, deprecation, removal, release, or CI contract" in rules
-
-
-def test_v6_first_pass_treats_non_runtime_surfaces_as_weak_priors_without_target_leakage():
+def test_v7_first_pass_requires_mechanism_and_target_independent_contract_consequence():
     rules = MODULE.SYSTEM_RULES
     lowered = rules.casefold()
+
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v7"
+    assert "candidate-level change" in lowered
+    assert "runtime behavior change" in lowered
+    assert "externally observable change" in lowered
+    assert "must pass both a mechanism test and a contract-consequence test" in lowered
+    assert "stable technical or project-state contract, boundary, invariant, or externally consumed classification" in lowered
+    assert "target-independent contract dimension" in lowered
+    assert "authority, eligibility, control assignment, or ownership" in lowered
+    assert "durable state-transition or persistence semantics" in lowered
+    assert "externally consumed interface, protocol, configuration, support, compatibility, release, or ci contract" in lowered
+    assert "externally consumed classification, taxonomy, or reason vocabulary" in lowered
+    assert "used by policy, routing, automation, integration, or operator workflows" in lowered
+    assert "failure-handling or recovery semantics" in lowered
+    assert "correctness-critical ordering, concurrency, or isolation constraint" in lowered
+    assert "can qualify even when downstream action mapping is unchanged" in lowered
+
+
+def test_v7_declines_local_behavior_without_hard_surface_suppression():
+    rules = MODULE.SYSTEM_RULES
+    lowered = rules.casefold()
+
+    assert "decline localized behavior" in lowered
+    assert "one helper, callback, ui interaction" in lowered
+    assert "tuning detail" in lowered
+    assert "performance optimization" in lowered
+    assert "does not establish or alter one of the contract dimensions" in lowered
+    assert "do not treat a consumer-visible classification or taxonomy contract as merely local diagnostics" in lowered
 
     for expected in (
         "tests, fixtures, harnesses",
@@ -54,7 +68,12 @@ def test_v6_first_pass_treats_non_runtime_surfaces_as_weak_priors_without_target
     ):
         assert expected in lowered
 
-    assert "unless the same packet contains direct runtime implementation evidence" not in lowered
+    assert "documentation, test, configuration, or workflow change" in lowered
+    assert "changes declared support, compatibility, authority, admission, release behavior, externally consumed classification" in lowered
+
+
+def test_v7_has_no_frozen_target_or_threshold_leakage():
+    lowered = MODULE.SYSTEM_RULES.casefold()
 
     forbidden_target_material = (
         "copilotkit/openbot",
@@ -72,22 +91,26 @@ def test_v6_first_pass_treats_non_runtime_surfaces_as_weak_priors_without_target
         "openbot:    5",
         "openclaw:  35",
         "hermes:    10",
+        "total 50",
     )
     for forbidden in forbidden_target_material:
         assert forbidden not in lowered
 
 
-def test_v6_first_pass_requests_stable_mechanism_names_and_minimal_type_sets():
+def test_v7_requests_shared_contract_labels_and_one_central_contract():
     rules = MODULE.SYSTEM_RULES
 
-    assert "stable technical or project-state contract" in rules
-    assert "facets of one technical or project-state contract, name the shared contract" in rules
+    assert "highest contract level directly supported by the packet" in rules
+    assert "facets of the same contract" in rules
+    assert "shared contract label" in rules
+    assert "never merge independent contracts" in rules
+    assert "single central qualifying contract" in rules
     assert "Choose the smallest interpretation_types set" in rules
     assert "Use one type whenever one is sufficient" in rules
-    assert "smallest sufficient support set" in rules
+    assert "Prefer one exact semantic support when one support is sufficient" in rules
 
 
-def test_v6_first_pass_keeps_support_copy_failure_separate_from_semantic_decline():
+def test_v7_keeps_support_copy_failure_separate_from_semantic_decline():
     rules = MODULE.SYSTEM_RULES
 
     assert "verify every support_id character-for-character" in rules
@@ -103,7 +126,7 @@ def test_v6_first_pass_keeps_support_copy_failure_separate_from_semantic_decline
     assert "uncertainty note must contain at most 800 characters" in rules
 
 
-def test_v6_preserves_bounded_execution_and_first_pass_is_repair_free():
+def test_v7_preserves_bounded_execution_and_first_pass_is_repair_free():
     prompt = MODULE.packet_prompt(packet())
 
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
@@ -113,4 +136,5 @@ def test_v6_preserves_bounded_execution_and_first_pass_is_repair_free():
     assert prompt.startswith(MODULE.SYSTEM_RULES + "\nCandidateEvidencePacket:\n")
     assert "Deterministic adapter repair context" not in prompt
     assert "exact_support_allowlist" not in prompt
+    assert "exact_semantic_support_choices" not in prompt
     assert "forbidden_support_ids" not in prompt
