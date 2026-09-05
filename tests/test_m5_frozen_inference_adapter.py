@@ -139,7 +139,8 @@ def test_repair_prompt_carries_previous_output_and_exact_support_allowlist_only(
     assert '"CandidateExtractionGapSignal":["gap:1"]' in prompt
     assert "structural-delta:invented" in prompt  # retained only as prior rejected output
     assert "copied exactly from the exact_support_allowlist" in prompt
-    assert "If the packet cannot support the same bounded interpretation" in prompt
+    assert "Decline only if the packet evidence is semantically insufficient" in prompt
+    assert "do not change an otherwise supported interpret decision to decline solely because" in prompt
 
 
 def test_repair_prompt_preserves_complete_rejection_context():
