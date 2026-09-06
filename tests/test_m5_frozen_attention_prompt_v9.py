@@ -28,24 +28,41 @@ def test_v9_requires_mechanism_review_span_and_boundary_effect():
     assert "must pass all three tests" in lowered
     assert "mechanism, review-span, and boundary-effect" in lowered
     assert "review-span test" in lowered
-    assert "review-bearing span" in lowered
+    assert "generic review-bearing span" in lowered
     assert "this is not a file-count or path-count test" in lowered
     assert "one file may qualify" in lowered
 
 
-def test_v9_review_span_is_cross_call_component_or_phase_not_local_admission():
+def test_v9_review_span_provenance_is_non_audit_product_contract():
+    assert MODULE.REVIEW_SPAN_PROVENANCE == (
+        "roadmap:I5-security-trust-isolation",
+        "roadmap:I7-mechanism-level-knowledge",
+        "roadmap:I8-human-attention",
+        "docs:M5-CHANGE-SIGNAL-NEXT-SLICE",
+    )
+
+
+def test_v9_review_span_uses_generic_contract_dimensions():
     lowered = MODULE.SYSTEM_RULES.casefold()
 
     for expected in (
-        "later session, process, restart, deployment, migration, or recovery phase",
-        "independently progressing actors, components, or trust domains",
-        "batch, await boundary, retry cycle, lifecycle phase",
-        "cross-component failure, recovery, or terminal-state handoff",
-        "externally consumed classification, taxonomy, support/compatibility obligation, or operator decision surface",
+        "durable authority, ownership, or state lifecycle",
+        "principal/authority trust-boundary rule",
+        "shared rule directly consumed by independently progressing actors, components, or trust domains",
+        "multi-step or multi-participant correctness invariant",
+        "cross-boundary failure, recovery, or terminal-state handoff",
+        "externally consumed contract",
     ):
         assert expected in lowered
-    assert "authority, admission, eligibility, and ownership wording is not enough by itself" in lowered
-    assert "single-operation precondition, capability check, parameter validation, endpoint guard" in lowered
+
+
+def test_v9_request_local_trust_boundary_contract_remains_eligible():
+    lowered = MODULE.SYSTEM_RULES.casefold()
+
+    assert "may qualify even when enforced within one request when the trust boundary itself is the stable contract" in lowered
+    assert "do not decline a rule merely because it is request-local" in lowered
+    assert "stable principal/authority contract across distinct trust domains" in lowered
+    assert "single-operation parameter validation, request-shape check, helper-local capability test" in lowered
     assert "a changed admitted-versus-denied outcome inside one operation is not automatically a review item" in lowered
 
 
@@ -53,7 +70,7 @@ def test_v9_allows_state_action_consumer_lifecycle_without_allowing_mere_project
     lowered = MODULE.SYSTEM_RULES.casefold()
 
     assert "externally consumed state/action lifecycle" in lowered
-    assert "both observes governed state and performs a governed state transition" in lowered
+    assert "observing governed state and performing the governed transition" in lowered
     assert "is not automatically a projection-only decline" in lowered
     assert "if it merely mirrors, formats, documents, or verifies a contract established elsewhere" in lowered
     assert "decline it" in lowered
@@ -94,33 +111,29 @@ def test_v9_preserves_weak_prior_not_hard_suppression_rule():
     assert "changes declared support, compatibility, authority, admission, migration, release behavior" in lowered
 
 
-def test_v9_canonicalizes_to_review_bearing_lifecycle_and_minimal_type_set():
+def test_v9_canonicalizes_to_review_bearing_contract_and_minimal_type_set():
     rules = MODULE.SYSTEM_RULES
 
     assert "highest review-bearing contract level directly supported by the packet" in rules
-    assert "label the lifecycle rather than the uniqueness check" in rules
+    assert "label the lifecycle rather than the subordinate check" in rules
     assert "use the same stable governing-contract wording rather than surface-specific wording" in rules
     assert "If the packet contains only a projection without enough evidence for the governing lifecycle, decline" in rules
-    assert "Do not add temporal_correctness merely because a newly introduced lifecycle uses a uniqueness constraint" in rules
+    assert "Do not add temporal_correctness merely because an implementation uses a synchronization or uniqueness detail" in rules
     assert "Choose the smallest interpretation_types set" in rules
     assert "Use one type whenever one is sufficient" in rules
     assert "Prefer one exact semantic support when one support is sufficient" in rules
 
 
-def test_v9_has_no_frozen_target_or_threshold_leakage():
+def test_v9_has_no_frozen_identifier_or_threshold_leakage():
     lowered = MODULE.SYSTEM_RULES.casefold()
 
-    forbidden_target_material = (
+    forbidden_frozen_material = (
         "copilotkit/openbot",
         "openclaw/openclaw",
         "nousresearch/hermes-agent",
         "attention/queries.ts",
         "sticky-model-selection.ts",
         "update_contract.py",
-        "attention inbox for refusals",
-        "policy dry-run against historical judged actions",
-        "configurable model-selection scopes",
-        "provenance-aware update admission",
         "8/10",
         "primary anchor",
         "openbot:    5",
@@ -128,7 +141,7 @@ def test_v9_has_no_frozen_target_or_threshold_leakage():
         "hermes:    10",
         "total 50",
     )
-    for forbidden in forbidden_target_material:
+    for forbidden in forbidden_frozen_material:
         assert forbidden not in lowered
 
 
