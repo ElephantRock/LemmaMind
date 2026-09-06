@@ -5,7 +5,7 @@ import pytest
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_m5_frozen_inference.py"
-SPEC = spec_from_file_location("m5_frozen_inference_adapter_v7", SCRIPT_PATH)
+SPEC = spec_from_file_location("m5_frozen_inference_adapter_v8", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
@@ -47,7 +47,7 @@ def test_repair_context_exposes_validator_limits_and_forbids_rejected_support_id
         error=ValueError("support lies outside exact packet"),
     )
 
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v7"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v8"
     assert MODULE.MAX_SEMANTIC_REPAIRS == 2
     assert '"summary_max_characters":1600' in prompt
     assert '"mechanism_max_characters":240' in prompt
