@@ -39,6 +39,8 @@ def test_v8_declines_representation_projection_and_local_failure_noise():
 
     assert "decline additive or representational surface changes" in lowered
     assert "request/response fields, methods, enum members, accepted values" in lowered
+    assert "unless the packet directly establishes both a qualifying contract carrier and a qualifying boundary effect" in lowered
+    assert "without directly changing an admitted operation, durable lifecycle outcome, compatibility/support obligation, or cross-boundary correctness invariant" not in lowered
     assert "projection-only changes" in lowered
     assert "merely exposes, mirrors, formats, or verifies a contract established elsewhere" in lowered
     assert "local failure-handling details" in lowered
