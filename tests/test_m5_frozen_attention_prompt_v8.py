@@ -56,6 +56,7 @@ def test_v8_keeps_taxonomy_contracts_eligible_only_with_direct_consumer_dependen
     assert "mere logging, serialization, persistence, display, or enumeration is insufficient" in lowered
     assert "may qualify even when downstream action mapping is unchanged" in lowered
     assert "non-local consumer or operator decision surface depends on stable named distinctions" in lowered
+    assert "which stable classification, taxonomy, or reason distinction a directly evidenced non-local consumer or operator decision surface may rely on" in lowered
 
 
 def test_v8_preserves_weak_prior_not_hard_suppression_rule():
