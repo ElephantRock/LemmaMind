@@ -49,7 +49,7 @@ def test_v10_review_span_uses_narrow_generic_contract_dimensions():
         "durable state, provenance, schema, or ownership lifecycle",
         "cross-boundary failure/recovery handoff or multi-step/multi-participant correctness invariant",
         "externally consumed control, support, compatibility, classification/taxonomy, or operator decision contract",
-        "externally consumed state/action lifecycle",
+        "externally consumed operator decision/control or terminal/recovery state/action lifecycle",
     ):
         assert expected in lowered
     assert "shared rule directly consumed by independently progressing actors, components, or trust domains" not in lowered
@@ -76,12 +76,13 @@ def test_v10_request_local_trust_boundary_contract_remains_eligible():
     assert "a changed admitted-versus-denied outcome inside one operation is not automatically a review item" in lowered
 
 
-def test_v10_consumer_state_action_lifecycle_is_eligible_without_persistence_restatement():
+def test_v10_consumer_state_action_lifecycle_is_decision_bearing_not_ordinary_crud():
     lowered = MODULE.SYSTEM_RULES.casefold()
 
     assert "both observation of governed state and an action that performs the governed transition" in lowered
+    assert "observed state directly governs subsequent eligibility, required action, terminal/recovery status, or another non-local decision outcome" in lowered
     assert "do not require that consumer packet to restate the persistence implementation" in lowered
-    assert "read-only mirror, write-only wrapper" in lowered
+    assert "read-only mirror, write-only wrapper, ordinary crud/editor surface" in lowered
     assert "does not qualify on that basis alone" in lowered
 
 
