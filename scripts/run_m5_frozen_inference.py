@@ -153,6 +153,7 @@ def repair_validator_contract() -> dict:
         "uncertainty_note_max_characters": 800,
         "allowed_interpretation_types": sorted(ALLOWED_TYPES),
         "unknown_must_be_alone": True,
+        "generic_types_cannot_mix_with_specific": True,
         "semantic_support_required_from": sorted(SEMANTIC_SUPPORT_TYPES),
     }
 
@@ -306,6 +307,11 @@ def normalize(packet: dict, response: dict) -> dict:
         raise ValueError("interpretation_types contains an unknown type")
     if "unknown" in types and len(types) != 1:
         raise ValueError("unknown cannot be combined with another interpretation type")
+    generic_types = {"introduction", "modification"}
+    if len(types) > 1 and set(types) & generic_types and not set(types).issubset(generic_types):
+        raise ValueError(
+            "introduction or modification cannot be combined with a more specific interpretation type"
+        )
 
     mechanism = response["mechanism"]
     summary = response["summary"]
