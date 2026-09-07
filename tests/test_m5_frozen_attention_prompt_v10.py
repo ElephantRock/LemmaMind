@@ -59,7 +59,8 @@ def test_v10_review_leverage_declines_internal_contract_preserving_repairs():
     lowered = MODULE.SYSTEM_RULES.casefold()
 
     assert "governing review-bearing contract is itself new or materially changed" in lowered
-    assert "changed enforcement mechanism materially changes the fail-closed, recovery, terminal, migration, re-admission, or trust-boundary semantics" in lowered
+    assert "changed enforcement mechanism materially changes the fail-closed, recovery, terminal, migration, re-admission, trust-boundary, or cross-boundary/multi-step correctness semantics" in lowered
+    assert "correctness leverage requires directly evidenced impact on externally or durably consumed state" in lowered
     assert "refactor, implementation repair, shared helper, internal ownership transfer" in lowered
     assert "not review-bearing merely because it is stable, persistent, cross-file, or consumed by multiple components" in lowered
     assert "do not manufacture review leverage" in lowered
