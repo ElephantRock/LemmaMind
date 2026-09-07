@@ -52,6 +52,7 @@ def test_repair_context_exposes_validator_limits_and_forbids_rejected_support_id
     assert '"summary_max_characters":1600' in prompt
     assert '"mechanism_max_characters":240' in prompt
     assert '"uncertainty_note_max_characters":800' in prompt
+    assert '"generic_types_cannot_mix_with_specific":true' in prompt
     assert '"forbidden_support_ids":{"StructuralDelta":["structural-delta:invented"]}' in prompt
     assert '"exact_semantic_support_choices"' in prompt
     assert '{"support_id":"assertion:1","support_type":"SourceAssertion"}' in prompt
@@ -61,6 +62,21 @@ def test_repair_context_exposes_validator_limits_and_forbids_rejected_support_id
     assert "Never guess, synthesize, shorten, or rewrite an ID" in prompt
     assert "do not change an otherwise supported interpret decision to decline solely because" in prompt
     assert "keep decision=interpret and return an empty supports array" in prompt
+
+
+def test_normalize_rejects_generic_type_combined_with_specific_type():
+    for interpretation_types in (
+        ["modification", "failure"],
+        ["introduction", "project_state"],
+    ):
+        invalid = proposal()
+        invalid["interpretation_types"] = interpretation_types
+
+        with pytest.raises(
+            ValueError,
+            match="cannot be combined with a more specific interpretation type",
+        ):
+            MODULE.normalize(packet(), invalid)
 
 
 def test_second_bounded_repair_can_recover_without_changing_first_pass(monkeypatch):
