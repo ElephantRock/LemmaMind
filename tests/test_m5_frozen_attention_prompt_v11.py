@@ -105,13 +105,14 @@ def test_v11_consumer_state_action_lifecycle_stays_decision_bearing():
     assert "read-only mirror, write-only wrapper, ordinary crud/editor surface" in lowered
 
 
-def test_v11_docs_and_tests_are_corroboration_unless_they_are_authoritative_project_state():
+def test_v11_docs_and_tests_remain_eligible_evidence_surfaces():
     lowered = MODULE.SYSTEM_RULES.casefold()
 
-    assert "may establish a review item by themselves only when their content is itself the authoritative changed project-state contract" in lowered
-    assert "declared support, compatibility, operator control, release/admission policy" in lowered
-    assert "merely describe, demonstrate, or verify runtime semantics established elsewhere" in lowered
-    assert "corroborating evidence, not a separate mechanism" in lowered
+    assert "are evidence surfaces, not automatic declines and not automatic mechanisms" in lowered
+    assert "may establish a review item without implementation files" in lowered
+    assert "authoritative changed project-state contract or a behavioral contract assertion" in lowered
+    assert "directly proves the governing rule and changed boundary effect" in lowered
+    assert "do not require runtime implementation bytes solely because the evidence surface is a test or document" in lowered
     assert "weak priors about review-worthiness" in lowered
     assert "never as hard suppression categories" in lowered
 
