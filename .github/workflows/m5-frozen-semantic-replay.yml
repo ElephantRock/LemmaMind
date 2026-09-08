@@ -38,6 +38,7 @@ jobs:
       }}
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         repo_key: [openbot, openclaw, hermes]
     runs-on: ubuntu-24.04
