@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SCHEMA_VERSION = "m5-frozen-semantic-replay.v1"
-ADAPTER_VERSION = "zai-glm-5.3.packet-v11"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v12"
 INVOKE_TIMEOUT_SECONDS = 600
 MAX_TIMEOUT_RETRIES = 1
 MAX_SEMANTIC_REPAIRS = 2
@@ -35,6 +35,14 @@ ALLOWED_SUPPORT_TYPES = {
     "CandidateExtractionGapSignal",
 }
 SEMANTIC_SUPPORT_TYPES = {"StructuralDelta", "SourceAssertion"}
+SUPPORT_REPAIR_ERROR_PREFIXES = (
+    "supports must be a non-empty list",
+    "each support must contain only support_type and support_id",
+    "unsupported support_type:",
+    "support lies outside exact packet:",
+    "mechanism interpretation requires StructuralDelta or SourceAssertion support",
+    "model cited extraction-gap support absent from the packet",
+)
 
 # Product-rule provenance for the generic review-worthiness rubric. These are deliberately
 # non-audit sources: roadmap I5 (security/trust isolation), I7 (mechanism-level
@@ -185,12 +193,35 @@ def forbidden_support_ids(previous_output: str, support_allowlist: dict[str, lis
     }
 
 
+def semantic_reference_fields(value: dict) -> dict | None:
+    if not isinstance(value, dict) or value.get("decision") != "interpret":
+        return None
+    required_semantic_fields = ("decision", "interpretation_types", "mechanism", "summary")
+    if any(field not in value for field in required_semantic_fields):
+        return None
+    reference = {field: value[field] for field in required_semantic_fields}
+    if "uncertainty_notes" in value:
+        reference["uncertainty_notes"] = value["uncertainty_notes"]
+    return reference
+
+
+def support_repair_reference(previous_output: str, error: Exception) -> dict | None:
+    if not str(error).startswith(SUPPORT_REPAIR_ERROR_PREFIXES):
+        return None
+    try:
+        value = json.loads(previous_output)
+    except Exception:
+        return None
+    return semantic_reference_fields(value)
+
+
 def repair_prompt(
     packet: dict,
     *,
     previous_output: str,
     error: Exception,
     repair_attempt: int = 1,
+    semantic_reference: dict | None = None,
 ) -> str:
     if repair_attempt < 1 or repair_attempt > MAX_SEMANTIC_REPAIRS:
         raise ValueError(
@@ -206,21 +237,33 @@ def repair_prompt(
         "exact_semantic_support_choices": exact_semantic_support_choices,
         "exact_support_allowlist": support_allowlist,
         "forbidden_support_ids": forbidden_support_ids(previous_output, support_allowlist),
-        "previous_output": previous_output,
         "repair_attempt": repair_attempt,
         "validator_contract": repair_validator_contract(),
     }
+    if semantic_reference is None:
+        repair_context["previous_output"] = previous_output
+        repair_mode_rules = (
+            "Repair the previous output only. Treat previous_output as rejected data, not as a source of valid support IDs. "
+        )
+    else:
+        repair_context["semantic_reference"] = semantic_reference
+        repair_mode_rules = (
+            "This is support-copy/JSON-serialization repair for a semantic interpretation whose non-support fields already passed deterministic validation. "
+            "Preserve decision, interpretation_types, mechanism, summary, and uncertainty_notes exactly from semantic_reference; do not re-evaluate, broaden, narrow, or rewrite them. "
+            "The rejected raw output is intentionally omitted so invalid IDs or malformed JSON cannot become repair source material. Rebuild supports only from the exact choices supplied below. "
+        )
     return (
         packet_prompt(packet)
         + "\n\nDeterministic adapter repair context:\n"
         + json.dumps(repair_context, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        + "\nRepair the previous output only. Treat previous_output as rejected data, not as a source of valid support IDs. "
+        + "\n"
+        + repair_mode_rules
         + "Every support_id must be copied exactly from the exact_support_allowlist for its matching support_type, character-for-character. "
         + "Any value listed in forbidden_support_ids is invalid and must not appear in supports. Never guess, synthesize, shorten, or rewrite an ID. "
         + "For decision=interpret, the first supports entry must be copied as a literal support_type/support_id object from exact_semantic_support_choices. Prefer exactly one semantic support when one support is sufficient; add more only by copying exact objects from the allowlist. "
-        + "Do not use a StructuralDelta or SourceAssertion support that is absent from exact_semantic_support_choices. "
-        + "Satisfy validator_contract exactly, including field and character limits, and keep the mechanism and summary concise. "
-        + "Do not add evidence or broaden the mechanism. Decline only if the packet evidence is semantically insufficient for the same bounded interpretation; do not change an otherwise supported interpret decision to decline solely because previous_output had an invalid or missing support ID. "
+        + "Do not use a StructuralDelta or SourceAssertion support that is absent from exact_semantic_support_choices. The selected semantic support must directly support the preserved bounded mechanism; do not choose an unrelated allowed ID merely to satisfy validation. "
+        + "Satisfy validator_contract exactly, including field and character limits, and emit valid JSON syntax. "
+        + "Do not add evidence or broaden the mechanism. Decline only if the packet evidence is semantically insufficient for the same bounded interpretation; do not change an otherwise supported interpret decision to decline solely because a rejected output had an invalid or missing support ID. "
         + "If the same bounded interpretation remains supported, preserve decision=interpret and copy exact support IDs from the supplied choices. If you still cannot produce a valid exact semantic support after using those choices, keep decision=interpret and return an empty supports array so the adapter rejects the repair instead of silently reclassifying it as decline. "
         + "Return one corrected JSON object only."
     )
@@ -376,13 +419,21 @@ def infer_packet(binary: str, packet: dict) -> dict:
     raw = invoke_with_timeout_retry(binary, packet_prompt(packet))
     rejected_outputs: list[str] = []
     errors: list[Exception] = []
+    semantic_reference: dict | None = None
 
     for repair_count in range(MAX_SEMANTIC_REPAIRS + 1):
         try:
-            return normalize(packet, parse_json_object(raw))
+            response = parse_json_object(raw)
+            if semantic_reference is not None:
+                repaired_reference = semantic_reference_fields(response)
+                if repaired_reference != semantic_reference:
+                    raise ValueError("support repair changed preserved semantic fields")
+            return normalize(packet, response)
         except Exception as error:
             rejected_outputs.append(raw)
             errors.append(error)
+            if semantic_reference is None:
+                semantic_reference = support_repair_reference(raw, error)
             if repair_count >= MAX_SEMANTIC_REPAIRS:
                 break
             raw = invoke_with_timeout_retry(
@@ -392,6 +443,7 @@ def infer_packet(binary: str, packet: dict) -> dict:
                     previous_output=raw,
                     error=error,
                     repair_attempt=repair_count + 1,
+                    semantic_reference=semantic_reference,
                 ),
             )
 

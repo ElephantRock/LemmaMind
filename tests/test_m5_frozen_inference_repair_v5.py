@@ -5,7 +5,7 @@ import pytest
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_m5_frozen_inference.py"
-SPEC = spec_from_file_location("m5_frozen_inference_adapter_v11", SCRIPT_PATH)
+SPEC = spec_from_file_location("m5_frozen_inference_adapter_v12", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
@@ -47,7 +47,7 @@ def test_repair_context_exposes_validator_limits_and_forbids_rejected_support_id
         error=ValueError("support lies outside exact packet"),
     )
 
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v11"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
     assert MODULE.MAX_SEMANTIC_REPAIRS == 2
     assert '"summary_max_characters":1600' in prompt
     assert '"mechanism_max_characters":240' in prompt
@@ -62,6 +62,46 @@ def test_repair_context_exposes_validator_limits_and_forbids_rejected_support_id
     assert "Never guess, synthesize, shorten, or rewrite an ID" in prompt
     assert "do not change an otherwise supported interpret decision to decline solely because" in prompt
     assert "keep decision=interpret and return an empty supports array" in prompt
+
+
+def test_support_repair_reference_strips_rejected_supports():
+    rejected = MODULE.json.dumps(proposal(support_id="structural-delta:invented"))
+    reference = MODULE.support_repair_reference(
+        rejected,
+        ValueError(
+            "support lies outside exact packet: StructuralDelta:structural-delta:invented"
+        ),
+    )
+
+    assert reference == {
+        "decision": "interpret",
+        "interpretation_types": ["modification"],
+        "mechanism": "bounded mechanism",
+        "summary": "bounded summary",
+        "uncertainty_notes": [],
+    }
+    assert "supports" not in reference
+
+
+def test_support_repair_prompt_uses_sanitized_reference_not_rejected_raw():
+    rejected = MODULE.json.dumps(proposal(support_id="structural-delta:invented"))
+    error = ValueError(
+        "support lies outside exact packet: StructuralDelta:structural-delta:invented"
+    )
+    reference = MODULE.support_repair_reference(rejected, error)
+    prompt = MODULE.repair_prompt(
+        packet(),
+        previous_output=rejected,
+        error=error,
+        semantic_reference=reference,
+    )
+
+    assert '"semantic_reference"' in prompt
+    assert '"previous_output"' not in prompt
+    assert "support-copy/JSON-serialization repair" in prompt
+    assert "Preserve decision, interpretation_types, mechanism, summary, and uncertainty_notes exactly" in prompt
+    assert "The rejected raw output is intentionally omitted" in prompt
+    assert "selected semantic support must directly support the preserved bounded mechanism" in prompt
 
 
 def test_normalize_rejects_generic_type_combined_with_specific_type():
@@ -100,9 +140,35 @@ def test_second_bounded_repair_can_recover_without_changing_first_pass(monkeypat
     assert "Deterministic adapter repair context" not in prompts[0]
     assert "exact_semantic_support_choices" not in prompts[0]
     assert '"repair_attempt":1' in prompts[1]
-    assert "structural-delta:first-invalid" in prompts[1]
+    assert '"semantic_reference"' in prompts[1]
+    assert '"previous_output"' not in prompts[1]
     assert '"repair_attempt":2' in prompts[2]
-    assert "structural-delta:second-invalid" in prompts[2]
+    assert '"semantic_reference"' in prompts[2]
+    assert '"previous_output"' not in prompts[2]
+
+
+def test_support_reference_survives_malformed_intermediate_repair(monkeypatch):
+    first = MODULE.json.dumps(proposal(support_id="structural-delta:first-invalid"))
+    second = '{"decision":"interpret","broken"'
+    third = MODULE.json.dumps(proposal())
+    outputs = iter([first, second, third])
+    prompts = []
+
+    def fake_invoke(_binary, prompt_value):
+        prompts.append(prompt_value)
+        return next(outputs)
+
+    monkeypatch.setattr(MODULE, "invoke_with_timeout_retry", fake_invoke)
+
+    result = MODULE.infer_packet("/tmp/copilot", packet())
+
+    assert result["status"] == "interpret"
+    assert len(prompts) == 3
+    assert '"semantic_reference"' in prompts[1]
+    assert '"semantic_reference"' in prompts[2]
+    assert '"previous_output"' not in prompts[2]
+    assert "bounded mechanism" in prompts[2]
+    assert '"broken"' not in prompts[2]
 
 
 def test_persistent_invalid_output_fails_closed_after_two_repairs(monkeypatch):
@@ -139,6 +205,8 @@ def test_repair_contract_makes_length_failure_actionable():
     assert "summary must contain 1..1600 characters" in prompt
     assert '"summary_max_characters":1600' in prompt
     assert '"repair_attempt":2' in prompt
+    assert '"previous_output"' in prompt
+    assert '"semantic_reference"' not in prompt
 
 
 def test_inference_metadata_records_semantic_repair_limit(monkeypatch):

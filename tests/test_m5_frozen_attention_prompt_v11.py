@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_m5_frozen_inference.py"
-SPEC = spec_from_file_location("m5_frozen_attention_prompt_v11", SCRIPT_PATH)
+SPEC = spec_from_file_location("m5_frozen_attention_prompt_v12", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
@@ -21,10 +21,10 @@ def packet():
     }
 
 
-def test_v11_requires_mechanism_span_leverage_durable_knowledge_and_boundary_effect():
+def test_v12_preserves_v11_mechanism_span_leverage_durable_knowledge_and_boundary_effect():
     lowered = MODULE.SYSTEM_RULES.casefold()
 
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v11"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
     assert "must pass all five tests" in lowered
     assert "mechanism, review-span, review-leverage, durable-knowledge, and boundary-effect" in lowered
     assert "review-span test" in lowered
@@ -185,7 +185,7 @@ def test_v11_keeps_support_copy_failure_separate_from_semantic_decline():
     assert "uncertainty note must contain at most 800 characters" in rules
 
 
-def test_v11_preserves_bounded_execution_and_first_pass_is_repair_free():
+def test_v12_preserves_bounded_execution_and_first_pass_is_repair_free():
     prompt = MODULE.packet_prompt(packet())
 
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
