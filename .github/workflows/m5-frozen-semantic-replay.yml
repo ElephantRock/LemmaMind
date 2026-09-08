@@ -321,11 +321,48 @@ jobs:
           }
           observed = {name: version(name) for name in expected}
           if observed != expected:
-              raise SystemExit(f"runtime dependency closure mismatch: expected={expected} observed={observed}")
+            raise SystemExit(f"runtime dependency closure mismatch: expected={expected} observed={observed}")
           print("M5_RUNTIME_CLOSURE=" + repr(observed))
           PY
 
       - name: Download authenticated state
+        id: download_state
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: state-${{ matrix.repo_key }}
+          path: state
+
+      - name: Inspect authenticated state download
+        id: state_shape
+        shell: bash
+        env:
+          DOWNLOAD_OUTCOME: ${{ steps.download_state.outcome }}
+        run: |
+          set -euo pipefail
+          complete=true
+          if [[ "${DOWNLOAD_OUTCOME}" != "success" ]]; then
+            echo "::warning::Initial authenticated state download failed; one bounded re-download will be attempted."
+            complete=false
+          fi
+          for required in lemmamind.db packets.json build_meta.json artifact-sha256.txt; do
+            if [[ ! -f "state/${required}" ]]; then
+              echo "::warning::Authenticated state download missing ${required}; one bounded re-download will be attempted."
+              complete=false
+            fi
+          done
+          echo "complete=${complete}" >> "${GITHUB_OUTPUT}"
+
+      - name: Discard incomplete authenticated state before retry
+        if: steps.state_shape.outputs.complete != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf state
+          mkdir -p state
+
+      - name: Retry authenticated state download once
+        if: steps.state_shape.outputs.complete != 'true'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: state-${{ matrix.repo_key }}
@@ -341,6 +378,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          for required in lemmamind.db packets.json build_meta.json artifact-sha256.txt; do
+            [[ -f "state/${required}" ]] || {
+              echo "::error::Authenticated state remains incomplete after bounded retrieval: missing ${required}."
+              exit 1
+            }
+          done
           (cd state && sha256sum --check --strict artifact-sha256.txt)
           cmp --silent state/artifact-sha256.txt inference/input-artifact-sha256.txt
           (cd inference && sha256sum --check --strict inference-sha256.txt)
