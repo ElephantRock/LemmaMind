@@ -155,7 +155,7 @@ def test_repair_prompt_preserves_complete_rejection_context():
     assert "TAIL-OF-ADAPTER-ERROR" in prompt
 
 
-def test_infer_packet_repairs_invalid_support_with_exact_allowlist_and_previous_output(monkeypatch):
+def test_infer_packet_repairs_invalid_support_with_exact_allowlist_and_sanitized_reference(monkeypatch):
     first = proposal(
         supports=[
             {
@@ -179,7 +179,9 @@ def test_infer_packet_repairs_invalid_support_with_exact_allowlist_and_previous_
     assert len(prompts) == 2
     assert "Deterministic adapter repair context" not in prompts[0]
     assert "Deterministic adapter repair context" in prompts[1]
-    assert MODULE.json.dumps(MODULE.json.dumps(first), ensure_ascii=False) in prompts[1]
+    assert '"semantic_reference"' in prompts[1]
+    assert '"previous_output"' not in prompts[1]
+    assert "session scoped model selection persistence" in prompts[1]
     assert '"StructuralDelta":["structural-delta:1"]' in prompts[1]
 
 
