@@ -19,7 +19,7 @@ def test_validation_state_retrieval_has_exactly_one_bounded_retry() -> None:
 
     assert section.count("name: state-${{ matrix.repo_key }}") == 2
     assert "id: download_state" in section
-    assert "continue-on-error: true" in section
+    assert section.count("continue-on-error: true") == 1
     assert "id: state_shape" in section
     assert section.count("if: steps.state_shape.outputs.complete != 'true'") == 2
     assert "name: Retry authenticated state download once" in section
@@ -27,7 +27,10 @@ def test_validation_state_retrieval_has_exactly_one_bounded_retry() -> None:
 
 def test_validation_retry_discards_partial_state_and_never_synthesizes_files() -> None:
     section = _validate_section()
+    cleanup_index = section.index("name: Discard incomplete authenticated state before retry")
+    retry_index = section.index("name: Retry authenticated state download once")
 
+    assert cleanup_index < retry_index
     assert "rm -rf state" in section
     assert "mkdir -p state" in section
     assert "touch state/" not in section
