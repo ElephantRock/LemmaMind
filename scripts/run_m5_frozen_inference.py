@@ -193,13 +193,7 @@ def forbidden_support_ids(previous_output: str, support_allowlist: dict[str, lis
     }
 
 
-def support_repair_reference(previous_output: str, error: Exception) -> dict | None:
-    if not str(error).startswith(SUPPORT_REPAIR_ERROR_PREFIXES):
-        return None
-    try:
-        value = json.loads(previous_output)
-    except Exception:
-        return None
+def semantic_reference_fields(value: dict) -> dict | None:
     if not isinstance(value, dict) or value.get("decision") != "interpret":
         return None
     required_semantic_fields = ("decision", "interpretation_types", "mechanism", "summary")
@@ -209,6 +203,16 @@ def support_repair_reference(previous_output: str, error: Exception) -> dict | N
     if "uncertainty_notes" in value:
         reference["uncertainty_notes"] = value["uncertainty_notes"]
     return reference
+
+
+def support_repair_reference(previous_output: str, error: Exception) -> dict | None:
+    if not str(error).startswith(SUPPORT_REPAIR_ERROR_PREFIXES):
+        return None
+    try:
+        value = json.loads(previous_output)
+    except Exception:
+        return None
+    return semantic_reference_fields(value)
 
 
 def repair_prompt(
@@ -419,7 +423,12 @@ def infer_packet(binary: str, packet: dict) -> dict:
 
     for repair_count in range(MAX_SEMANTIC_REPAIRS + 1):
         try:
-            return normalize(packet, parse_json_object(raw))
+            response = parse_json_object(raw)
+            if semantic_reference is not None:
+                repaired_reference = semantic_reference_fields(response)
+                if repaired_reference != semantic_reference:
+                    raise ValueError("support repair changed preserved semantic fields")
+            return normalize(packet, response)
         except Exception as error:
             rejected_outputs.append(raw)
             errors.append(error)
