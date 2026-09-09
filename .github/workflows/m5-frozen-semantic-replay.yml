@@ -226,7 +226,7 @@ jobs:
           fi
           unset GITHUB_TOKEN GH_TOKEN COPILOT_GITHUB_TOKEN
           mkdir -p inference
-          python control/scripts/run_m5_frozen_inference.py \
+          python control/scripts/run_m5_frozen_inference_v13.py \
             --repo-key '${{ matrix.repo_key }}' \
             --packets state/packets.json \
             --output inference/inference.json \
