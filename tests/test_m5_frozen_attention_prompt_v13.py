@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_m5_frozen_inference_v13.py"
-SPEC = spec_from_file_location("m5_frozen_attention_prompt_v13", SCRIPT_PATH)
+SPEC = spec_from_file_location("m5_frozen_attention_prompt_v14", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
@@ -21,11 +21,11 @@ def packet():
     }
 
 
-def test_v13_layers_attention_clarification_on_exact_v12_adapter_controls():
+def test_v14_layers_on_exact_v12_adapter_controls_through_stable_entrypoint():
     prompt = MODULE.packet_prompt(packet())
 
     assert MODULE.BASE_ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v13"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v14"
     assert MODULE.BASE.ADAPTER_VERSION == MODULE.ADAPTER_VERSION
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
     assert MODULE.MAX_TIMEOUT_RETRIES == 1
@@ -37,44 +37,77 @@ def test_v13_layers_attention_clarification_on_exact_v12_adapter_controls():
     assert "exact_semantic_support_choices" not in prompt
 
 
-def test_v13_requires_direct_proof_instead_of_semantic_rebranding():
+def test_v14_retains_v13_proof_burden_and_type_guards():
     lowered = MODULE.SYSTEM_RULES.casefold()
 
     assert "evidence-burden rule" in lowered
-    assert "directly establishes each required element" in lowered
-    assert "plausible downstream consequence" in lowered
     assert "scope-collapse rule" in lowered
-    assert "single-execution implementation rule" in lowered
-    assert "human-attention rule" in lowered
-    assert "reusable governing knowledge" in lowered
-
-
-def test_v13_tightens_specific_type_guards_without_new_product_types():
-    lowered = MODULE.SYSTEM_RULES.casefold()
-
     assert "authority-governance guard" in lowered
-    assert "distinct principal, trust domain, or security authority" in lowered
-    assert "do not relabel ordinary validation" in lowered
     assert "failure guard" in lowered
-    assert "changed durable terminal disposition" in lowered
     assert "temporal-correctness guard" in lowered
-    assert "independently progressing participants" in lowered
     assert "project-state guard" in lowered
-    assert "authoritative changed support, compatibility, governance, schema-consumer" in lowered
-
-
-def test_v13_requires_facet_label_and_type_convergence_or_decline():
-    lowered = MODULE.SYSTEM_RULES.casefold()
-
     assert "facet convergence rule" in lowered
-    assert "exactly the same short mechanism label and the same canonical interpretation type" in lowered
-    assert "remove facet-specific adjectives" in lowered
-    assert "decline that facet instead of emitting a parallel mechanism item" in lowered
     assert "canonical-type rule" in lowered
-    assert "do not split one governing mechanism" in lowered
+    assert "human-attention rule" in lowered
 
 
-def test_v13_preserves_non_audit_provenance_and_has_no_frozen_target_leakage():
+def test_v14_requires_genuinely_independent_cross_boundary_evidence():
+    lowered = MODULE.ATTENTION_V14_RULES.casefold()
+
+    assert "independent-boundary proof rule" in lowered
+    assert "genuinely independent boundary" in lowered
+    assert "distinct security principals or trust domains" in lowered
+    assert "separately executing lifecycle phases" in lowered
+    assert "authoritative producer and a separate durable/external consumer" in lowered
+    assert "merely touching several files" in lowered
+    assert "self-contained evidence rule" in lowered
+
+
+def test_v14_distinguishes_authority_from_local_ownership_and_routing():
+    lowered = MODULE.ATTENTION_V14_RULES.casefold()
+
+    assert "authority-versus-ownership rule" in lowered
+    assert "do not by themselves identify a security principal or trust domain" in lowered
+    assert "local object ownership" in lowered
+    assert "routing ownership" in lowered
+    assert "same-principal allow/deny validation" in lowered
+    assert "gains, loses, delegates, or is prevented from exercising a capability" in lowered
+
+
+def test_v14_declines_non_authoritative_facets_without_suppressing_direct_consumer_contracts():
+    lowered = MODULE.ATTENTION_V14_RULES.casefold()
+
+    assert "authoritative-surface rule" in lowered
+    assert "tests, generated files, migration scaffolding, release notes, plans, translations, and documentation" in lowered
+    assert "normally evidence about a governing mechanism rather than separate review mechanisms" in lowered
+    assert "consumer/ui surface may qualify only when the packet itself directly establishes" in lowered
+    assert "externally consumed read/action contract over durable or cross-phase state" in lowered
+    assert "presentation alone is insufficient" in lowered
+
+
+def test_v14_tightens_persistence_recovery_and_temporal_independence():
+    lowered = MODULE.ATTENTION_V14_RULES.casefold()
+
+    assert "persistence qualification rule" in lowered
+    assert "not durable-knowledge evidence by itself" in lowered
+    assert "recovery novelty rule" in lowered
+    assert "restoring an already-declared behavior" in lowered
+    assert "temporal independence rule" in lowered
+    assert "independently progressing actors, tasks, processes, devices, or lifecycle epochs" in lowered
+    assert "ui rerender order" in lowered
+
+
+def test_v14_requires_rule_level_knowledge_not_implementation_facets():
+    lowered = MODULE.ATTENTION_V14_RULES.casefold()
+
+    assert "rule-versus-facet test" in lowered
+    assert "one short imperative that an independent future implementer would need to preserve" in lowered
+    assert "without knowing the current file names" in lowered
+    assert "subordinate facet of a broader rule" in lowered
+    assert "decline rather than creating another mechanism item" in lowered
+
+
+def test_v14_preserves_non_audit_provenance_and_has_no_frozen_target_leakage():
     assert MODULE.REVIEW_WORTHINESS_PROVENANCE == (
         "roadmap:I5-security-trust-isolation",
         "roadmap:I7-mechanism-level-knowledge",
@@ -82,7 +115,7 @@ def test_v13_preserves_non_audit_provenance_and_has_no_frozen_target_leakage():
         "docs:M5-CHANGE-SIGNAL-NEXT-SLICE",
     )
 
-    lowered = MODULE.ATTENTION_V13_RULES.casefold()
+    lowered = MODULE.ATTENTION_V14_RULES.casefold()
     forbidden_frozen_material = (
         "copilotkit/openbot",
         "openclaw/openclaw",
