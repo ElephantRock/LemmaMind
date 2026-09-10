@@ -12,7 +12,7 @@ BASE = module_from_spec(SPEC)
 SPEC.loader.exec_module(BASE)
 
 BASE_ADAPTER_VERSION = BASE.ADAPTER_VERSION
-ADAPTER_VERSION = "zai-glm-5.3.packet-v13"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v14"
 
 ATTENTION_V13_RULES = """V13 attention-calibration clarification. These rules do not add a new product criterion; they make the existing five conjunctive tests and facet/canonicalization rules harder to satisfy by implication alone.
 Evidence-burden rule: interpret only when the packet directly establishes each required element of review-span, review-leverage, durable-knowledge, and boundary-effect. A plausible downstream consequence, a suggestive identifier, a test name, a comment rationale, cross-file breadth, or the fact that state persists is not evidence for a missing element. If any required element depends on extrapolating what another component, later phase, operator, or consumer might do, decline.
@@ -26,8 +26,26 @@ Canonical-type rule: choose the type that names the governing contract, not the 
 Human-attention rule: review-worthiness is about reusable governing knowledge a future reviewer must preserve, not whether a change is real, useful, externally visible, security-adjacent, persistent, or well tested. When the packet supports a concrete implementation improvement but does not directly establish independently reusable governing knowledge across a qualifying span, decline.
 """
 
+ATTENTION_V14_RULES = """V14 independent-boundary clarification. Apply these rules after the existing review-worthiness tests; they narrow how evidence may satisfy those tests without changing the tests themselves.
+Independent-boundary proof rule: a qualifying review span must be directly evidenced as a rule that crosses at least one genuinely independent boundary: distinct security principals or trust domains, separately executing lifecycle phases, independently scheduled participants, or an authoritative producer and a separate durable/external consumer. Merely touching several files, layers, functions, tests, UI components, callbacks, helpers, routes, or configuration sources does not prove such a span. If the independence of both sides and the changed rule connecting them are not explicit in the packet, decline.
+Authority-versus-ownership rule: words such as owner, creator, dispatcher, session, role, profile, workspace, node, plugin, tool, or agent do not by themselves identify a security principal or trust domain. Local object ownership, routing ownership, callback selection, capability registration, path selection, configuration precedence, and same-principal allow/deny validation are not authority_governance. Use authority_governance only when the packet directly establishes that one principal or trust domain gains, loses, delegates, or is prevented from exercising a capability across a distinct authority boundary, or that credentials/secrets are isolated across that boundary.
+Authoritative-surface rule: tests, generated files, migration scaffolding, release notes, plans, translations, and documentation are normally evidence about a governing mechanism rather than separate review mechanisms. Decline such a facet when it only verifies, mirrors, migrates, names, or explains a rule whose authoritative behavior lies elsewhere. A consumer/UI surface may qualify only when the packet itself directly establishes an externally consumed read/action contract over durable or cross-phase state; presentation alone is insufficient.
+Persistence qualification rule: persisted configuration, a database row, a cache entry, a session record, a registry entry, or state surviving within one process/session is not durable-knowledge evidence by itself. The packet must directly show that the changed rule is authoritative across a later independent invocation, restart, participant, lifecycle phase, or external consumer. Otherwise treat persistence as an implementation carrier and decline unless another qualifying boundary is directly proven.
+Recovery novelty rule: retry, reconnect, rewind, cleanup, teardown, fallback, stale-state refresh, status mapping, and timeout handling are implementation recovery techniques unless the packet directly establishes a newly changed durable terminal disposition or a cross-boundary recovery handoff that a separate participant or later phase must consume. Restoring an already-declared behavior, making cleanup more reliable, or changing only local recovery sequencing is not a separate failure mechanism.
+Temporal independence rule: temporal_correctness requires independently progressing actors, tasks, processes, devices, or lifecycle epochs whose relative timing can change an externally consumed or durable outcome. UI rerender order, callback order, same-request sequencing, local event ordering, adjacent stream reconciliation, and single-component state reset are insufficient unless the packet directly proves the independent participants and consequential non-local state risk.
+Rule-versus-facet test: before interpret, state the mechanism as one short imperative that an independent future implementer would need to preserve without knowing the current file names, UI labels, helper names, storage choice, or test structure. If the imperative collapses to how this implementation performs validation, routing, storage, cleanup, synchronization, presentation, migration, or configuration selection, decline. If the packet shows only a subordinate facet of a broader rule and cannot independently prove that broader governing rule, decline rather than creating another mechanism item.
+Self-contained evidence rule: do not import facts from neighboring packets, repository familiarity, likely architecture, naming conventions, test intent, documentation links, or plausible downstream behavior. Every principal, participant, phase, durable consumer, authority transfer, terminal disposition, or consequential state effect needed for interpret must be supported inside the current packet. When one of those elements is only inferred, decline.
+"""
+
 BASE.ADAPTER_VERSION = ADAPTER_VERSION
-BASE.SYSTEM_RULES = BASE.SYSTEM_RULES.rstrip() + "\n\n" + ATTENTION_V13_RULES.strip() + "\n"
+BASE.SYSTEM_RULES = (
+    BASE.SYSTEM_RULES.rstrip()
+    + "\n\n"
+    + ATTENTION_V13_RULES.strip()
+    + "\n\n"
+    + ATTENTION_V14_RULES.strip()
+    + "\n"
+)
 
 SYSTEM_RULES = BASE.SYSTEM_RULES
 REVIEW_WORTHINESS_PROVENANCE = BASE.REVIEW_WORTHINESS_PROVENANCE
