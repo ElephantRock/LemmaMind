@@ -12,7 +12,7 @@ BASE = module_from_spec(SPEC)
 SPEC.loader.exec_module(BASE)
 
 BASE_ADAPTER_VERSION = BASE.ADAPTER_VERSION
-ADAPTER_VERSION = "zai-glm-5.3.packet-v14"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v15"
 
 ATTENTION_V13_RULES = """V13 attention-calibration clarification. These rules do not add a new product criterion; they make the existing five conjunctive tests and facet/canonicalization rules harder to satisfy by implication alone.
 Evidence-burden rule: interpret only when the packet directly establishes each required element of review-span, review-leverage, durable-knowledge, and boundary-effect. A plausible downstream consequence, a suggestive identifier, a test name, a comment rationale, cross-file breadth, or the fact that state persists is not evidence for a missing element. If any required element depends on extrapolating what another component, later phase, operator, or consumer might do, decline.
@@ -37,6 +37,15 @@ Rule-versus-facet test: before interpret, state the mechanism as one short imper
 Self-contained evidence rule: do not import facts from neighboring packets, repository familiarity, likely architecture, naming conventions, test intent, documentation links, or plausible downstream behavior. Every principal, participant, phase, durable consumer, authority transfer, terminal disposition, or consequential state effect needed for interpret must be supported inside the current packet. When one of those elements is only inferred, decline.
 """
 
+REPAIR_V15_RULES = """V15 provider-output repair reliability clarification. These rules apply only after a provider response has already failed deterministic parsing or validation. They do not change the five review-worthiness tests, evidence eligibility, canonicalization, or any frozen product gate.
+Serialization rule: emit exactly one compact single-line JSON object with no markdown, commentary, code fence, trailing text, or literal control characters inside string values. Use normal JSON escaping for quotation marks, backslashes, and embedded control characters. Complete every opened string, array, and object before returning.
+Malformed-output reconstruction rule: when the rejected provider response is not parseable JSON, reconstruct a fresh response from the CandidateEvidencePacket and deterministic repair context. Do not continue, splice, quote, or imitate malformed or apparently truncated raw output.
+Support-copy rule: every support object must be copied character-for-character from the supplied exact semantic support choices or exact support allowlist. Do not derive, regenerate, shorten, complete, or infer an identifier from evidence prose, hashes, neighboring packets, repository familiarity, or a previous rejected output. Prefer the smallest sufficient support set and exactly one semantic support when one is sufficient.
+Semantic-lock serialization rule: when semantic_reference is supplied, preserve every supplied non-support semantic field exactly and perform only JSON serialization plus exact support selection. Do not paraphrase the preserved mechanism, summary, interpretation types, or uncertainty notes.
+Repair-economy rule: when no semantic_reference exists, keep repaired prose concise and limited to what is necessary to satisfy the unchanged output contract and evidence-grounding requirements. Do not repeat the packet, narrate the repair process, or add explanatory material outside the JSON fields.
+Fail-closed rule: if a valid exact semantic support cannot be selected without changing a preserved interpretation, keep decision=interpret with an empty supports array so deterministic validation rejects the repair. Never convert a supported interpretation to decline merely to make serialization easier.
+"""
+
 BASE.ADAPTER_VERSION = ADAPTER_VERSION
 BASE.SYSTEM_RULES = (
     BASE.SYSTEM_RULES.rstrip()
@@ -54,10 +63,68 @@ MAX_TIMEOUT_RETRIES = BASE.MAX_TIMEOUT_RETRIES
 MAX_SEMANTIC_REPAIRS = BASE.MAX_SEMANTIC_REPAIRS
 MAX_INFERENCE_WORKERS = BASE.MAX_INFERENCE_WORKERS
 packet_prompt = BASE.packet_prompt
-repair_prompt = BASE.repair_prompt
+_BASE_REPAIR_PROMPT = BASE.repair_prompt
 normalize = BASE.normalize
 semantic_reference_fields = BASE.semantic_reference_fields
 support_repair_reference = BASE.support_repair_reference
+
+_MALFORMED_OUTPUT_PLACEHOLDER = (
+    "<malformed provider output omitted; reconstruct a fresh JSON response from the packet>"
+)
+
+
+def repair_prompt(
+    packet: dict,
+    *,
+    previous_output: str,
+    error: Exception,
+    repair_attempt: int = 1,
+    semantic_reference: dict | None = None,
+) -> str:
+    malformed_json = semantic_reference is None and isinstance(
+        error, BASE.json.JSONDecodeError
+    )
+    repair_previous_output = (
+        _MALFORMED_OUTPUT_PLACEHOLDER if malformed_json else previous_output
+    )
+    prompt = _BASE_REPAIR_PROMPT(
+        packet,
+        previous_output=repair_previous_output,
+        error=error,
+        repair_attempt=repair_attempt,
+        semantic_reference=semantic_reference,
+    )
+    exact_choices = BASE.semantic_support_choices(packet)
+    mode_note = (
+        "The rejected raw response was malformed JSON and has been deliberately omitted; reconstruct from the packet instead of copying broken text."
+        if malformed_json
+        else "The rejected response remains available only under the base deterministic repair contract."
+    )
+    lock_note = (
+        "Semantic-lock mode is active: reproduce semantic_reference fields exactly and change only supports plus JSON serialization."
+        if semantic_reference is not None
+        else "No semantic lock is available because no complete validated semantic reference has been established."
+    )
+    return (
+        prompt.rstrip()
+        + "\n\n"
+        + REPAIR_V15_RULES.strip()
+        + "\n"
+        + mode_note
+        + "\n"
+        + lock_note
+        + "\nExact semantic support choices repeated at the final output boundary: "
+        + BASE.json.dumps(
+            exact_choices,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        + "\nReturn exactly one complete compact single-line JSON object."
+    )
+
+
+BASE.repair_prompt = repair_prompt
 infer_packet = BASE.infer_packet
 infer_packets = BASE.infer_packets
 main = BASE.main
