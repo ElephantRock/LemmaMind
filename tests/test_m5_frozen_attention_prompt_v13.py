@@ -112,11 +112,15 @@ def test_v16_requires_direct_evidence_roles_and_fails_closed_on_missing_conjunct
     lowered = MODULE.ATTENTION_V16_RULES.casefold()
 
     assert "proof-source rule" in lowered
-    assert "prose about behavior outside the current packet does not itself prove that unseen behavior" in lowered
+    assert "source itself is evidence of that contract under the existing five tests" in lowered
+    assert "sourceassertion remains fully eligible" in lowered
+    assert "do not require runtime implementation bytes solely because" in lowered
     assert "may not substitute for a missing producer, consumer, authority boundary" in lowered
-    assert "facet-origin rule" in lowered
-    assert "test-only, generated-only, translation-only, migration-only, or plan-only packet cannot originate" in lowered
-    assert "documentation-only evidence may qualify as project_state only when" in lowered
+    assert "facet-evidence rule" in lowered
+    assert "remain eligible under the existing weak-prior rules" in lowered
+    assert "are not hard suppression categories" in lowered
+    assert "end-to-end behavioral test that directly exercises the qualifying sides" in lowered
+    assert "documentation may qualify when the document itself is the authoritative changed project-state contract" in lowered
     assert "uncertainty-conjunct rule" in lowered
     assert "authoritative implementation or consumer is outside the packet" in lowered
     assert "changed behavior cannot be distinguished from newly added verification" in lowered
