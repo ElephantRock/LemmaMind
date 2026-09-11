@@ -12,7 +12,7 @@ BASE = module_from_spec(SPEC)
 SPEC.loader.exec_module(BASE)
 
 BASE_ADAPTER_VERSION = BASE.ADAPTER_VERSION
-ADAPTER_VERSION = "zai-glm-5.3.packet-v15"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v16"
 
 ATTENTION_V13_RULES = """V13 attention-calibration clarification. These rules do not add a new product criterion; they make the existing five conjunctive tests and facet/canonicalization rules harder to satisfy by implication alone.
 Evidence-burden rule: interpret only when the packet directly establishes each required element of review-span, review-leverage, durable-knowledge, and boundary-effect. A plausible downstream consequence, a suggestive identifier, a test name, a comment rationale, cross-file breadth, or the fact that state persists is not evidence for a missing element. If any required element depends on extrapolating what another component, later phase, operator, or consumer might do, decline.
@@ -37,6 +37,17 @@ Rule-versus-facet test: before interpret, state the mechanism as one short imper
 Self-contained evidence rule: do not import facts from neighboring packets, repository familiarity, likely architecture, naming conventions, test intent, documentation links, or plausible downstream behavior. Every principal, participant, phase, durable consumer, authority transfer, terminal disposition, or consequential state effect needed for interpret must be supported inside the current packet. When one of those elements is only inferred, decline.
 """
 
+ATTENTION_V16_RULES = """V16 evidence-role and conjunct-proof clarification. These rules narrow what counts as direct proof for the existing review-worthiness tests; they do not add a product criterion, change evidence eligibility, or change any frozen gate.
+Proof-source rule: authored prose in comments, docstrings, test names, test descriptions, plans, release notes, or documentation may explain a directly evidenced mechanism, but prose about behavior outside the current packet does not itself prove that unseen behavior. A SourceAssertion remains usable evidence for what its source actually declares; it may not substitute for a missing producer, consumer, authority boundary, lifecycle phase, terminal disposition, or consequential state transition. If a required conjunct is established only by an assertion about implementation or consumption that is not otherwise present in the packet, decline.
+Facet-origin rule: a test-only, generated-only, translation-only, migration-only, or plan-only packet cannot originate a governing mechanism whose authoritative behavior lies elsewhere. Documentation-only evidence may qualify as project_state only when the changed documentation itself is the authoritative external declaration of support, compatibility, governance, or operator-facing project state; documentation that merely claims an unseen runtime behavior cannot establish that runtime mechanism. Tests may corroborate behavior that is also directly evidenced in the packet, but changed expectations or behavioral fixtures alone do not prove that production behavior changed.
+Uncertainty-conjunct rule: uncertainty may remain only about details that are not required for review-worthiness. If an honest uncertainty note would need to say that the authoritative implementation or consumer is outside the packet, that changed behavior cannot be distinguished from newly added verification, that the independent participant or phase is inferred, or that the consequential effect is not shown, then a required conjunct is unresolved and the decision must be decline.
+Two-sided boundary rule: independently reusable cross-boundary knowledge requires direct packet evidence for both sides of the qualifying boundary and for the changed rule connecting them. Words such as later, next launch, another process, remote, operator, external, durable, persistent, owner, authenticated, or consumer are not proof of an independent side when they occur only in rationale prose. A write plus a claim that something later reads it is insufficient unless the packet directly evidences the separate reader/consumer or an authoritative interface whose consumption is itself the changed contract.
+Authority-identity rule: admission, approval, ownership, authentication, scoping, or a fail-closed guard is not authority_governance unless the packet directly distinguishes the principals or trust domains on both sides and directly shows the capability or credential that crosses, is delegated across, or is denied across that boundary. A same-principal policy gate, local lifecycle owner, reviewer decision, configuration writer, or authenticated request scope remains implementation policy unless that distinct authority relation is explicit.
+Terminal-disposition proof rule: an exit code, refusal, quarantine flag, cleanup escalation, fallback choice, retry outcome, or status mapping is not a failure mechanism merely because another tool could observe it. The packet must directly evidence the changed durable terminal disposition or the separate participant/operator handoff that relies on it; a test expectation or explanatory assertion about an unseen caller is insufficient.
+Temporal-conflict proof rule: temporal_correctness requires direct evidence of at least two independently schedulable actors or lifecycle epochs and the conflicting read/write, ownership, or ordering relation that can alter a durable or external outcome. A race regression test, generation counter, reset event, adjacent-message rule, compare-and-delete helper, or the words concurrent/race/restart do not establish that span when the other actor or consequential outcome is absent from the packet.
+Mechanism-language neutrality rule: labels and prose such as contract, invariant, lifecycle, admission, authority, trust boundary, durable, fail-closed, externally consumed, or future implementers must preserve carry no evidentiary weight by themselves. Apply the five tests to the underlying packet facts after removing those words. If the qualifying span disappears, decline.
+"""
+
 REPAIR_V15_RULES = """V15 provider-output repair reliability clarification. These rules apply only after a provider response has already failed deterministic parsing or validation. They do not change the five review-worthiness tests, evidence eligibility, canonicalization, or any frozen product gate.
 Serialization rule: emit exactly one compact single-line JSON object with no markdown, commentary, code fence, trailing text, or literal control characters inside string values. Use normal JSON escaping for quotation marks, backslashes, and embedded control characters. Complete every opened string, array, and object before returning.
 Malformed-output reconstruction rule: when the rejected provider response is not parseable JSON, reconstruct a fresh response from the CandidateEvidencePacket and deterministic repair context. Do not continue, splice, quote, or imitate malformed or apparently truncated raw output.
@@ -53,6 +64,8 @@ BASE.SYSTEM_RULES = (
     + ATTENTION_V13_RULES.strip()
     + "\n\n"
     + ATTENTION_V14_RULES.strip()
+    + "\n\n"
+    + ATTENTION_V16_RULES.strip()
     + "\n"
 )
 
