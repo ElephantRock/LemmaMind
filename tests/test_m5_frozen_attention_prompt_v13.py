@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_m5_frozen_inference_v13.py"
-SPEC = spec_from_file_location("m5_frozen_attention_prompt_v14", SCRIPT_PATH)
+SPEC = spec_from_file_location("m5_frozen_attention_prompt_v15", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
@@ -21,11 +21,11 @@ def packet():
     }
 
 
-def test_v14_layers_on_exact_v12_adapter_controls_through_stable_entrypoint():
+def test_v15_layers_on_exact_v12_adapter_controls_through_stable_entrypoint():
     prompt = MODULE.packet_prompt(packet())
 
     assert MODULE.BASE_ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v14"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v15"
     assert MODULE.BASE.ADAPTER_VERSION == MODULE.ADAPTER_VERSION
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
     assert MODULE.MAX_TIMEOUT_RETRIES == 1
@@ -35,9 +35,10 @@ def test_v14_layers_on_exact_v12_adapter_controls_through_stable_entrypoint():
     assert "Deterministic adapter repair context" not in prompt
     assert "exact_support_allowlist" not in prompt
     assert "exact_semantic_support_choices" not in prompt
+    assert "V15 provider-output repair reliability clarification" not in prompt
 
 
-def test_v14_retains_v13_proof_burden_and_type_guards():
+def test_v15_retains_v13_proof_burden_and_type_guards():
     lowered = MODULE.SYSTEM_RULES.casefold()
 
     assert "evidence-burden rule" in lowered
@@ -51,7 +52,7 @@ def test_v14_retains_v13_proof_burden_and_type_guards():
     assert "human-attention rule" in lowered
 
 
-def test_v14_requires_genuinely_independent_cross_boundary_evidence():
+def test_v15_retains_v14_independent_cross_boundary_evidence_rules():
     lowered = MODULE.ATTENTION_V14_RULES.casefold()
 
     assert "independent-boundary proof rule" in lowered
@@ -63,7 +64,7 @@ def test_v14_requires_genuinely_independent_cross_boundary_evidence():
     assert "self-contained evidence rule" in lowered
 
 
-def test_v14_distinguishes_authority_from_local_ownership_and_routing():
+def test_v15_retains_v14_authority_from_local_ownership_and_routing_guard():
     lowered = MODULE.ATTENTION_V14_RULES.casefold()
 
     assert "authority-versus-ownership rule" in lowered
@@ -74,7 +75,7 @@ def test_v14_distinguishes_authority_from_local_ownership_and_routing():
     assert "gains, loses, delegates, or is prevented from exercising a capability" in lowered
 
 
-def test_v14_declines_non_authoritative_facets_without_suppressing_direct_consumer_contracts():
+def test_v15_retains_v14_authoritative_surface_rules():
     lowered = MODULE.ATTENTION_V14_RULES.casefold()
 
     assert "authoritative-surface rule" in lowered
@@ -85,7 +86,7 @@ def test_v14_declines_non_authoritative_facets_without_suppressing_direct_consum
     assert "presentation alone is insufficient" in lowered
 
 
-def test_v14_tightens_persistence_recovery_and_temporal_independence():
+def test_v15_retains_v14_persistence_recovery_and_temporal_independence():
     lowered = MODULE.ATTENTION_V14_RULES.casefold()
 
     assert "persistence qualification rule" in lowered
@@ -97,7 +98,7 @@ def test_v14_tightens_persistence_recovery_and_temporal_independence():
     assert "ui rerender order" in lowered
 
 
-def test_v14_requires_rule_level_knowledge_not_implementation_facets():
+def test_v15_retains_v14_rule_level_knowledge_guard():
     lowered = MODULE.ATTENTION_V14_RULES.casefold()
 
     assert "rule-versus-facet test" in lowered
@@ -107,7 +108,82 @@ def test_v14_requires_rule_level_knowledge_not_implementation_facets():
     assert "decline rather than creating another mechanism item" in lowered
 
 
-def test_v14_preserves_non_audit_provenance_and_has_no_frozen_target_leakage():
+def test_v15_repair_rules_are_absent_from_first_pass_and_generic():
+    lowered = MODULE.REPAIR_V15_RULES.casefold()
+
+    assert "apply only after a provider response has already failed" in lowered
+    assert "do not change the five review-worthiness tests" in lowered
+    assert "serialization rule" in lowered
+    assert "malformed-output reconstruction rule" in lowered
+    assert "support-copy rule" in lowered
+    assert "semantic-lock serialization rule" in lowered
+    assert "repair-economy rule" in lowered
+    assert "fail-closed rule" in lowered
+
+    first_pass = MODULE.packet_prompt(packet()).casefold()
+    assert "v15 provider-output repair reliability clarification" not in first_pass
+
+
+def test_v15_malformed_json_repair_omits_rejected_raw_and_repeats_exact_choices():
+    broken = '{"decision":"interpret","summary":"unterminated'
+    try:
+        MODULE.BASE.json.loads(broken)
+    except MODULE.BASE.json.JSONDecodeError as error:
+        prompt = MODULE.repair_prompt(
+            packet(),
+            previous_output=broken,
+            error=error,
+            repair_attempt=1,
+        )
+    else:
+        raise AssertionError("test fixture must be malformed JSON")
+
+    assert broken not in prompt
+    assert MODULE._MALFORMED_OUTPUT_PLACEHOLDER in prompt
+    assert "reconstruct from the packet instead of copying broken text" in prompt
+    assert "Return exactly one complete compact single-line JSON object" in prompt
+    assert '"support_id":"assertion:1","support_type":"SourceAssertion"' in prompt
+    assert '"support_id":"structural-delta:1","support_type":"StructuralDelta"' in prompt
+
+
+def test_v15_support_copy_repair_keeps_semantic_lock_and_compact_serialization():
+    semantic_reference = {
+        "decision": "interpret",
+        "interpretation_types": ["modification"],
+        "mechanism": "bounded mechanism",
+        "summary": "bounded summary",
+        "uncertainty_notes": [],
+    }
+    rejected = MODULE.BASE.json.dumps(
+        {
+            **semantic_reference,
+            "supports": [
+                {
+                    "support_type": "StructuralDelta",
+                    "support_id": "structural-delta:invented",
+                }
+            ],
+        }
+    )
+    prompt = MODULE.repair_prompt(
+        packet(),
+        previous_output=rejected,
+        error=ValueError(
+            "support lies outside exact packet: StructuralDelta:structural-delta:invented"
+        ),
+        repair_attempt=2,
+        semantic_reference=semantic_reference,
+    )
+
+    assert '"semantic_reference"' in prompt
+    assert rejected not in prompt
+    assert "Semantic-lock mode is active" in prompt
+    assert "preserve every supplied non-support semantic field exactly" in prompt
+    assert "exactly one compact single-line JSON object" in prompt
+    assert "Never convert a supported interpretation to decline" in prompt
+
+
+def test_v15_preserves_non_audit_provenance_and_has_no_frozen_target_leakage():
     assert MODULE.REVIEW_WORTHINESS_PROVENANCE == (
         "roadmap:I5-security-trust-isolation",
         "roadmap:I7-mechanism-level-knowledge",
@@ -115,7 +191,7 @@ def test_v14_preserves_non_audit_provenance_and_has_no_frozen_target_leakage():
         "docs:M5-CHANGE-SIGNAL-NEXT-SLICE",
     )
 
-    lowered = MODULE.ATTENTION_V14_RULES.casefold()
+    lowered = (MODULE.ATTENTION_V14_RULES + "\n" + MODULE.REPAIR_V15_RULES).casefold()
     forbidden_frozen_material = (
         "copilotkit/openbot",
         "openclaw/openclaw",
