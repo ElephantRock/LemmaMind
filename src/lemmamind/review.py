@@ -1,4 +1,4 @@
-"""Executable V1 basic review/feedback capture.
+"""Append-only review/feedback capture.
 
 The service records feedback; it does not mutate the reviewed subject, promote
 validation state, authenticate the supplied reviewer identity, or authorize actions.
@@ -21,6 +21,10 @@ from .contracts import (
     ReviewDecisionType,
     RunType,
 )
+from .mechanism_review import (
+    MechanismReviewGroupingError,
+    MechanismReviewGroupingService,
+)
 from .review_contracts import ReviewFeedback
 
 
@@ -29,6 +33,10 @@ class ReviewCaptureError(RuntimeError):
 
 
 class ReviewStore(Protocol):
+    def get(self, model: type, record_id: str): ...
+
+    def list(self, model: type): ...
+
     def get_untyped(self, contract_type: str, record_id: str): ...
 
     def put_many(self, records): ...
@@ -41,6 +49,8 @@ DEFAULT_REVIEWABLE_SUBJECT_TYPES = frozenset(
         "Observation",
         "Pattern",
         "ActionRecommendation",
+        "ChangeInterpretation",
+        "MechanismReviewItem",
     }
 )
 
@@ -57,6 +67,10 @@ class ReviewCaptureResult:
 
 class ReviewFeedbackService:
     """Atomically record one explicit review decision and its provenance."""
+
+    _SEMANTIC_SUBJECT_TYPES = frozenset(
+        {"ChangeInterpretation", "MechanismReviewItem"}
+    )
 
     def __init__(
         self,
@@ -92,13 +106,17 @@ class ReviewFeedbackService:
         if subject_type not in CONTRACT_TYPES:
             raise ReviewCaptureError(f"unknown review subject contract type: {subject_type}")
         if subject_type not in self.reviewable_subject_types:
-            raise ReviewCaptureError(f"contract type is not reviewable in V1: {subject_type}")
+            raise ReviewCaptureError(
+                f"contract type is not reviewable under current policy: {subject_type}"
+            )
 
         subject = self.store.get_untyped(subject_type, subject_id)
         if subject is None:
             raise ReviewCaptureError(f"review subject does not exist: {subject_type}:{subject_id}")
         if subject.record_id != subject_id:
             raise ReviewCaptureError("review subject identity does not match requested subject_id")
+        if subject_type in self._SEMANTIC_SUBJECT_TYPES:
+            self._authenticate_semantic_subject(subject_type, subject)
 
         decided_at = self._aware_now()
         token = self.id_factory()
@@ -147,6 +165,34 @@ class ReviewFeedbackService:
         )
         self.store.put_many((run, review, feedback))
         return ReviewCaptureResult(decision=review, feedback=feedback, run=run)
+
+    def _authenticate_semantic_subject(self, subject_type: str, subject) -> None:
+        service = MechanismReviewGroupingService(self.store)
+        try:
+            if subject_type == "ChangeInterpretation":
+                _, interpretations = service.authenticate_interpretation_run(
+                    subject.interpretation_run_id
+                )
+                matches = tuple(
+                    item
+                    for item in interpretations
+                    if item.change_interpretation_id == subject.record_id
+                )
+            else:
+                _, items = service.authenticate_grouping_run(subject.grouping_run_id)
+                matches = tuple(
+                    item
+                    for item in items
+                    if item.mechanism_review_item_id == subject.record_id
+                )
+        except MechanismReviewGroupingError as exc:
+            raise ReviewCaptureError(
+                f"review subject semantic provenance does not authenticate: {subject_type}"
+            ) from exc
+        if len(matches) != 1 or matches[0] != subject:
+            raise ReviewCaptureError(
+                f"review subject is not an authenticated semantic output: {subject_type}:{subject.record_id}"
+            )
 
     def _aware_now(self) -> datetime:
         value = self.clock()

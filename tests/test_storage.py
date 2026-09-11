@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -56,3 +57,33 @@ def test_put_many_rolls_back_the_whole_batch_on_conflict(tmp_path) -> None:
         store.put_many([repository, changed])
 
     assert store.get(RepositoryIdentity, repository.source_id) is None
+
+
+def test_transaction_holds_writer_lock_and_uses_one_connection(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+    source = make_source()
+    competing = sqlite3.connect(store.path, timeout=0)
+    try:
+        competing.execute("PRAGMA journal_mode=WAL")
+        with store.transaction() as transaction:
+            assert transaction.put_many([source]) == 1
+            assert transaction.get(Source, source.source_id) == source
+            assert transaction.list(Source) == [source]
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                competing.execute("BEGIN IMMEDIATE")
+    finally:
+        competing.close()
+
+    assert store.get(Source, source.source_id) == source
+
+
+def test_transaction_rolls_back_when_validation_or_persistence_fails(tmp_path) -> None:
+    store = SQLiteContractStore(tmp_path / "lemmamind.db")
+    source = make_source()
+
+    with pytest.raises(RuntimeError, match="validation failed"):
+        with store.transaction() as transaction:
+            transaction.put_many([source])
+            raise RuntimeError("validation failed")
+
+    assert store.get(Source, source.source_id) is None

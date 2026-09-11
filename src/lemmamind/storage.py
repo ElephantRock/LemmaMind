@@ -5,8 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterable, TypeVar
+from typing import Iterable, Iterator, TypeVar
 
 from .contracts import CONTRACT_TYPES, ContractModel
 
@@ -15,6 +16,27 @@ TContract = TypeVar("TContract", bound=ContractModel)
 
 class RecordConflict(RuntimeError):
     """Raised when an immutable contract identity is reused with different content."""
+
+
+class _SQLiteContractTransaction:
+    """Connection-bound store view used inside one SQLite write transaction."""
+
+    def __init__(self, store: "SQLiteContractStore", connection: sqlite3.Connection):
+        self._store = store
+        self._connection = connection
+
+    def put_many(self, records: Iterable[ContractModel]) -> int:
+        pending = tuple(records)
+        inserted = 0
+        for record in pending:
+            inserted += int(self._store._put_on_connection(self._connection, record))
+        return inserted
+
+    def get(self, model: type[TContract], record_id: str) -> TContract | None:
+        return self._store._get_on_connection(self._connection, model, record_id)
+
+    def list(self, model: type[TContract]) -> list[TContract]:
+        return self._store._list_on_connection(self._connection, model)
 
 
 class SQLiteContractStore:
@@ -104,6 +126,40 @@ class SQLiteContractStore:
         )
         return True
 
+    @staticmethod
+    def _get_on_connection(
+        connection: sqlite3.Connection,
+        model: type[TContract],
+        record_id: str,
+    ) -> TContract | None:
+        row = connection.execute(
+            """
+            SELECT payload_json
+            FROM contract_records
+            WHERE contract_type = ? AND record_id = ?
+            """,
+            (model.__name__, record_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return model.model_validate_json(row["payload_json"])
+
+    @staticmethod
+    def _list_on_connection(
+        connection: sqlite3.Connection,
+        model: type[TContract],
+    ) -> list[TContract]:
+        rows = connection.execute(
+            """
+            SELECT payload_json
+            FROM contract_records
+            WHERE contract_type = ?
+            ORDER BY record_id
+            """,
+            (model.__name__,),
+        ).fetchall()
+        return [model.model_validate_json(row["payload_json"]) for row in rows]
+
     def put(self, record: ContractModel) -> bool:
         """Persist one record.
 
@@ -129,33 +185,34 @@ class SQLiteContractStore:
                 inserted += int(self._put_on_connection(connection, record))
             return inserted
 
+    @contextmanager
+    def transaction(self) -> Iterator[_SQLiteContractTransaction]:
+        """Hold one immediate write transaction across validation and persistence.
+
+        The yielded view performs reads and writes on the same connection. An
+        immediate transaction prevents another writer from committing after a
+        final validation read but before the corresponding append-only records
+        are persisted.
+        """
+
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            yield _SQLiteContractTransaction(self, connection)
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
     def get(self, model: type[TContract], record_id: str) -> TContract | None:
         with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT payload_json
-                FROM contract_records
-                WHERE contract_type = ? AND record_id = ?
-                """,
-                (model.__name__, record_id),
-            ).fetchone()
-
-        if row is None:
-            return None
-        return model.model_validate_json(row["payload_json"])
+            return self._get_on_connection(connection, model, record_id)
 
     def list(self, model: type[TContract]) -> list[TContract]:
         with self._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT payload_json
-                FROM contract_records
-                WHERE contract_type = ?
-                ORDER BY record_id
-                """,
-                (model.__name__,),
-            ).fetchall()
-        return [model.model_validate_json(row["payload_json"]) for row in rows]
+            return self._list_on_connection(connection, model)
 
     def get_untyped(self, contract_type: str, record_id: str) -> ContractModel | None:
         model = CONTRACT_TYPES.get(contract_type)

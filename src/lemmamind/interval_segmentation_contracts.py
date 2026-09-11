@@ -68,6 +68,18 @@ class CommitPathSnapshot(ContractModel):
         return self
 
 
+class IntervalSegmentationGeneration(ContractModel):
+    """Durable deterministic profile for one interval-segmentation generation."""
+
+    record_id_field = "interval_segmentation_generation_id"
+
+    interval_segmentation_generation_id: Identifier
+    segmentation_run_id: Identifier
+    diff_run_id: Identifier
+    policy_version: Identifier
+    max_paths_per_candidate: int = Field(ge=1)
+
+
 class IntervalCandidateSegment(ContractModel):
     """Attention-bounded deterministic group of net path deltas.
 
@@ -104,11 +116,21 @@ class IntervalCandidateSegment(ContractModel):
         return self
 
 
-for _model in (CommitRangeSummary, CommitPathSnapshot, IntervalCandidateSegment):
+for _model in (
+    CommitRangeSummary,
+    CommitPathSnapshot,
+    IntervalSegmentationGeneration,
+    IntervalCandidateSegment,
+):
     CONTRACT_TYPES[_model.__name__] = _model
 
 
 INTERVAL_SEGMENTATION_CONTRACT_TYPES: dict[str, type[ContractModel]] = {
     model.__name__: model
-    for model in (CommitRangeSummary, CommitPathSnapshot, IntervalCandidateSegment)
+    for model in (
+        CommitRangeSummary,
+        CommitPathSnapshot,
+        IntervalSegmentationGeneration,
+        IntervalCandidateSegment,
+    )
 }
