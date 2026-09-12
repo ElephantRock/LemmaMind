@@ -11,31 +11,22 @@ assert BASE_SPEC is not None and BASE_SPEC.loader is not None
 BASE = module_from_spec(BASE_SPEC)
 BASE_SPEC.loader.exec_module(BASE)
 
-RULES_PATH = Path(__file__).with_name("m5_frozen_attention_rules_v16.py")
-RULES_SPEC = spec_from_file_location("m5_frozen_attention_rules_v16", RULES_PATH)
+RULES_PATH = Path(__file__).with_name("m5_frozen_attention_rules_v18.py")
+RULES_SPEC = spec_from_file_location("m5_frozen_attention_rules_v18", RULES_PATH)
 assert RULES_SPEC is not None and RULES_SPEC.loader is not None
 RULES = module_from_spec(RULES_SPEC)
 RULES_SPEC.loader.exec_module(RULES)
 
 BASE_ADAPTER_VERSION = BASE.ADAPTER_VERSION
-ADAPTER_VERSION = "zai-glm-5.3.packet-v17"
-ATTENTION_V13_RULES = RULES.ATTENTION_V13_RULES
-ATTENTION_V14_RULES = RULES.ATTENTION_V14_RULES
-ATTENTION_V16_RULES = RULES.ATTENTION_V16_RULES
-ATTENTION_V17_RULES = RULES.ATTENTION_V17_RULES
+ADAPTER_VERSION = "zai-glm-5.3.packet-v18"
+ATTENTION_V18_RULES = RULES.ATTENTION_V18_RULES
 REPAIR_V15_RULES = RULES.REPAIR_V15_RULES
 
 BASE.ADAPTER_VERSION = ADAPTER_VERSION
 BASE.SYSTEM_RULES = (
     BASE.SYSTEM_RULES.rstrip()
     + "\n\n"
-    + ATTENTION_V13_RULES.strip()
-    + "\n\n"
-    + ATTENTION_V14_RULES.strip()
-    + "\n\n"
-    + ATTENTION_V16_RULES.strip()
-    + "\n\n"
-    + ATTENTION_V17_RULES.strip()
+    + ATTENTION_V18_RULES.strip()
     + "\n"
 )
 
