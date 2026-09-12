@@ -146,17 +146,20 @@ def test_v17_retains_v16_boundary_authority_failure_and_temporal_scope():
     assert "carry no evidentiary weight by themselves" in lowered
 
 
-def test_v17_requires_direct_runtime_bridge_and_uncertainty_veto():
+def test_v17_requires_direct_runtime_bridge_without_execution_only_narrowing():
     lowered = MODULE.ATTENTION_V17_RULES.casefold()
 
     assert "declared-runtime bridge rule" in lowered
     assert "does not by itself prove participation by a separate runtime actor" in lowered
-    assert "outside the packet, absent, inferred, unexercised, or explicitly not directly shown" in lowered
+    assert "outside the packet, absent, inferred, or explicitly not directly shown" in lowered
     assert "required conjunct is unresolved and the decision must be decline" in lowered
+    assert "direct structural or behavioral packet evidence remains eligible" in lowered
+    assert "do not add an execution-only proof requirement" in lowered
     assert "authoritative changed project-state declaration may itself be the governing contract" in lowered
     assert "end-to-end behavioral test may qualify when it actually exercises" in lowered
     assert "uncertainty-veto rule" in lowered
     assert "cannot rescue an interpretation" in lowered
+    assert "does not negate directly evidenced structural or behavioral proof merely because it was not exercised by a test" in lowered
     assert "directly evidenced authoritative project-state declarations" in lowered
 
 
