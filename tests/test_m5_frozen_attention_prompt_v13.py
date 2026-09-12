@@ -50,7 +50,7 @@ def test_v18_orders_five_test_proof_before_type_selection_and_fails_closed():
 
     assert "ordered closure rule" in lowered
     assert "mechanism, review-span, review-leverage, durable-knowledge, boundary-effect" in lowered
-    assert "each test needs its own direct witness in the current packet" in lowered
+    assert "each test needs a direct witness in the current packet" in lowered
     assert "if any required witness is absent, outside the packet, inferred" in lowered
     assert "decline" in lowered
     assert "choose interpretation type only after all five tests pass" in lowered
@@ -80,7 +80,7 @@ def test_v18_preserves_review_span_and_direct_consumer_read_action_exception():
     assert "cross-boundary failure/recovery handoff" in lowered
     assert "externally consumed support, compatibility, classification, taxonomy, or operator-control contract" in lowered
     assert "direct consumer/operator read-action lifecycle" in lowered
-    assert "same consumer surface observing governed state and performing the governed transition" in lowered
+    assert "same consumer or operator surface observing governed state and performing the governed transition" in lowered
     assert "observed state governing subsequent eligibility, required action, terminal/recovery status" in lowered
     assert "do not require separate producer, storage, or persistence implementation bytes" in lowered
     assert "read-only mirrors, write-only wrappers, ordinary crud/editor surfaces" in lowered
