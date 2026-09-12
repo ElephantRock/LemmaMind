@@ -37,3 +37,10 @@ def test_v18_human_attention_preserves_request_local_trust_boundary_eligibility(
     assert "across a qualifying review-bearing span" in lowered
     assert "stable trust-boundary contracts that may be enforced within one request" in lowered
     assert "when the trust boundary itself is the durable rule" in lowered
+
+
+def test_v18_preserves_behavioral_sourceassertion_eligibility():
+    lowered = MODULE.ATTENTION_V18_RULES.casefold()
+
+    assert "sourceassertion may itself be authoritative when its source is the changed project-state contract" in lowered
+    assert "behavioral contract assertion remains eligible when it itself directly proves the governing rule and changed boundary effect" in lowered
