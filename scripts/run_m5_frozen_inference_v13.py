@@ -133,7 +133,7 @@ def repair_prompt(
             separators=(",", ":"),
             ensure_ascii=False,
         )
-        + ". A support ID rejected on an earlier attempt remains forbidden on every later attempt in this sequence; never regenerate it from memory."
+        + ". a support ID rejected on an earlier attempt remains forbidden on every later attempt in this sequence; never regenerate it from memory."
         if sequence_forbidden
         else "No invalid support ID has been observed earlier in this bounded repair sequence."
     )
