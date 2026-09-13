@@ -196,6 +196,7 @@ jobs:
           url="https://github.com/github/copilot-cli/releases/download/v${M5_COPILOT_VERSION}/copilot-linux-x64.tar.gz"
           mkdir -p "${download_dir}" "${bin_dir}"
           curl --fail --silent --show-error --location \
+            --retry 1 --retry-delay 5 --retry-all-errors \
             --proto '=https' --tlsv1.2 \
             "${url}" \
             --output "${archive}"

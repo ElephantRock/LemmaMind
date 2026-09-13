@@ -26,3 +26,17 @@ def test_v13_workflow_preserves_frozen_provider_serialization_and_worker_limits(
     assert "- repo_key: hermes\n            workers: 2" in section
     assert "COPILOT_PROVIDER_API_KEY: ${{ secrets.M5_BYOK_API_KEY }}" in section
     assert "unset GITHUB_TOKEN GH_TOKEN COPILOT_GITHUB_TOKEN" in section
+
+
+def test_v13_workflow_bounds_copilot_cli_archive_retry_without_weakening_pin():
+    section = _inference_section()
+
+    retry = "--retry 1 --retry-delay 5 --retry-all-errors"
+    assert section.count(retry) == 1
+    assert 'url="https://github.com/github/copilot-cli/releases/download/v${M5_COPILOT_VERSION}/copilot-linux-x64.tar.gz"' in section
+    assert 'printf \'%s  %s\\n\' "${M5_COPILOT_LINUX_X64_SHA256}" "${archive}" | sha256sum --check --strict' in section
+
+    download_index = section.index("curl --fail --silent --show-error --location")
+    checksum_index = section.index("sha256sum --check --strict", download_index)
+    extract_index = section.index('tar -xzf "${archive}"', checksum_index)
+    assert download_index < checksum_index < extract_index
