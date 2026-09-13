@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from threading import local
 
 
 BASE_PATH = Path(__file__).with_name("run_m5_frozen_inference.py")
@@ -18,7 +19,7 @@ RULES = module_from_spec(RULES_SPEC)
 RULES_SPEC.loader.exec_module(RULES)
 
 BASE_ADAPTER_VERSION = BASE.ADAPTER_VERSION
-ADAPTER_VERSION = "zai-glm-5.3.packet-v18"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v18r1"
 ATTENTION_V18_RULES = RULES.ATTENTION_V18_RULES
 REPAIR_V15_RULES = RULES.REPAIR_V15_RULES
 
@@ -45,6 +46,47 @@ support_repair_reference = BASE.support_repair_reference
 _MALFORMED_OUTPUT_PLACEHOLDER = (
     "<malformed provider output omitted; reconstruct a fresh JSON response from the packet>"
 )
+_REPAIR_SEQUENCE = local()
+
+
+def _sequence_forbidden_support_ids(
+    packet: dict,
+    *,
+    previous_output: str,
+    repair_attempt: int,
+) -> dict[str, list[str]]:
+    packet_key = packet.get("candidate_evidence_packet_id")
+    if not isinstance(packet_key, str) or not packet_key:
+        packet_key = BASE.json.dumps(
+            packet,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+
+    if repair_attempt == 1 or getattr(_REPAIR_SEQUENCE, "packet_key", None) != packet_key:
+        _REPAIR_SEQUENCE.packet_key = packet_key
+        _REPAIR_SEQUENCE.forbidden = {}
+
+    support_allowlist = {
+        support_type: sorted(values)
+        for support_type, values in sorted(BASE.allowed_ids(packet).items())
+    }
+    current = BASE.forbidden_support_ids(previous_output, support_allowlist)
+    merged: dict[str, set[str]] = {
+        support_type: set(values)
+        for support_type, values in getattr(_REPAIR_SEQUENCE, "forbidden", {}).items()
+    }
+    for support_type, values in current.items():
+        merged.setdefault(support_type, set()).update(values)
+
+    normalized = {
+        support_type: sorted(values)
+        for support_type, values in sorted(merged.items())
+        if values
+    }
+    _REPAIR_SEQUENCE.forbidden = normalized
+    return normalized
 
 
 def repair_prompt(
@@ -68,7 +110,11 @@ def repair_prompt(
         repair_attempt=repair_attempt,
         semantic_reference=semantic_reference,
     )
-    exact_choices = BASE.semantic_support_choices(packet)
+    sequence_forbidden = _sequence_forbidden_support_ids(
+        packet,
+        previous_output=previous_output,
+        repair_attempt=repair_attempt,
+    )
     mode_note = (
         "The rejected raw response was malformed JSON and has been deliberately omitted; reconstruct from the packet instead of copying broken text."
         if malformed_json
@@ -79,6 +125,19 @@ def repair_prompt(
         if semantic_reference is not None
         else "No semantic lock is available because no complete validated semantic reference has been established."
     )
+    sequence_note = (
+        "Cumulative forbidden support IDs across this bounded repair sequence: "
+        + BASE.json.dumps(
+            sequence_forbidden,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        + ". a support ID rejected on an earlier attempt remains forbidden on every later attempt in this sequence; never regenerate it from memory."
+        if sequence_forbidden
+        else "No invalid support ID has been observed earlier in this bounded repair sequence."
+    )
+    exact_choices = BASE.semantic_support_choices(packet)
     return (
         prompt.rstrip()
         + "\n\n"
@@ -87,6 +146,8 @@ def repair_prompt(
         + mode_note
         + "\n"
         + lock_note
+        + "\n"
+        + sequence_note
         + "\nExact semantic support choices repeated at the final output boundary: "
         + BASE.json.dumps(
             exact_choices,

@@ -25,7 +25,7 @@ def test_v18_layers_one_consolidated_closure_on_exact_v12_controls():
     prompt = MODULE.packet_prompt(packet())
 
     assert MODULE.BASE_ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v18"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v18r1"
     assert MODULE.BASE.ADAPTER_VERSION == MODULE.ADAPTER_VERSION
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
     assert MODULE.MAX_TIMEOUT_RETRIES == 1
@@ -209,6 +209,55 @@ def test_v18_preserves_v15_support_copy_semantic_lock():
     assert "preserve every supplied non-support semantic field exactly" in prompt
     assert "exactly one compact single-line JSON object" in prompt
     assert "Never convert a supported interpretation to decline" in prompt
+
+
+def test_v18r1_keeps_earlier_invalid_support_forbidden_across_repairs():
+    semantic_reference = {
+        "decision": "interpret",
+        "interpretation_types": ["project_state"],
+        "mechanism": "bounded mechanism",
+        "summary": "bounded summary",
+        "uncertainty_notes": [],
+    }
+    first_rejected = MODULE.BASE.json.dumps(
+        {
+            **semantic_reference,
+            "supports": [
+                {
+                    "support_type": "SourceAssertion",
+                    "support_id": "assertion:invented",
+                }
+            ],
+        }
+    )
+    MODULE.repair_prompt(
+        packet(),
+        previous_output=first_rejected,
+        error=ValueError(
+            "support lies outside exact packet: SourceAssertion:assertion:invented"
+        ),
+        repair_attempt=1,
+        semantic_reference=semantic_reference,
+    )
+
+    second_rejected = MODULE.BASE.json.dumps(
+        {
+            **semantic_reference,
+            "supports": [],
+        }
+    )
+    prompt = MODULE.repair_prompt(
+        packet(),
+        previous_output=second_rejected,
+        error=ValueError("supports must be a non-empty list"),
+        repair_attempt=2,
+        semantic_reference=semantic_reference,
+    )
+
+    assert "Cumulative forbidden support IDs across this bounded repair sequence" in prompt
+    assert '"SourceAssertion":["assertion:invented"]' in prompt
+    assert "a support ID rejected on an earlier attempt remains forbidden" in prompt
+    assert '"support_id":"assertion:1","support_type":"SourceAssertion"' in prompt
 
 
 def test_v18_preserves_non_audit_provenance_and_has_no_frozen_target_leakage():
