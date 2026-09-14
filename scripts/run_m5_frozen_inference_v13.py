@@ -101,6 +101,21 @@ def _indexed_semantic_support_choices(packet: dict) -> list[dict]:
     ]
 
 
+def _indexed_repair_validator_contract() -> dict:
+    contract = dict(BASE.repair_validator_contract())
+    contract["interpret_required_fields"] = [
+        "decision",
+        "interpretation_types",
+        "mechanism",
+        "summary",
+        "support_choice_indices",
+    ]
+    contract["interpret_optional_fields"] = ["uncertainty_notes"]
+    contract["support_choice_indices_non_empty_integer_list"] = True
+    contract["supports_field_forbidden_in_index_mode"] = True
+    return contract
+
+
 def normalize(packet: dict, response: dict) -> dict:
     if "support_choice_indices" not in response:
         return _BASE_NORMALIZE(packet, response)
@@ -164,7 +179,7 @@ def repair_prompt(
             "repair_attempt": repair_attempt,
             "repair_protocol_version": REPAIR_PROTOCOL_VERSION,
             "semantic_reference": semantic_reference,
-            "validator_contract": BASE.repair_validator_contract(),
+            "validator_contract": _indexed_repair_validator_contract(),
         }
         return (
             packet_prompt(packet)
