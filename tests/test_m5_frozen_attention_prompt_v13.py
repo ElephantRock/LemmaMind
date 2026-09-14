@@ -25,7 +25,7 @@ def test_v18_layers_one_consolidated_closure_on_exact_v12_controls():
     prompt = MODULE.packet_prompt(packet())
 
     assert MODULE.BASE_ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v18r1"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v18r2"
     assert MODULE.BASE.ADAPTER_VERSION == MODULE.ADAPTER_VERSION
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
     assert MODULE.MAX_TIMEOUT_RETRIES == 1
