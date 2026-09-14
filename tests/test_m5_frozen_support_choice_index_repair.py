@@ -76,7 +76,7 @@ def test_index_mode_is_repair_only_and_bounds_checked():
 
 def test_frozen_controls_and_first_pass_are_unchanged():
     first_pass = MODULE.packet_prompt(packet()).casefold()
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v18r1"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v18r2"
     assert MODULE.BASE_ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
     assert MODULE.MAX_TIMEOUT_RETRIES == 1
