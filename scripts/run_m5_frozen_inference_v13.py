@@ -197,7 +197,7 @@ def repair_prompt(
             + "\nReturn exactly the semantic_reference fields plus support_choice_indices, where support_choice_indices is a non-empty JSON array of integer choice_index values copied from exact_semantic_support_choices_by_index."
             + "\nChoose only entries that directly support the preserved bounded mechanism. Prefer exactly one choice when one is sufficient. The deterministic adapter will copy the selected exact support objects after parsing the indices."
             + "\nNever derive, regenerate, shorten, complete, or invent a support ID. If no listed semantic choice directly supports the preserved interpretation, return an empty support_choice_indices array so deterministic validation rejects the repair instead of silently reclassifying it."
-            + "\nCumulative forbidden support IDs are diagnostic only in index mode; never reproduce them."
+            + "\nCumulative forbidden support IDs across this bounded repair sequence are listed in forbidden_support_ids; in index mode they are diagnostic only and must never be reproduced."
             + "\nReturn exactly one complete compact single-line JSON object."
         )
 
