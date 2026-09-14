@@ -19,7 +19,8 @@ RULES = module_from_spec(RULES_SPEC)
 RULES_SPEC.loader.exec_module(RULES)
 
 BASE_ADAPTER_VERSION = BASE.ADAPTER_VERSION
-ADAPTER_VERSION = "zai-glm-5.3.packet-v18r2"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v18r1"
+REPAIR_PROTOCOL_VERSION = "support-choice-index-v1"
 ATTENTION_V18_RULES = RULES.ATTENTION_V18_RULES
 REPAIR_V15_RULES = RULES.REPAIR_V15_RULES
 
@@ -161,6 +162,7 @@ def repair_prompt(
             "exact_semantic_support_choices_by_index": _indexed_semantic_support_choices(packet),
             "forbidden_support_ids": sequence_forbidden,
             "repair_attempt": repair_attempt,
+            "repair_protocol_version": REPAIR_PROTOCOL_VERSION,
             "semantic_reference": semantic_reference,
             "validator_contract": BASE.repair_validator_contract(),
         }
