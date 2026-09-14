@@ -53,6 +53,8 @@ def test_repair_prompt_uses_indexed_support_choices():
     assert "support_choice_indices" in prompt
     assert '"choice_index":1' in prompt
     assert '"choice_index":2' in prompt
+    assert '"supports_field_forbidden_in_index_mode":true' in prompt
+    assert '"interpret_required_fields":["decision","interpretation_types","mechanism","summary","support_choice_indices"]' in prompt
 
 
 def test_index_maps_to_exact_support_object():
