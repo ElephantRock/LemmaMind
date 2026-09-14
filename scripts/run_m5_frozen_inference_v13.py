@@ -19,7 +19,7 @@ RULES = module_from_spec(RULES_SPEC)
 RULES_SPEC.loader.exec_module(RULES)
 
 BASE_ADAPTER_VERSION = BASE.ADAPTER_VERSION
-ADAPTER_VERSION = "zai-glm-5.3.packet-v18r1"
+ADAPTER_VERSION = "zai-glm-5.3.packet-v18r2"
 ATTENTION_V18_RULES = RULES.ATTENTION_V18_RULES
 REPAIR_V15_RULES = RULES.REPAIR_V15_RULES
 
@@ -39,7 +39,7 @@ MAX_SEMANTIC_REPAIRS = BASE.MAX_SEMANTIC_REPAIRS
 MAX_INFERENCE_WORKERS = BASE.MAX_INFERENCE_WORKERS
 packet_prompt = BASE.packet_prompt
 _BASE_REPAIR_PROMPT = BASE.repair_prompt
-normalize = BASE.normalize
+_BASE_NORMALIZE = BASE.normalize
 semantic_reference_fields = BASE.semantic_reference_fields
 support_repair_reference = BASE.support_repair_reference
 
@@ -49,21 +49,25 @@ _MALFORMED_OUTPUT_PLACEHOLDER = (
 _REPAIR_SEQUENCE = local()
 
 
+def _packet_key(packet: dict) -> str:
+    packet_key = packet.get("candidate_evidence_packet_id")
+    if isinstance(packet_key, str) and packet_key:
+        return packet_key
+    return BASE.json.dumps(
+        packet,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+
 def _sequence_forbidden_support_ids(
     packet: dict,
     *,
     previous_output: str,
     repair_attempt: int,
 ) -> dict[str, list[str]]:
-    packet_key = packet.get("candidate_evidence_packet_id")
-    if not isinstance(packet_key, str) or not packet_key:
-        packet_key = BASE.json.dumps(
-            packet,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        )
-
+    packet_key = _packet_key(packet)
     if repair_attempt == 1 or getattr(_REPAIR_SEQUENCE, "packet_key", None) != packet_key:
         _REPAIR_SEQUENCE.packet_key = packet_key
         _REPAIR_SEQUENCE.forbidden = {}
@@ -89,6 +93,50 @@ def _sequence_forbidden_support_ids(
     return normalized
 
 
+def _indexed_semantic_support_choices(packet: dict) -> list[dict]:
+    return [
+        {"choice_index": index, **choice}
+        for index, choice in enumerate(BASE.semantic_support_choices(packet), start=1)
+    ]
+
+
+def normalize(packet: dict, response: dict) -> dict:
+    if "support_choice_indices" not in response:
+        return _BASE_NORMALIZE(packet, response)
+
+    packet_key = _packet_key(packet)
+    if getattr(_REPAIR_SEQUENCE, "choice_packet_key", None) != packet_key:
+        raise ValueError("support_choice_indices are allowed only during semantic-lock repair")
+    if "supports" in response:
+        raise ValueError("semantic-lock support-choice repair must not include supports")
+
+    indices = response.get("support_choice_indices")
+    if (
+        not isinstance(indices, list)
+        or not indices
+        or any(isinstance(index, bool) or not isinstance(index, int) for index in indices)
+    ):
+        raise ValueError("support_choice_indices must be a non-empty integer list")
+
+    choices = BASE.semantic_support_choices(packet)
+    selected: list[dict[str, str]] = []
+    seen: set[int] = set()
+    for index in indices:
+        if index < 1 or index > len(choices):
+            raise ValueError(f"support choice index lies outside exact choices: {index}")
+        if index in seen:
+            continue
+        seen.add(index)
+        selected.append(choices[index - 1])
+
+    translated = dict(response)
+    translated.pop("support_choice_indices")
+    translated["supports"] = selected
+    result = _BASE_NORMALIZE(packet, translated)
+    _REPAIR_SEQUENCE.choice_packet_key = None
+    return result
+
+
 def repair_prompt(
     packet: dict,
     *,
@@ -100,6 +148,42 @@ def repair_prompt(
     malformed_json = semantic_reference is None and isinstance(
         error, BASE.json.JSONDecodeError
     )
+    sequence_forbidden = _sequence_forbidden_support_ids(
+        packet,
+        previous_output=previous_output,
+        repair_attempt=repair_attempt,
+    )
+
+    if semantic_reference is not None:
+        _REPAIR_SEQUENCE.choice_packet_key = _packet_key(packet)
+        repair_context = {
+            "adapter_error": str(error),
+            "exact_semantic_support_choices_by_index": _indexed_semantic_support_choices(packet),
+            "forbidden_support_ids": sequence_forbidden,
+            "repair_attempt": repair_attempt,
+            "semantic_reference": semantic_reference,
+            "validator_contract": BASE.repair_validator_contract(),
+        }
+        return (
+            packet_prompt(packet)
+            + "\n\nDeterministic adapter repair context:\n"
+            + BASE.json.dumps(
+                repair_context,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+            + "\n"
+            + REPAIR_V15_RULES.strip()
+            + "\nSemantic-lock mode is active: reproduce semantic_reference fields exactly and do not re-evaluate, broaden, narrow, or rewrite them."
+            + "\nSupport-choice index mode is active only for this bounded repair. Do not output support IDs and do not output a supports field."
+            + "\nReturn exactly the semantic_reference fields plus support_choice_indices, where support_choice_indices is a non-empty JSON array of integer choice_index values copied from exact_semantic_support_choices_by_index."
+            + "\nChoose only entries that directly support the preserved bounded mechanism. Prefer exactly one choice when one is sufficient. The deterministic adapter will copy the selected exact support objects after parsing the indices."
+            + "\nNever derive, regenerate, shorten, complete, or invent a support ID. If no listed semantic choice directly supports the preserved interpretation, return an empty support_choice_indices array so deterministic validation rejects the repair instead of silently reclassifying it."
+            + "\nCumulative forbidden support IDs are diagnostic only in index mode; never reproduce them."
+            + "\nReturn exactly one complete compact single-line JSON object."
+        )
+
     repair_previous_output = (
         _MALFORMED_OUTPUT_PLACEHOLDER if malformed_json else previous_output
     )
@@ -108,22 +192,12 @@ def repair_prompt(
         previous_output=repair_previous_output,
         error=error,
         repair_attempt=repair_attempt,
-        semantic_reference=semantic_reference,
-    )
-    sequence_forbidden = _sequence_forbidden_support_ids(
-        packet,
-        previous_output=previous_output,
-        repair_attempt=repair_attempt,
+        semantic_reference=None,
     )
     mode_note = (
         "The rejected raw response was malformed JSON and has been deliberately omitted; reconstruct from the packet instead of copying broken text."
         if malformed_json
         else "The rejected response remains available only under the base deterministic repair contract."
-    )
-    lock_note = (
-        "Semantic-lock mode is active: reproduce semantic_reference fields exactly and change only supports plus JSON serialization."
-        if semantic_reference is not None
-        else "No semantic lock is available because no complete validated semantic reference has been established."
     )
     sequence_note = (
         "Cumulative forbidden support IDs across this bounded repair sequence: "
@@ -144,8 +218,7 @@ def repair_prompt(
         + REPAIR_V15_RULES.strip()
         + "\n"
         + mode_note
-        + "\n"
-        + lock_note
+        + "\nNo semantic lock is available because no complete validated semantic reference has been established."
         + "\n"
         + sequence_note
         + "\nExact semantic support choices repeated at the final output boundary: "
@@ -159,6 +232,7 @@ def repair_prompt(
     )
 
 
+BASE.normalize = normalize
 BASE.repair_prompt = repair_prompt
 infer_packet = BASE.infer_packet
 infer_packets = BASE.infer_packets
