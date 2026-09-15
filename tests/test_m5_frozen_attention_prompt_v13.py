@@ -25,7 +25,7 @@ def test_v18_layers_one_consolidated_closure_on_exact_v12_controls():
     prompt = MODULE.packet_prompt(packet())
 
     assert MODULE.BASE_ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v18r2"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v19"
     assert MODULE.BASE.ADAPTER_VERSION == MODULE.ADAPTER_VERSION
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
     assert MODULE.MAX_TIMEOUT_RETRIES == 1
@@ -35,6 +35,8 @@ def test_v18_layers_one_consolidated_closure_on_exact_v12_controls():
 
     lowered = prompt.casefold()
     assert "v18 five-test decision-closure contract" in lowered
+    assert "v19 machine-readable decision-proof contract" in lowered
+    assert "decision_proof" in lowered
     assert "v13 attention-calibration clarification" not in lowered
     assert "v14 independent-boundary clarification" not in lowered
     assert "v16 evidence-role and conjunct-proof clarification" not in lowered
@@ -136,6 +138,28 @@ def test_v18_closes_specific_types_without_using_type_as_eligibility():
     assert "use generic introduction or modification only when no more specific qualifying type" in lowered
 
 
+def test_v19_requires_exact_five_test_machine_readable_witness_ledger():
+    lowered = MODULE.DECISION_PROOF_V19_RULES.casefold()
+
+    assert MODULE.DECISION_PROOF_PROTOCOL_VERSION == "five-test-exact-witness-v1"
+    assert MODULE.DECISION_PROOF_TESTS == (
+        "mechanism",
+        "review_span",
+        "review_leverage",
+        "durable_knowledge",
+        "boundary_effect",
+    )
+    assert "decision-proof ledger rule" in lowered
+    assert "exactly these five keys" in lowered
+    assert "status must be the literal string proven" in lowered
+    assert "exact structuraldelta or sourceassertion support objects" in lowered
+    assert "same exact packet support may witness more than one test" in lowered
+    assert "if any one of the five tests lacks an exact in-packet witness" in lowered
+    assert "return decline" in lowered
+    assert "uncertainty consistency rule" in lowered
+    assert "does not change v18 evidence eligibility" in lowered
+
+
 def test_v18_preserves_v15_repair_as_repair_only():
     lowered = MODULE.REPAIR_V15_RULES.casefold()
 
@@ -172,6 +196,7 @@ def test_v18_preserves_v15_malformed_json_repair_behavior():
     assert "Return exactly one complete compact single-line JSON object" in prompt
     assert '"support_id":"assertion:1","support_type":"SourceAssertion"' in prompt
     assert '"support_id":"structural-delta:1","support_type":"StructuralDelta"' in prompt
+    assert "Decision-proof ledger remains required" in prompt
 
 
 def test_v18_preserves_v15_support_copy_semantic_lock():
@@ -181,6 +206,15 @@ def test_v18_preserves_v15_support_copy_semantic_lock():
         "mechanism": "bounded mechanism",
         "summary": "bounded summary",
         "uncertainty_notes": [],
+        "decision_proof": {
+            test_name: {
+                "status": "proven",
+                "supports": [
+                    {"support_type": "SourceAssertion", "support_id": "assertion:1"}
+                ],
+            }
+            for test_name in MODULE.DECISION_PROOF_TESTS
+        },
     }
     rejected = MODULE.BASE.json.dumps(
         {
@@ -206,6 +240,7 @@ def test_v18_preserves_v15_support_copy_semantic_lock():
     assert '"semantic_reference"' in prompt
     assert rejected not in prompt
     assert "Semantic-lock mode is active" in prompt
+    assert "including decision_proof" in prompt
     assert "preserve every supplied non-support semantic field exactly" in prompt
     assert "exactly one compact single-line JSON object" in prompt
     assert "Never convert a supported interpretation to decline" in prompt
@@ -218,6 +253,15 @@ def test_v18r1_keeps_earlier_invalid_support_forbidden_across_repairs():
         "mechanism": "bounded mechanism",
         "summary": "bounded summary",
         "uncertainty_notes": [],
+        "decision_proof": {
+            test_name: {
+                "status": "proven",
+                "supports": [
+                    {"support_type": "SourceAssertion", "support_id": "assertion:1"}
+                ],
+            }
+            for test_name in MODULE.DECISION_PROOF_TESTS
+        },
     }
     first_rejected = MODULE.BASE.json.dumps(
         {
@@ -268,7 +312,13 @@ def test_v18_preserves_non_audit_provenance_and_has_no_frozen_target_leakage():
         "docs:M5-CHANGE-SIGNAL-NEXT-SLICE",
     )
 
-    lowered = (MODULE.ATTENTION_V18_RULES + "\n" + MODULE.REPAIR_V15_RULES).casefold()
+    lowered = (
+        MODULE.ATTENTION_V18_RULES
+        + "\n"
+        + MODULE.DECISION_PROOF_V19_RULES
+        + "\n"
+        + MODULE.REPAIR_V15_RULES
+    ).casefold()
     forbidden_frozen_material = (
         "copilotkit/openbot",
         "openclaw/openclaw",

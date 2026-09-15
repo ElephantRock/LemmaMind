@@ -21,6 +21,14 @@ def packet(packet_id="packet:test"):
     }
 
 
+def decision_proof():
+    witness = {"support_type": "SourceAssertion", "support_id": "assertion:1"}
+    return {
+        test_name: {"status": "proven", "supports": [witness]}
+        for test_name in MODULE.DECISION_PROOF_TESTS
+    }
+
+
 def reference():
     return {
         "decision": "interpret",
@@ -28,6 +36,7 @@ def reference():
         "mechanism": "bounded mechanism",
         "summary": "bounded summary",
         "uncertainty_notes": [],
+        "decision_proof": decision_proof(),
     }
 
 
@@ -50,19 +59,23 @@ def test_repair_prompt_uses_indexed_support_choices():
         semantic_reference=reference(),
     )
     assert MODULE.REPAIR_PROTOCOL_VERSION == "support-choice-index-v1"
+    assert MODULE.DECISION_PROOF_PROTOCOL_VERSION == "five-test-exact-witness-v1"
     assert "support_choice_indices" in prompt
     assert '"choice_index":1' in prompt
     assert '"choice_index":2' in prompt
     assert '"supports_field_forbidden_in_index_mode":true' in prompt
-    assert '"interpret_required_fields":["decision","interpretation_types","mechanism","summary","support_choice_indices"]' in prompt
+    assert '"interpret_required_fields":["decision","interpretation_types","mechanism","summary","decision_proof","support_choice_indices"]' in prompt
+    assert '"decision_proof_exact_tests":["mechanism","review_span","review_leverage","durable_knowledge","boundary_effect"]' in prompt
 
 
-def test_index_maps_to_exact_support_object():
+def test_index_maps_to_exact_support_object_and_preserves_proof():
     activate_choice_mode()
     result = MODULE.normalize(packet(), {**reference(), "support_choice_indices": [2]})
     assert result["proposal"]["supports"] == [
         {"support_type": "StructuralDelta", "support_id": "structural-delta:1"}
     ]
+    assert result["decision_proof"] == decision_proof()
+    assert "decision_proof" not in result["proposal"]
 
 
 def test_index_mode_is_repair_only_and_bounds_checked():
@@ -74,12 +87,13 @@ def test_index_mode_is_repair_only_and_bounds_checked():
         MODULE.normalize(packet(), {**reference(), "support_choice_indices": [3]})
 
 
-def test_frozen_controls_and_first_pass_are_unchanged():
+def test_frozen_controls_and_first_pass_keep_index_mode_repair_only():
     first_pass = MODULE.packet_prompt(packet()).casefold()
-    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v18r2"
+    assert MODULE.ADAPTER_VERSION == "zai-glm-5.3.packet-v19"
     assert MODULE.BASE_ADAPTER_VERSION == "zai-glm-5.3.packet-v12"
     assert MODULE.INVOKE_TIMEOUT_SECONDS == 600
     assert MODULE.MAX_TIMEOUT_RETRIES == 1
     assert MODULE.MAX_SEMANTIC_REPAIRS == 2
     assert MODULE.MAX_INFERENCE_WORKERS == 2
     assert "support_choice_indices" not in first_pass
+    assert "decision_proof" in first_pass
