@@ -119,8 +119,7 @@ def _indexed_semantic_support_choices(packet: dict) -> list[dict]:
     ]
 
 
-def _normalize_decision_proof(packet: dict, response: dict) -> dict[str, dict]:
-    proof = response.get("decision_proof")
+def _canonicalize_decision_proof_shape(proof: object) -> dict[str, dict]:
     if not isinstance(proof, dict):
         raise ValueError("decision_proof must be an object for decision=interpret")
     if set(proof) != set(DECISION_PROOF_TESTS):
@@ -128,10 +127,6 @@ def _normalize_decision_proof(packet: dict, response: dict) -> dict[str, dict]:
             "decision_proof must contain exactly the five review-worthiness tests"
         )
 
-    exact_semantic = {
-        (item["support_type"], item["support_id"])
-        for item in BASE.semantic_support_choices(packet)
-    }
     normalized: dict[str, dict] = {}
     for test_name in DECISION_PROOF_TESTS:
         entry = proof[test_name]
@@ -158,12 +153,7 @@ def _normalize_decision_proof(packet: dict, response: dict) -> dict[str, dict]:
                 raise ValueError(
                     f"decision_proof.{test_name} support values must be strings"
                 )
-            key = (support_type, support_id)
-            if key not in exact_semantic:
-                raise ValueError(
-                    f"decision_proof.{test_name} witness lies outside exact semantic packet support: {support_type}:{support_id}"
-                )
-            selected[key] = {
+            selected[(support_type, support_id)] = {
                 "support_type": support_type,
                 "support_id": support_id,
             }
@@ -171,6 +161,22 @@ def _normalize_decision_proof(packet: dict, response: dict) -> dict[str, dict]:
             "status": "proven",
             "supports": [selected[key] for key in sorted(selected)],
         }
+    return normalized
+
+
+def _normalize_decision_proof(packet: dict, response: dict) -> dict[str, dict]:
+    normalized = _canonicalize_decision_proof_shape(response.get("decision_proof"))
+    exact_semantic = {
+        (item["support_type"], item["support_id"])
+        for item in BASE.semantic_support_choices(packet)
+    }
+    for test_name, entry in normalized.items():
+        for support in entry["supports"]:
+            key = (support["support_type"], support["support_id"])
+            if key not in exact_semantic:
+                raise ValueError(
+                    f"decision_proof.{test_name} witness lies outside exact semantic packet support: {key[0]}:{key[1]}"
+                )
     return normalized
 
 
@@ -205,7 +211,17 @@ def semantic_reference_fields(value: dict) -> dict | None:
     )
     if any(field not in value for field in required_semantic_fields):
         return None
-    reference = {field: value[field] for field in required_semantic_fields}
+    try:
+        decision_proof = _canonicalize_decision_proof_shape(value["decision_proof"])
+    except ValueError:
+        return None
+    reference = {
+        "decision": value["decision"],
+        "interpretation_types": value["interpretation_types"],
+        "mechanism": value["mechanism"],
+        "summary": value["summary"],
+        "decision_proof": decision_proof,
+    }
     if "uncertainty_notes" in value:
         reference["uncertainty_notes"] = value["uncertainty_notes"]
     return reference
@@ -224,6 +240,9 @@ def _indexed_repair_validator_contract() -> dict:
     contract["interpret_optional_fields"] = ["uncertainty_notes"]
     contract["support_choice_indices_non_empty_integer_list"] = True
     contract["supports_field_forbidden_in_index_mode"] = True
+    contract["supports_field_forbidden_in_index_mode_scope"] = (
+        "top-level proposal supports only; decision_proof.*.supports remain required"
+    )
     return contract
 
 
@@ -314,7 +333,7 @@ def repair_prompt(
             + "\n"
             + REPAIR_V15_RULES.strip()
             + "\nSemantic-lock mode is active: reproduce semantic_reference fields exactly, including decision_proof, and do not re-evaluate, broaden, narrow, or rewrite them."
-            + "\nSupport-choice index mode is active only for this bounded repair. Do not output support IDs for the proposal supports field and do not output a proposal supports field. Exact support objects inside the preserved decision_proof must remain unchanged."
+            + "\nSupport-choice index mode is active only for this bounded repair. Do not output support IDs for the proposal supports field and do not output a proposal supports field. Exact support objects inside the preserved decision_proof must remain unchanged in meaning; object-key order and duplicate/order normalization are adapter-canonicalized."
             + "\nReturn exactly the semantic_reference fields plus support_choice_indices, where support_choice_indices is a non-empty JSON array of integer choice_index values copied from exact_semantic_support_choices_by_index."
             + "\nChoose only entries that directly support the preserved bounded mechanism. Prefer exactly one choice when one is sufficient. The deterministic adapter will copy the selected exact support objects after parsing the indices."
             + "\nNever derive, regenerate, shorten, complete, or invent a support ID. If no listed semantic choice directly supports the preserved interpretation, return an empty support_choice_indices array so deterministic validation rejects the repair instead of silently reclassifying it."
