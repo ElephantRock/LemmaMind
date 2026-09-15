@@ -110,6 +110,39 @@ def test_v19_semantic_reference_locks_decision_proof_for_support_repair():
     assert "supports" not in reference
 
 
+def test_v19_semantic_reference_canonicalizes_proof_support_order_and_duplicates():
+    mixed_entry = {
+        "status": "proven",
+        "supports": [
+            witness("StructuralDelta", "structural-delta:1"),
+            witness(),
+            witness("StructuralDelta", "structural-delta:1"),
+        ],
+    }
+    value = response(proof(mixed_entry))
+    value["supports"] = []
+    reference = MODULE.semantic_reference_fields(value)
+    assert reference is not None
+
+    expected_supports = [
+        witness(),
+        witness("StructuralDelta", "structural-delta:1"),
+    ]
+    for test_name in MODULE.DECISION_PROOF_TESTS:
+        assert reference["decision_proof"][test_name]["supports"] == expected_supports
+
+    reordered = response(
+        proof(
+            {
+                "status": "proven",
+                "supports": list(reversed(expected_supports)),
+            }
+        )
+    )
+    reordered["supports"] = []
+    assert MODULE.semantic_reference_fields(reordered) == reference
+
+
 def test_v19_repair_validator_contract_exposes_only_existing_five_tests():
     contract = MODULE.repair_validator_contract()
 
